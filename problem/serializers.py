@@ -126,6 +126,19 @@ class ProblemSerializer(BaseProblemSerializer):
                    "spj_code", "spj_version", "spj_compile_ok")
 
 
+class ProblemListSerializer(BaseProblemSerializer):
+    template = serializers.SerializerMethodField("get_public_template")
+
+    class Meta:
+        model = Problem
+        exclude = ("test_case_score", "test_case_id", "visible", "is_public",
+                   "spj_code", "spj_version", "spj_compile_ok", "description", 
+                   "input_description", "output_description", "samples", "hint",
+                   "source", "spj", "spj_language", "time_limit", "memory_limit",
+                   "io_mode", "create_time", "languages", "last_update_time",
+                   "total_score", "statistic_info", "share_submission")
+
+
 class ProblemSafeSerializer(BaseProblemSerializer):
     template = serializers.SerializerMethodField("get_public_template")
 
@@ -203,7 +216,7 @@ class AddContestProblemSerializer(serializers.Serializer):
     display_id = serializers.CharField()
 
 
-class ExportProblemRequestSerialzier(serializers.Serializer):
+class ExportProblemRequestSerializer(serializers.Serializer):
     problem_id = serializers.ListField(child=serializers.IntegerField(), allow_empty=False)
 
 

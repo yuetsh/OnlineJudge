@@ -26,7 +26,7 @@ from ..serializers import (CreateContestProblemSerializer, CompileSPJSerializer,
                            CreateProblemSerializer, EditProblemSerializer, EditContestProblemSerializer,
                            ProblemAdminSerializer, TestCaseUploadForm, ContestProblemMakePublicSerializer,
                            AddContestProblemSerializer, ExportProblemSerializer,
-                           ExportProblemRequestSerialzier, UploadProblemForm, ImportProblemSerializer,
+                           ExportProblemRequestSerializer, UploadProblemForm, ImportProblemSerializer,
                            FPSProblemSerializer)
 from ..utils import TEMPLATE_BASE, build_problem_template
 
@@ -527,7 +527,7 @@ class ExportProblemAPI(APIView):
                                arcname=f"{index}/testcase/{v['output_name']}",
                                compress_type=compression)
 
-    @validate_serializer(ExportProblemRequestSerialzier)
+    @validate_serializer(ExportProblemRequestSerializer)
     def get(self, request):
         problems = Problem.objects.filter(id__in=request.data["problem_id"])
         for problem in problems:

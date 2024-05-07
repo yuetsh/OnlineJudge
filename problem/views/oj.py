@@ -3,7 +3,7 @@ from django.db.models import Q, Count
 from utils.api import APIView
 from account.decorators import check_contest_permission
 from ..models import ProblemTag, Problem, ProblemRuleType
-from ..serializers import ProblemSerializer, TagSerializer, ProblemSafeSerializer
+from ..serializers import ProblemSerializer, TagSerializer, ProblemSafeSerializer, ProblemListSerializer
 from contest.models import ContestRuleType
 
 
@@ -62,7 +62,7 @@ class ProblemAPI(APIView):
         if not limit:
             return self.error("Limit is needed")
 
-        problems = Problem.objects.select_related("created_by").filter(contest_id__isnull=True, visible=True)
+        problems = Problem.objects.select_related("created_by").filter(contest_id__isnull=True, visible=True).order_by("-create_time")
         # 按照标签筛选
         tag_text = request.GET.get("tag")
         if tag_text:
@@ -78,7 +78,7 @@ class ProblemAPI(APIView):
         if difficulty:
             problems = problems.filter(difficulty=difficulty)
         # 根据profile 为做过的题目添加标记
-        data = self.paginate_data(request, problems, ProblemSerializer)
+        data = self.paginate_data(request, problems, ProblemListSerializer)
         self._add_problem_status(request, data)
         return self.success(data)
 
@@ -113,7 +113,7 @@ class ContestProblemAPI(APIView):
 
         contest_problems = Problem.objects.select_related("created_by").filter(contest=self.contest, visible=True)
         if self.contest.problem_details_permission(request.user):
-            data = ProblemSerializer(contest_problems, many=True).data
+            data = ProblemListSerializer(contest_problems, many=True).data
             self._add_problem_status(request, data)
         else:
             data = ProblemSafeSerializer(contest_problems, many=True).data
