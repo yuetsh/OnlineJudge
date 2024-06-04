@@ -4,6 +4,7 @@ from judge.tasks import judge_task
 from utils.api import APIView
 from ..models import Submission, JudgeStatus
 from problem.models import Problem
+from django.db.models import Count, Q
 
 
 class SubmissionRejudgeAPI(APIView):
@@ -49,17 +50,29 @@ class SubmissionStatisticsAPI(APIView):
         if username:
             submissions = submissions.filter(username__icontains=username)
         
-        total_count = submissions.count()
+        submission_count = submissions.count()
         accepted_count = submissions.filter(result=JudgeStatus.ACCEPTED).count()
         
         try:
-            correct_rate = round(accepted_count/total_count*100, 2)
+            correct_rate = round(accepted_count/submission_count*100, 2)
         except ZeroDivisionError:
             correct_rate = 0
 
+        counts = submissions.values("username").annotate(submission_count=Count("id", distinct=True),
+                                      accepted_count=Count("id", filter=Q(result=JudgeStatus.ACCEPTED), distinct=True),
+                                      ).order_by("-submission_count")
+        
+        data = []
+        for item in counts:
+            if item["accepted_count"] > 0:
+                rate = round(item["accepted_count"]/item["submission_count"]*100, 2)
+                item["correct_rate"] = f"{rate}%"
+                data.append(item)
+        
         return self.success({
-            "submission_count": total_count,
+            "submission_count": submission_count,
             "accepted_count": accepted_count,
             "correct_rate": f"{correct_rate}%",
+            "data": data,
         })
         
