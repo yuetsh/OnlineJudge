@@ -3,6 +3,7 @@ from judge.tasks import judge_task
 # from judge.dispatcher import JudgeDispatcher
 from utils.api import APIView
 from ..models import Submission, JudgeStatus
+from account.models import User, AdminType
 from problem.models import Problem
 from django.db.models import Count, Q
 
@@ -47,9 +48,14 @@ class SubmissionStatisticsAPI(APIView):
         
         username = request.GET.get("username")
         
+        # 统计人数
+        person_count = 0
         if username:
             submissions = submissions.filter(username__icontains=username)
-        
+            person_count = User.objects.filter(username__icontains=username,
+                                               is_disabled=False,
+                                               admin_type=AdminType.REGULAR_USER).count()
+
         submission_count = submissions.count()
         accepted_count = submissions.filter(result=JudgeStatus.ACCEPTED).count()
         
@@ -69,10 +75,23 @@ class SubmissionStatisticsAPI(APIView):
                 item["correct_rate"] = f"{rate}%"
                 data.append(item)
         
+        # 统计人数完成率
+        person_rate = 0
+        if person_count:
+            person_rate = round(len(data)/person_count*100, 2)
+            # 下面是做一些超出 100% 的操作，比如有人已经删号了，但是提交记录还在
+            if person_rate >= 100:
+                person_rate = 100
+            # 搜出来的人数比提交人数还多的情况
+            if person_count < len(data):
+                person_count = len(data)
+
         return self.success({
             "submission_count": submission_count,
             "accepted_count": accepted_count,
             "correct_rate": f"{correct_rate}%",
+            "person_count": person_count,
+            "person_rate": f"{person_rate}%",
             "data": data,
         })
         
