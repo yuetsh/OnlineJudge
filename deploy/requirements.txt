@@ -3,7 +3,7 @@ django-cas-ng==5.0.1
 django-dbconn-retry==0.1.7
 django-dramatiq==0.11.6
 django-redis==5.4.0
-Django==3.2.25
+Django==5.0.6
 djangorestframework==3.15.1
 dramatiq==1.17.0
 entrypoints==0.4
@@ -15,8 +15,10 @@ gunicorn==22.0.0
 jsonfield==3.1.0
 otpauth==1.0.1
 pillow==10.2.0
-psycopg2==2.9.9
+psycopg==3.1.19
+psycopg-binary==3.1.19
 python-dateutil==2.8.2
+pytz==2024.1
 qrcode==7.4.2
 raven==6.10.0
 XlsxWriter==3.2.0
