@@ -135,7 +135,7 @@ class ProblemListSerializer(BaseProblemSerializer):
     class Meta:
         model = Problem
         fields = ["id", "_id", "title", "submission_number", "accepted_number",
-                  "difficulty", "created_by", "tags"]
+                  "difficulty", "created_by", "tags", "contest", "rule_type"]
 
 
 class ProblemSafeSerializer(BaseProblemSerializer):
