@@ -376,18 +376,21 @@ class SessionManagementAPI(APIView):
 class UserRankAPI(APIView):
     def get(self, request):
         rule_type = request.GET.get("rule")
-        username = request.GET.get("username")
-        n = request.GET.get("n")
-        if not username:
-            username = ""
+        username = request.GET.get("username", "")
+        try:
+            n = int(request.GET.get("n", "0"))
+        except ValueError:
+            n = 0
         if rule_type not in ContestRuleType.choices():
             rule_type = ContestRuleType.ACM
         profiles = UserProfile.objects.filter(user__admin_type=AdminType.REGULAR_USER, user__is_disabled=False,\
                                               user__username__icontains=username).select_related("user")
         if rule_type == ContestRuleType.ACM:
-            profiles = profiles.filter(accepted_number__gte=n).order_by("-accepted_number", "submission_number")
+            profiles = profiles.filter(accepted_number__gte=0).order_by("-accepted_number", "submission_number")
         else:
             profiles = profiles.filter(total_score__gt=0).order_by("-total_score")
+        if n>0:
+            profiles = profiles[:n]
         return self.success(self.paginate_data(request, profiles, RankInfoSerializer))
 
 
