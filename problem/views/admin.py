@@ -24,8 +24,8 @@ from utils.tasks import delete_files
 from ..models import Problem, ProblemRuleType, ProblemTag
 from ..serializers import (CreateContestProblemSerializer, CompileSPJSerializer,
                            CreateProblemSerializer, EditProblemSerializer, EditContestProblemSerializer,
-                           ProblemAdminSerializer, TestCaseUploadForm, ContestProblemMakePublicSerializer,
-                           AddContestProblemSerializer, ExportProblemSerializer,
+                           ProblemAdminSerializer, ProblemAdminListSerializer, TestCaseUploadForm,
+                           ContestProblemMakePublicSerializer, AddContestProblemSerializer, ExportProblemSerializer,
                            ExportProblemRequestSerializer, UploadProblemForm, ImportProblemSerializer,
                            FPSProblemSerializer)
 from ..utils import TEMPLATE_BASE, build_problem_template
@@ -249,7 +249,7 @@ class ProblemAPI(ProblemBase):
             problems = problems.filter(Q(title__icontains=keyword) | Q(_id__icontains=keyword))
         if not user.can_mgmt_all_problem():
             problems = problems.filter(created_by=user)
-        return self.success(self.paginate_data(request, problems, ProblemAdminSerializer))
+        return self.success(self.paginate_data(request, problems, ProblemAdminListSerializer))
 
     @problem_permission_required
     @validate_serializer(EditProblemSerializer)
@@ -370,7 +370,7 @@ class ContestProblemAPI(ProblemBase):
         keyword = request.GET.get("keyword")
         if keyword:
             problems = problems.filter(title__contains=keyword)
-        return self.success(self.paginate_data(request, problems, ProblemAdminSerializer))
+        return self.success(self.paginate_data(request, problems, ProblemAdminListSerializer))
 
     @validate_serializer(EditContestProblemSerializer)
     def put(self, request):

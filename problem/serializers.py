@@ -116,6 +116,11 @@ class ProblemAdminSerializer(BaseProblemSerializer):
         model = Problem
         fields = "__all__"
 
+class ProblemAdminListSerializer(BaseProblemSerializer):
+    class Meta:
+        model = Problem
+        fields = ["_id", "id", "title", "created_by", "visible", "create_time"]
+
 
 class ProblemSerializer(BaseProblemSerializer):
     template = serializers.SerializerMethodField("get_public_template")
@@ -127,16 +132,10 @@ class ProblemSerializer(BaseProblemSerializer):
 
 
 class ProblemListSerializer(BaseProblemSerializer):
-    template = serializers.SerializerMethodField("get_public_template")
-
     class Meta:
         model = Problem
-        exclude = ("test_case_score", "test_case_id", "visible", "is_public",
-                   "spj_code", "spj_version", "spj_compile_ok", "description", 
-                   "input_description", "output_description", "samples", "hint",
-                   "source", "spj", "spj_language", "time_limit", "memory_limit",
-                   "io_mode", "create_time", "languages", "last_update_time",
-                   "total_score", "statistic_info", "share_submission")
+        fields = ["id", "_id", "title", "submission_number", "accepted_number",
+                  "difficulty", "created_by", "tags"]
 
 
 class ProblemSafeSerializer(BaseProblemSerializer):

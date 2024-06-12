@@ -18,6 +18,14 @@ class AnnouncementSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
+class AnnouncementListSerializer(serializers.ModelSerializer):
+    created_by = UsernameSerializer()
+
+    class Meta:
+        model = Announcement
+        exclude = ['content']
+
+
 class EditAnnouncementSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     title = serializers.CharField(max_length=64)
