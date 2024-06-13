@@ -8,6 +8,7 @@ class Announcement(models.Model):
     title = models.TextField()
     # HTML
     content = RichTextField()
+    tag = models.TextField()
     create_time = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(User, on_delete=models.CASCADE)
     last_update_time = models.DateTimeField(auto_now=True)

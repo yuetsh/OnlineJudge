@@ -6,6 +6,7 @@ from .models import Announcement
 
 class CreateAnnouncementSerializer(serializers.Serializer):
     title = serializers.CharField(max_length=64)
+    tag = serializers.CharField()
     content = serializers.CharField(max_length=1024 * 1024 * 8)
     visible = serializers.BooleanField()
 
@@ -29,5 +30,6 @@ class AnnouncementListSerializer(serializers.ModelSerializer):
 class EditAnnouncementSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     title = serializers.CharField(max_length=64)
+    tag = serializers.CharField()
     content = serializers.CharField(max_length=1024 * 1024 * 8)
     visible = serializers.BooleanField()
