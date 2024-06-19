@@ -140,4 +140,4 @@ class RankInfoSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = UserProfile
-        fields = "__all__"
+        fields = ["user", "id", "accepted_number", "submission_number", "mood"]
