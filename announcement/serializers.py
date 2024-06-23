@@ -9,6 +9,7 @@ class CreateAnnouncementSerializer(serializers.Serializer):
     tag = serializers.CharField()
     content = serializers.CharField(max_length=1024 * 1024 * 8)
     visible = serializers.BooleanField()
+    top = serializers.BooleanField()
 
 
 class AnnouncementSerializer(serializers.ModelSerializer):
@@ -33,3 +34,4 @@ class EditAnnouncementSerializer(serializers.Serializer):
     tag = serializers.CharField()
     content = serializers.CharField(max_length=1024 * 1024 * 8)
     visible = serializers.BooleanField()
+    top = serializers.BooleanField()
