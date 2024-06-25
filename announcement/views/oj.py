@@ -36,13 +36,15 @@ class MessageAPI(APIView):
             except Message.DoesNotExist:
                 return self.error("Message does not exist")
         else:
-            messages = Message.objects.filter(recipient=request.user)
+            messages = Message.objects.select_related("recipient","sender", "submission").filter(recipient=request.user)
             return self.success(self.paginate_data(request, messages, MessageListSerializer))         
     
     @validate_serializer(CreateMessageSerializer)
     @super_admin_required
     def post(self, request):
         data = request.data
+        if data["recipient"] == request.user.id:
+            return self.error("Can not send a message to youself")
         try:
             recipient = User.objects.get(id=data["recipient"], is_disabled=False)
         except User.DoesNotExist:
