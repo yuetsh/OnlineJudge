@@ -31,6 +31,13 @@ class SubmissionSafeModelSerializer(serializers.ModelSerializer):
         model = Submission
         exclude = ("info", "contest", "ip")
 
+class SubmissionCodeSerializer(serializers.Serializer):
+    problem = serializers.SlugRelatedField(read_only=True, slug_field="_id")
+
+    class Meta:
+        model = Submission
+        field = ("id", "code", "problem", "result", "language")
+
 
 class SubmissionListSerializer(serializers.ModelSerializer):
     problem = serializers.SlugRelatedField(read_only=True, slug_field="_id")
