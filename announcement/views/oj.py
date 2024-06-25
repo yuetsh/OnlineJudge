@@ -6,7 +6,7 @@ from utils.api import APIView
 from announcement.models import Announcement, Message
 from announcement.serializers import (AnnouncementSerializer, 
                                       AnnouncementListSerializer, 
-                                      CreateMessageSerializer, MessageListSerializer, 
+                                      CreateMessageSerializer, 
                                       MessageSerializer)
 from utils.api.api import validate_serializer
 
@@ -28,16 +28,8 @@ class AnnouncementAPI(APIView):
 class MessageAPI(APIView):
     @login_required
     def get(self, request):
-        message_id = request.GET.get("id")
-        if message_id:
-            try:
-                message = Message.objects.filter(id=message_id, recipient=request.user)
-                return self.success(MessageSerializer(message).data)
-            except Message.DoesNotExist:
-                return self.error("Message does not exist")
-        else:
-            messages = Message.objects.select_related("recipient","sender", "submission").filter(recipient=request.user)
-            return self.success(self.paginate_data(request, messages, MessageListSerializer))         
+        messages = Message.objects.select_related("recipient","sender", "submission").filter(recipient=request.user)
+        return self.success(self.paginate_data(request, messages, MessageSerializer))
     
     @validate_serializer(CreateMessageSerializer)
     @super_admin_required

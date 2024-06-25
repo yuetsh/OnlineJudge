@@ -1,4 +1,4 @@
-from submission.serializers import SubmissionCodeSerializer
+from submission.serializers import SubmissionListSerializer
 from utils.api import serializers
 from utils.api._serializers import UsernameSerializer
 
@@ -40,23 +40,11 @@ class EditAnnouncementSerializer(serializers.Serializer):
 
 class MessageSerializer(serializers.Serializer):
     sender = UsernameSerializer()
-    recipient = UsernameSerializer()
-    submission = SubmissionCodeSerializer()
+    submission = SubmissionListSerializer()
 
     class Meta:
         model = Message
         fields = "__all__"
-
-
-class MessageListSerializer(serializers.Serializer):
-    sender = UsernameSerializer()
-    recipient = UsernameSerializer()
-    submission = SubmissionCodeSerializer()
-
-    class Meta:
-        model = Message
-        exclude = ["message"]
-
 
 class CreateMessageSerializer(serializers.Serializer):
     recipient = serializers.IntegerField()
