@@ -36,7 +36,7 @@ class SubmissionCodeSerializer(serializers.Serializer):
 
     class Meta:
         model = Submission
-        field = ("id", "code", "problem", "result", "language")
+        fields = ("id", "code", "problem", "result", "language")
 
 
 class SubmissionListSerializer(serializers.ModelSerializer):
