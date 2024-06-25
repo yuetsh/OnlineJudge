@@ -38,13 +38,14 @@ class EditAnnouncementSerializer(serializers.Serializer):
     top = serializers.BooleanField()
 
 
-class MessageSerializer(serializers.Serializer):
+class MessageSerializer(serializers.ModelSerializer):
     sender = UsernameSerializer()
     submission = SubmissionListSerializer()
 
     class Meta:
         model = Message
-        fields = "__all__"
+        exclude = ["recipient"]
+
 
 class CreateMessageSerializer(serializers.Serializer):
     recipient = serializers.IntegerField()
