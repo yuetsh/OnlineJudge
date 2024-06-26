@@ -1,4 +1,4 @@
-from submission.serializers import SubmissionListSerializer
+from submission.serializers import SubmissionSafeModelSerializer
 from utils.api import serializers
 from utils.api._serializers import UsernameSerializer
 
@@ -40,7 +40,7 @@ class EditAnnouncementSerializer(serializers.Serializer):
 
 class MessageSerializer(serializers.ModelSerializer):
     sender = UsernameSerializer()
-    submission = SubmissionListSerializer()
+    submission = SubmissionSafeModelSerializer()
 
     class Meta:
         model = Message
