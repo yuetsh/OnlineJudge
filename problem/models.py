@@ -31,7 +31,11 @@ class ProblemIOMode(Choices):
 
 
 def _default_io_mode():
-    return {"io_mode": ProblemIOMode.standard, "input": "input.txt", "output": "output.txt"}
+    return {
+        "io_mode": ProblemIOMode.standard,
+        "input": "input.txt",
+        "output": "output.txt",
+    }
 
 
 class Problem(models.Model):

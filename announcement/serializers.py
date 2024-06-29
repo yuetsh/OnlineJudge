@@ -1,8 +1,7 @@
-from submission.serializers import SubmissionSafeModelSerializer
 from utils.api import serializers
 from utils.api._serializers import UsernameSerializer
 
-from .models import Announcement, Message
+from .models import Announcement
 
 
 class CreateAnnouncementSerializer(serializers.Serializer):
@@ -36,18 +35,3 @@ class EditAnnouncementSerializer(serializers.Serializer):
     content = serializers.CharField(max_length=1024 * 1024 * 8)
     visible = serializers.BooleanField()
     top = serializers.BooleanField()
-
-
-class MessageSerializer(serializers.ModelSerializer):
-    sender = UsernameSerializer()
-    submission = SubmissionSafeModelSerializer()
-
-    class Meta:
-        model = Message
-        exclude = ["recipient"]
-
-
-class CreateMessageSerializer(serializers.Serializer):
-    recipient = serializers.IntegerField()
-    submission = serializers.CharField()
-    message = serializers.CharField()
