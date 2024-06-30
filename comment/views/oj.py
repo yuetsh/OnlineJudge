@@ -48,18 +48,23 @@ class CommentAPI(APIView):
         )
         return self.success()
 
+    @login_required
     def get(self, request):
         problem_id = request.GET.get("problem_id")
-        my_comment = request.GET.get("my_comment")
-
-        if my_comment:
-            comment = (
-                Comment.objects.select_related("problem")
-                .filter(user=request.user, problem_id=problem_id, visible=True)
-                .first()
-            )
+        comment = (
+            Comment.objects.select_related("problem")
+            .filter(user=request.user, problem_id=problem_id, visible=True)
+            .first()
+        )
+        if comment:
             return self.success(CommentSerializer(comment).data)
+        else:
+            return self.success()
 
+
+class CommentStatisticsAPI(APIView):
+    def get(self, request):
+        problem_id = request.GET.get("problem_id")
         comments = Comment.objects.select_related("problem").filter(
             problem_id=problem_id, visible=True
         )
