@@ -1,11 +1,11 @@
-from django.db.models import Avg, Count
+from django.db.models import Avg
 from django.db.models.functions import Round
 from comment.models import Comment
 from problem.models import Problem
 from utils.api import APIView
 from account.decorators import login_required
 from utils.api.api import validate_serializer
-from comment.serializers import CreateCommentSerializer
+from comment.serializers import CreateCommentSerializer, CommentSerializer
 from submission.models import Submission, JudgeStatus
 
 
@@ -50,11 +50,22 @@ class CommentAPI(APIView):
 
     def get(self, request):
         problem_id = request.GET.get("problem_id")
+        my_comment = request.GET.get("my_comment")
+
+        if my_comment:
+            comment = (
+                Comment.objects.select_related("problem")
+                .filter(user=request.user, problem_id=problem_id, visible=True)
+                .first()
+            )
+            return self.success(CommentSerializer(comment).data)
+
         comments = Comment.objects.select_related("problem").filter(
             problem_id=problem_id, visible=True
         )
         if comments.count() == 0:
             return self.success()
+
         count = comments.count()
         rating = comments.aggregate(
             description=Round(Avg("description_rating"), 2),

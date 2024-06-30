@@ -13,4 +13,10 @@ class CreateCommentSerializer(serializers.Serializer):
 class CommentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Comment
-        fields = "__all__"
+        fields = [
+            "comprehensive_rating",
+            "description_rating",
+            "difficulty_rating",
+            "content",
+            "create_time",
+        ]
