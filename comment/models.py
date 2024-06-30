@@ -42,6 +42,6 @@ class Comment(models.Model):
 
     class Meta:
         db_table = "comment"
-        ordering = ("create_time",)
+        ordering = ("-create_time",)
 
 

@@ -7,7 +7,7 @@ class CreateCommentSerializer(serializers.Serializer):
     description_rating = serializers.IntegerField()
     difficulty_rating = serializers.IntegerField()
     comprehensive_rating = serializers.IntegerField()
-    content = serializers.CharField()
+    content = serializers.CharField(required=False, allow_blank=True)
 
 
 class CommentSerializer(serializers.ModelSerializer):

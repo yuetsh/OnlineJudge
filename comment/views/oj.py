@@ -1,4 +1,5 @@
 from django.db.models import Avg
+from django.db.models.functions import Round
 from comment.models import Comment
 from problem.models import Problem
 from utils.api import APIView
@@ -14,7 +15,7 @@ class CommentAPI(APIView):
     def post(self, request):
         data = request.data
         try:
-            problem = Problem.objects.get(id=data.problem_id, visible=True)
+            problem = Problem.objects.get(id=data["problem_id"], visible=True)
         except Problem.DoesNotExist:
             self.error("problem is not exists")
 
@@ -26,7 +27,7 @@ class CommentAPI(APIView):
             Submission.objects.select_related("problem")
             .filter(
                 user_id=request.user.id,
-                problem_id=data.problem_id,
+                problem_id=data["problem_id"],
                 result=JudgeStatus.ACCEPTED,
             )
             .first()
@@ -44,10 +45,10 @@ class CommentAPI(APIView):
             submission=submission,
             problem_solved=problem_solved,
             language=language,
-            description_rating=data.description_rating,
-            difficulty_rating=data.difficulty_rating,
-            comprehensive_rating=data.comprehensive_rating,
-            content=data.content,
+            description_rating=data["description_rating"],
+            difficulty_rating=data["difficulty_rating"],
+            comprehensive_rating=data["comprehensive_rating"],
+            content=data["content"],
         )
         return self.success()
 
@@ -59,11 +60,9 @@ class CommentAPI(APIView):
         if comments.count() == 0:
             return self.success()
         rating = comments.aggregate(
-            description=Avg("description_rating"),
-            difficulty=Avg("difficulty_rating"),
-            comprehensive=Avg("comprehensive_rating"),
+            description=Round(Avg("description_rating"), 2),
+            difficulty=Round(Avg("difficulty_rating"), 2),
+            comprehensive=Round(Avg("comprehensive_rating"), 2),
         )
-        contents = comments.filter(content__isnull=False).values_list(
-            "content", flat=True
-        )
-        return self.success({rating: rating, contents: contents})
+        contents = comments.exclude(content="").values_list("content", flat=True)
+        return self.success({"rating": rating, "contents": list(contents)})
