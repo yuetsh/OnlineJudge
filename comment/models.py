@@ -15,13 +15,11 @@ class Languages(models.TextChoices):
 class Comment(models.Model):
     problem = models.ForeignKey(Problem, on_delete=models.CASCADE)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    submission = models.ForeignKey(Submission, null=True, blank=True, on_delete=models.SET_NULL)
-    problem_solved = models.BooleanField()
+    submission = models.ForeignKey(Submission, on_delete=models.CASCADE)
     language = models.CharField(
         max_length=10,
+        default=Languages.Python,
         choices=Languages.choices,
-        null=True,
-        blank=True,
         verbose_name="解决这道题使用的语言",
     )
     description_rating = models.PositiveSmallIntegerField(

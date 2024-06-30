@@ -19,31 +19,27 @@ class CommentAPI(APIView):
         except Problem.DoesNotExist:
             self.error("problem is not exists")
 
-        language = None
-        submission = None
-        problem_solved = False
-
-        submission = (
-            Submission.objects.select_related("problem")
-            .filter(
-                user_id=request.user.id,
-                problem_id=data["problem_id"],
-                result=JudgeStatus.ACCEPTED,
+        try:
+            submission = (
+                Submission.objects.select_related("problem")
+                .filter(
+                    user_id=request.user.id,
+                    problem_id=data["problem_id"],
+                    result=JudgeStatus.ACCEPTED,
+                )
+                .first()
             )
-            .first()
-        )
+        except Submission.DoesNotExist:
+            self.error("submission is not exists or not accepted")
 
-        if submission:
-            problem_solved = True
-            language = submission.language
-            if language == "Python3":
-                language = "Python"
+        language = submission.language
+        if language == "Python3":
+            language = "Python"
 
         Comment.objects.create(
             user=request.user,
             problem=problem,
             submission=submission,
-            problem_solved=problem_solved,
             language=language,
             description_rating=data["description_rating"],
             difficulty_rating=data["difficulty_rating"],
@@ -66,8 +62,10 @@ class CommentAPI(APIView):
             comprehensive=Round(Avg("comprehensive_rating"), 2),
         )
         contents = comments.exclude(content="").values_list("content", flat=True)
-        return self.success({
-            "count": count,
-            "rating": rating,
-            "contents": list(contents),
-        })
+        return self.success(
+            {
+                "count": count,
+                "rating": rating,
+                "contents": list(contents),
+            }
+        )
