@@ -20,8 +20,7 @@ class Migration(migrations.Migration):
             name='Comment',
             fields=[
                 ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('problem_solved', models.BooleanField()),
-                ('language', models.CharField(blank=True, choices=[('Python', 'Python'), ('C', 'C'), ('C++', 'C++'), ('Java', 'Java')], max_length=10, null=True, verbose_name='解决这道题使用的语言')),
+                ('language', models.CharField(default='Python', choices=[('Python', 'Python'), ('C', 'C'), ('C++', 'C++'), ('Java', 'Java')], max_length=10, verbose_name='解决这道题使用的语言')),
                 ('description_rating', models.PositiveSmallIntegerField(default=5, verbose_name='题目描述的分数')),
                 ('difficulty_rating', models.PositiveSmallIntegerField(default=5, verbose_name='题目难度的分数')),
                 ('comprehensive_rating', models.PositiveSmallIntegerField(default=5, verbose_name='综合的分数')),
@@ -29,12 +28,12 @@ class Migration(migrations.Migration):
                 ('visible', models.BooleanField(default=True)),
                 ('create_time', models.DateTimeField(auto_now_add=True)),
                 ('problem', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='problem.problem')),
-                ('submission', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to='submission.submission')),
+                ('submission', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='submission.submission')),
                 ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to=settings.AUTH_USER_MODEL)),
             ],
             options={
                 'db_table': 'comment',
-                'ordering': ('create_time',),
+                'ordering': ('-create_time',),
             },
         ),
     ]
