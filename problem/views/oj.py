@@ -10,7 +10,6 @@ from ..serializers import (
     ProblemListSerializer,
 )
 from contest.models import ContestRuleType
-from submission.models import JudgeStatus
 
 
 class ProblemTagAPI(APIView):

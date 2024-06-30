@@ -18,27 +18,32 @@ class CommentAPI(APIView):
         except Problem.DoesNotExist:
             self.error("problem is not exists")
 
+        language = None
         submission = None
-        if data.problem_solved and data.submission_id:
-            try:
-                data.submission_id
-                submission = Submission.objects.select_related("problem").get(
-                    id=data.submission_id,
-                    problem_id=data.problem_id,
-                    result=JudgeStatus.ACCEPTED,
-                )
-            except Submission.DoesNotExist:
-                self.error("submission is not exists or not accepted")
+        problem_solved = False
 
-        if not data.problem_solved:
-            data.language = None
+        submission = (
+            Submission.objects.select_related("problem")
+            .filter(
+                user_id=request.user.id,
+                problem_id=data.problem_id,
+                result=JudgeStatus.ACCEPTED,
+            )
+            .first()
+        )
+
+        if submission:
+            problem_solved = True
+            language = submission.language
+            if language == "Python3":
+                language = "Python"
 
         Comment.objects.create(
             user=request.user,
             problem=problem,
             submission=submission,
-            problem_solved=data.problem_solved,
-            language=data.language,
+            problem_solved=problem_solved,
+            language=language,
             description_rating=data.description_rating,
             difficulty_rating=data.difficulty_rating,
             comprehensive_rating=data.comprehensive_rating,
