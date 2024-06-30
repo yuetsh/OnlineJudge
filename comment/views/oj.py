@@ -1,4 +1,4 @@
-from django.db.models import Avg
+from django.db.models import Avg, Count
 from django.db.models.functions import Round
 from comment.models import Comment
 from problem.models import Problem
@@ -59,10 +59,15 @@ class CommentAPI(APIView):
         )
         if comments.count() == 0:
             return self.success()
+        count = comments.count()
         rating = comments.aggregate(
             description=Round(Avg("description_rating"), 2),
             difficulty=Round(Avg("difficulty_rating"), 2),
             comprehensive=Round(Avg("comprehensive_rating"), 2),
         )
         contents = comments.exclude(content="").values_list("content", flat=True)
-        return self.success({"rating": rating, "contents": list(contents)})
+        return self.success({
+            "count": count,
+            "rating": rating,
+            "contents": list(contents),
+        })
