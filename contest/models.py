@@ -11,6 +11,7 @@ from utils.models import RichTextField
 class Contest(models.Model):
     title = models.TextField()
     description = RichTextField()
+    tag = models.TextField()
     # show real time rank or cached rank
     real_time_rank = models.BooleanField()
     password = models.TextField(null=True)

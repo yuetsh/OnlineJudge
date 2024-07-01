@@ -52,10 +52,13 @@ class ContestListAPI(APIView):
         keyword = request.GET.get("keyword")
         rule_type = request.GET.get("rule_type")
         status = request.GET.get("status")
+        tag = request.GET.get("tag")
         if keyword:
-            contests = contests.filter(title__contains=keyword)
+            contests = contests.filter(title__icontains=keyword)
         if rule_type:
             contests = contests.filter(rule_type=rule_type)
+        if tag:
+            contests = contests.filter(tag=tag)
         if status:
             cur = now()
             if status == ContestStatus.CONTEST_NOT_START:
