@@ -1,8 +1,8 @@
-from django.urls import re_path as url
+from django.urls import path
 
 from ..views.admin import SubmissionRejudgeAPI, SubmissionStatisticsAPI
 
 urlpatterns = [
-    url(r"^submission/rejudge?$", SubmissionRejudgeAPI.as_view(), name="submission_rejudge_api"),
-    url(r"^submission/statistics?$", SubmissionStatisticsAPI.as_view(), name="submission_statistics_api"),
+    path("submission/rejudge", SubmissionRejudgeAPI.as_view()),
+    path("submission/statistics", SubmissionStatisticsAPI.as_view()),
 ]

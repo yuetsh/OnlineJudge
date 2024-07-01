@@ -1,7 +1,7 @@
-from django.urls import re_path as url
+from django.urls import path
 
 from ..views.oj import MessageAPI
 
 urlpatterns = [
-    url(r"^message/?$", MessageAPI.as_view(), name="message_api"),
+    path("message", MessageAPI.as_view()),
 ]
