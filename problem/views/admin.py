@@ -11,7 +11,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.http import StreamingHttpResponse, FileResponse
 
-from account.decorators import problem_permission_required, ensure_created_by
+from account.decorators import problem_permission_required, ensure_created_by, super_admin_required
 from contest.models import Contest, ContestStatus
 from fps.parser import FPSHelper, FPSParser
 from judge.dispatcher import SPJCompiler
@@ -708,12 +708,11 @@ class FPSProblemImport(CSRFExemptAPIView):
 class ProblemVisibleAPI(APIView):
     @problem_permission_required
     def put(self, request):
-        id = request.GET.get("problem_id")
+        data = request.data
         try:
-            problem = Problem.objects.get(id=id)
-            ensure_created_by(problem, request.user)
+            problem = Problem.objects.get(id=data["id"])
         except Problem.DoesNotExist:
             self.error("problem does not exists")
         problem.visible = not problem.visible
         problem.save()
-        self.success()
+        return self.success()
