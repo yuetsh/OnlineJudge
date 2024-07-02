@@ -35,7 +35,6 @@ class Comment(models.Model):
         verbose_name="综合的分数",
     )
     content = models.TextField(null=True, blank=True)
-    visible = models.BooleanField(default=True)
     create_time = models.DateTimeField(auto_now_add=True)
 
     class Meta:

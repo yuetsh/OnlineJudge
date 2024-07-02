@@ -20,3 +20,11 @@ class CommentSerializer(serializers.ModelSerializer):
             "content",
             "create_time",
         ]
+
+
+class CommentListSerializer(serializers.ModelSerializer):
+    problem = serializers.SlugRelatedField(read_only=True, slug_field="_id")
+
+    class Meta:
+        model = Comment
+        fields = "__all__"

@@ -53,7 +53,7 @@ class CommentAPI(APIView):
         problem_id = request.GET.get("problem_id")
         comment = (
             Comment.objects.select_related("problem")
-            .filter(user=request.user, problem_id=problem_id, visible=True)
+            .filter(user=request.user, problem_id=problem_id)
             .first()
         )
         if comment:
@@ -66,7 +66,7 @@ class CommentStatisticsAPI(APIView):
     def get(self, request):
         problem_id = request.GET.get("problem_id")
         comments = Comment.objects.select_related("problem").filter(
-            problem_id=problem_id, visible=True
+            problem_id=problem_id
         )
         if comments.count() == 0:
             return self.success()
