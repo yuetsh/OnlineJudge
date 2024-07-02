@@ -703,3 +703,17 @@ class FPSProblemImport(CSRFExemptAPIView):
                 problem_data["test_case_score"] = score
                 self._create_problem(problem_data, request.user)
         return self.success({"import_count": len(problems)})
+
+
+class ProblemVisibleAPI(APIView):
+    @problem_permission_required
+    def put(self, request):
+        id = request.GET.get("problem_id")
+        try:
+            problem = Problem.objects.get(id=id)
+            ensure_created_by(problem, request.user)
+        except Problem.DoesNotExist:
+            self.error("problem does not exists")
+        problem.visible = not problem.visible
+        problem.save()
+        self.success()
