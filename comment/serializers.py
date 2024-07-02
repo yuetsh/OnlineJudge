@@ -1,5 +1,5 @@
 from comment.models import Comment
-from utils.api import serializers
+from utils.api import UsernameSerializer, serializers
 
 
 class CreateCommentSerializer(serializers.Serializer):
@@ -24,6 +24,7 @@ class CommentSerializer(serializers.ModelSerializer):
 
 class CommentListSerializer(serializers.ModelSerializer):
     problem = serializers.SlugRelatedField(read_only=True, slug_field="_id")
+    user = UsernameSerializer()
 
     class Meta:
         model = Comment
