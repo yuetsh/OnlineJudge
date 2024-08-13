@@ -9,9 +9,11 @@ from django.template.loader import render_to_string
 from django.utils.decorators import method_decorator
 from django.utils.timezone import now
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
+from django.db.models import Count
 from otpauth import OtpAuth
 
 from problem.models import Problem
+from submission.models import Submission
 from utils.constants import ContestRuleType
 from options.options import SysOptions
 from utils.api import APIView, validate_serializer, CSRFExemptAPIView
@@ -392,6 +394,16 @@ class UserRankAPI(APIView):
         if n>0:
             profiles = profiles[:n]
         return self.success(self.paginate_data(request, profiles, RankInfoSerializer))
+
+
+class UserActivityRankAPI(APIView):
+    def get(self, request):
+        start = request.GET.get("start")
+        if not start:
+            return self.error("start time is required")
+        submissions = Submission.objects.filter(contest_id__isnull=True, create_time__gte=start)
+        counts = submissions.values("username").annotate(count=Count("id")).order_by("-count")
+        return self.success(list(counts)[:10])
 
 
 class ProfileProblemDisplayIDRefreshAPI(APIView):

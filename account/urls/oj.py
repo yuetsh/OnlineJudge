@@ -4,7 +4,7 @@ from ..views.oj import (ApplyResetPasswordAPI, ResetPasswordAPI,
                         UserChangePasswordAPI, UserRegisterAPI, UserChangeEmailAPI,
                         UserLoginAPI, UserLogoutAPI, UsernameOrEmailCheck,
                         AvatarUploadAPI, TwoFactorAuthAPI, UserProfileAPI,
-                        UserRankAPI, CheckTFARequiredAPI, SessionManagementAPI,
+                        UserRankAPI, UserActivityRankAPI, CheckTFARequiredAPI, SessionManagementAPI,
                         ProfileProblemDisplayIDRefreshAPI, OpenAPIAppkeyAPI, SSOAPI)
 
 from utils.captcha.views import CaptchaAPIView
@@ -25,6 +25,7 @@ urlpatterns = [
     path("tfa_required", CheckTFARequiredAPI.as_view()),
     path("two_factor_auth", TwoFactorAuthAPI.as_view(),),
     path("user_rank", UserRankAPI.as_view()),
+    path("user_activity_rank", UserActivityRankAPI.as_view()),
     path("sessions", SessionManagementAPI.as_view()),
     path("open_api_appkey", OpenAPIAppkeyAPI.as_view(),),
     path("sso", SSOAPI.as_view())
