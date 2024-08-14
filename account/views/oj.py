@@ -385,7 +385,7 @@ class UserRankAPI(APIView):
             n = 0
         if rule_type not in ContestRuleType.choices():
             rule_type = ContestRuleType.ACM
-        profiles = UserProfile.objects.filter(user__admin_type=AdminType.REGULAR_USER, user__is_disabled=False,\
+        profiles = UserProfile.objects.filter(user__admin_type=AdminType.REGULAR_USER, user__is_disabled=False,
                                               user__username__icontains=username).select_related("user")
         if rule_type == ContestRuleType.ACM:
             profiles = profiles.filter(accepted_number__gte=0).order_by("-accepted_number", "submission_number")
@@ -401,9 +401,16 @@ class UserActivityRankAPI(APIView):
         start = request.GET.get("start")
         if not start:
             return self.error("start time is required")
+        admin_usernames = User.objects.filter(is_disabled=False).exclude(
+            admin_type=AdminType.REGULAR_USER).values_list("username", flat=True)
+        admin_len = len(admin_usernames)
         submissions = Submission.objects.filter(contest_id__isnull=True, create_time__gte=start)
-        counts = submissions.values("username").annotate(count=Count("id")).order_by("-count")
-        return self.success(list(counts)[:10])
+        counts = submissions.values("username").annotate(count=Count("id")).order_by("-count")[:10+admin_len]
+        data = []
+        for count in counts:
+            if count["username"] not in admin_usernames:
+                data.append(count)
+        return self.success(data[:10])
 
 
 class ProfileProblemDisplayIDRefreshAPI(APIView):
