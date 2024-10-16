@@ -78,7 +78,7 @@ class SubmissionStatisticsAPI(APIView):
                 accepted.append(item)
         
         unaccepted = []
-        if person_count:
+        if len(accepted) > 0:
             unaccepted = list(set(all_persions) - set([item['username'] for item in accepted]))
         
         # 统计人数完成率
