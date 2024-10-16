@@ -50,11 +50,13 @@ class SubmissionStatisticsAPI(APIView):
         
         # 统计人数
         person_count = 0
+        all_persions = []
         if username:
             submissions = submissions.filter(username__icontains=username)
-            person_count = User.objects.filter(username__icontains=username,
+            all_persions = User.objects.filter(username__icontains=username,
                                                is_disabled=False,
-                                               admin_type=AdminType.REGULAR_USER).count()
+                                               admin_type=AdminType.REGULAR_USER).values_list("username", flat=True)
+            person_count = all_persions.count()
 
         submission_count = submissions.count()
         accepted_count = submissions.filter(result=JudgeStatus.ACCEPTED).count()
@@ -68,23 +70,25 @@ class SubmissionStatisticsAPI(APIView):
                                       accepted_count=Count("id", filter=Q(result=JudgeStatus.ACCEPTED), distinct=True),
                                       ).order_by("-submission_count")
         
-        data = []
+        accepted = []
         for item in counts:
             if item["accepted_count"] > 0:
                 rate = round(item["accepted_count"]/item["submission_count"]*100, 2)
                 item["correct_rate"] = f"{rate}%"
-                data.append(item)
+                accepted.append(item)
+        
+        unaccepted = list(set(all_persions) - set([item['username'] for item in accepted]))
         
         # 统计人数完成率
         person_rate = 0
         if person_count:
-            person_rate = round(len(data)/person_count*100, 2)
+            person_rate = round(len(accepted)/person_count*100, 2)
             # 下面是做一些超出 100% 的操作，比如有人已经删号了，但是提交记录还在
             if person_rate >= 100:
                 person_rate = 100
             # 搜出来的人数比提交人数还多的情况
-            if person_count < len(data):
-                person_count = len(data)
+            if person_count < len(accepted):
+                person_count = len(accepted)
 
         return self.success({
             "submission_count": submission_count,
@@ -92,6 +96,7 @@ class SubmissionStatisticsAPI(APIView):
             "correct_rate": f"{correct_rate}%",
             "person_count": person_count,
             "person_rate": f"{person_rate}%",
-            "data": data,
+            "data": accepted,
+            "data_unaccepted": unaccepted
         })
         
