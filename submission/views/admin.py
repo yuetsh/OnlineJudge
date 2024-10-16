@@ -77,7 +77,9 @@ class SubmissionStatisticsAPI(APIView):
                 item["correct_rate"] = f"{rate}%"
                 accepted.append(item)
         
-        unaccepted = list(set(all_persions) - set([item['username'] for item in accepted]))
+        unaccepted = []
+        if person_count:
+            unaccepted = list(set(all_persions) - set([item['username'] for item in accepted]))
         
         # 统计人数完成率
         person_rate = 0
