@@ -13,7 +13,7 @@ from django.db.models import Count
 from otpauth import OtpAuth
 
 from problem.models import Problem
-from submission.models import Submission
+from submission.models import Submission, JudgeStatus
 from utils.constants import ContestRuleType
 from options.options import SysOptions
 from utils.api import APIView, validate_serializer, CSRFExemptAPIView
@@ -404,8 +404,8 @@ class UserActivityRankAPI(APIView):
         admin_usernames = User.objects.filter(is_disabled=False).exclude(
             admin_type=AdminType.REGULAR_USER).values_list("username", flat=True)
         admin_len = len(admin_usernames)
-        submissions = Submission.objects.filter(contest_id__isnull=True, create_time__gte=start)
-        counts = submissions.values("username").annotate(count=Count("id")).order_by("-count")[:10+admin_len]
+        submissions = Submission.objects.filter(contest_id__isnull=True, create_time__gte=start, result=JudgeStatus.ACCEPTED)
+        counts = submissions.values("username").annotate(count=Count("problem_id", distinct=True)).order_by("-count")[:10+admin_len]
         data = []
         for count in counts:
             if count["username"] not in admin_usernames:
