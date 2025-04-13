@@ -70,7 +70,7 @@ class SubmissionAPI(APIView):
         except Problem.DoesNotExist:
             return self.error("Problem not exist")
         if data["language"] not in problem.languages:
-            return self.error(f"{data['language']} is now allowed in the problem")
+            return self.error(f"{data['language']} is not allowed in the problem")
         submission = Submission.objects.create(user_id=request.user.id,
                                                username=request.user.username,
                                                language=data["language"],
@@ -143,12 +143,17 @@ class SubmissionListAPI(APIView):
             except Problem.DoesNotExist:
                 return self.error("Problem doesn't exist")
             submissions = submissions.filter(problem=problem)
-        if (myself and myself == "1") or not SysOptions.submission_list_show_all:
+        
+        if not SysOptions.submission_list_show_all:
+            return self.success({"results": [], "total": 0})
+        
+        if myself and myself == "1":
             submissions = submissions.filter(user_id=request.user.id)
         elif username:
             submissions = submissions.filter(username__icontains=username)
         if result:
             submissions = submissions.filter(result=result)
+
         data = self.paginate_data(request, submissions)
         data["results"] = SubmissionListSerializer(data["results"], many=True, user=request.user).data
         return self.success(data)
