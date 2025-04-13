@@ -83,19 +83,22 @@ class UserProfileAPI(APIView):
 class Metrics(APIView):
     def get(self, request):
         userid = request.GET.get("userid")
-        submissions = Submission.objects.filter(user_id=userid)
-        if len(submissions) == 0:
+        submissions = Submission.objects.filter(user_id=userid, contest_id__isnull=True)
+        if submissions.count() == 0:
             return self.error("暂无提交")
         else:
             latest_submission = submissions.first()
             last_submission = submissions.last()
-            return self.success(
-                {
-                    "now": timezone.now(),
-                    "latest": latest_submission.create_time,
-                    "first": last_submission.create_time,
-                }
-            )
+            if last_submission and latest_submission:
+                return self.success(
+                    {
+                        "now": timezone.now(),
+                        "latest": latest_submission.create_time,
+                        "first": last_submission.create_time,
+                    }
+                )
+            else:
+                return self.error("暂无提交")
 
 
 class AvatarUploadAPI(APIView):
