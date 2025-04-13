@@ -144,7 +144,7 @@ class SubmissionListAPI(APIView):
                 return self.error("Problem doesn't exist")
             submissions = submissions.filter(problem=problem)
         
-        if not SysOptions.submission_list_show_all:
+        if not SysOptions.submission_list_show_all and not request.user.is_super_admin():
             return self.success({"results": [], "total": 0})
         
         if myself and myself == "1":
