@@ -80,14 +80,22 @@ class UserProfileAPI(APIView):
         )
 
 
-class UserProfileAnalyse(APIView):
+class Metrics(APIView):
     def get(self, request):
         userid = request.GET.get("userid")
-        submission = Submission.objects.filter(user_id=userid).latest("create_time")
-        if not submission:
+        submissions = Submission.objects.filter(user_id=userid)
+        if len(submissions) == 0:
             return self.error("暂无提交")
         else:
-            return self.success({"now": timezone.now(), "last": submission.create_time})
+            latest_submission = submissions.first()
+            last_submission = submissions.last()
+            return self.success(
+                {
+                    "now": timezone.now(),
+                    "latest": latest_submission.create_time,
+                    "first": last_submission.create_time,
+                }
+            )
 
 
 class AvatarUploadAPI(APIView):

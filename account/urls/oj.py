@@ -4,7 +4,7 @@ from ..views.oj import (
     ApplyResetPasswordAPI,
     ResetPasswordAPI,
     UserChangePasswordAPI,
-    UserProfileAnalyse,
+    Metrics,
     UserRegisterAPI,
     UserChangeEmailAPI,
     UserLoginAPI,
@@ -35,8 +35,8 @@ urlpatterns = [
     path("captcha", CaptchaAPIView.as_view()),
     path("check_username_or_email", UsernameOrEmailCheck.as_view()),
     path("profile", UserProfileAPI.as_view(), name="user_profile_api"),
-    path("profile/analyse", UserProfileAnalyse.as_view()),
     path("profile/fresh_display_id", ProfileProblemDisplayIDRefreshAPI.as_view()),
+    path("metrics", Metrics.as_view()),
     path("upload_avatar", AvatarUploadAPI.as_view()),
     path("tfa_required", CheckTFARequiredAPI.as_view()),
     path(
