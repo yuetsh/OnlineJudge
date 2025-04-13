@@ -92,9 +92,9 @@ class Metrics(APIView):
             if last_submission and latest_submission:
                 return self.success(
                     {
-                        "now": timezone.now(),
-                        "latest": latest_submission.create_time,
-                        "first": last_submission.create_time,
+                        "now": datetime2str(timezone.now()),
+                        "latest": datetime2str(latest_submission.create_time),
+                        "first": datetime2str(last_submission.create_time),
                     }
                 )
             else:
