@@ -1,5 +1,7 @@
 import random
 from django.db.models import Q, Count
+from account.models import User
+from submission.models import Submission, JudgeStatus
 from utils.api import APIView
 from account.decorators import check_contest_permission
 from ..models import ProblemTag, Problem, ProblemRuleType
@@ -147,3 +149,27 @@ class ContestProblemAPI(APIView):
         else:
             data = ProblemSafeSerializer(contest_problems, many=True).data
         return self.success(data)
+
+
+class ProblemSolvedPeopleCount(APIView):
+    def get(self, request):
+        problem_id = request.GET.get("problem_id")
+        if not request.user.is_authenticated:
+            return self.success("0%")
+        submission_count = Submission.objects.filter(
+            user_id=request.user.id,
+            problem_id=problem_id,
+            result=JudgeStatus.ACCEPTED,
+        ).count()
+        if submission_count == 0:
+            return self.success("0%")
+
+        total_count = User.objects.filter(is_disabled=False).count()
+        accepted_count = Submission.objects.filter(
+            problem_id=problem_id, result=JudgeStatus.ACCEPTED
+        ).aggregate(user_count=Count("user_id", distinct=True))["user_count"]
+        if accepted_count < total_count:
+            rate = "%.2f" % ((total_count - accepted_count) / total_count * 100)
+        else:
+            rate = "0"
+        return self.success(f"{rate}%")

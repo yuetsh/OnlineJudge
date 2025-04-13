@@ -50,13 +50,13 @@ class SubmissionStatisticsAPI(APIView):
         
         # 统计人数
         person_count = 0
-        all_persions = []
+        all_persons = []
         if username:
             submissions = submissions.filter(username__icontains=username)
-            all_persions = User.objects.filter(username__icontains=username,
+            all_persons = User.objects.filter(username__icontains=username,
                                                is_disabled=False,
                                                admin_type=AdminType.REGULAR_USER).values_list("username", flat=True)
-            person_count = all_persions.count()
+            person_count = all_persons.count()
 
         submission_count = submissions.count()
         accepted_count = submissions.filter(result=JudgeStatus.ACCEPTED).count()
@@ -79,7 +79,7 @@ class SubmissionStatisticsAPI(APIView):
         
         unaccepted = []
         if len(accepted) > 0:
-            unaccepted = list(set(all_persions) - set([item['username'] for item in accepted]))
+            unaccepted = list(set(all_persons) - set([item['username'] for item in accepted]))
         
         # 统计人数完成率
         person_rate = 0
