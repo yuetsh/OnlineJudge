@@ -2,7 +2,6 @@ import os
 from datetime import timedelta
 from importlib import import_module
 
-import qrcode
 from django.conf import settings
 from django.contrib import auth
 from django.template.loader import render_to_string
@@ -10,6 +9,9 @@ from django.utils.decorators import method_decorator
 from django.utils.timezone import now
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
 from django.db.models import Count
+from django.utils import timezone
+
+import qrcode
 from otpauth import OtpAuth
 
 from problem.models import Problem
@@ -21,12 +23,23 @@ from utils.captcha import Captcha
 from utils.shortcuts import rand_str, img2base64, datetime2str
 from ..decorators import login_required
 from ..models import User, UserProfile, AdminType
-from ..serializers import (ApplyResetPasswordSerializer, ResetPasswordSerializer,
-                           UserChangePasswordSerializer, UserLoginSerializer,
-                           UserRegisterSerializer, UsernameOrEmailCheckSerializer,
-                           RankInfoSerializer, UserChangeEmailSerializer, SSOSerializer)
-from ..serializers import (TwoFactorAuthCodeSerializer, UserProfileSerializer,
-                           EditUserProfileSerializer, ImageUploadForm)
+from ..serializers import (
+    ApplyResetPasswordSerializer,
+    ResetPasswordSerializer,
+    UserChangePasswordSerializer,
+    UserLoginSerializer,
+    UserRegisterSerializer,
+    UsernameOrEmailCheckSerializer,
+    RankInfoSerializer,
+    UserChangeEmailSerializer,
+    SSOSerializer,
+)
+from ..serializers import (
+    TwoFactorAuthCodeSerializer,
+    UserProfileSerializer,
+    EditUserProfileSerializer,
+    ImageUploadForm,
+)
 from ..tasks import send_email_async
 
 
@@ -50,7 +63,9 @@ class UserProfileAPI(APIView):
                 show_real_name = True
         except User.DoesNotExist:
             return self.error("User does not exist")
-        return self.success(UserProfileSerializer(user.userprofile, show_real_name=show_real_name).data)
+        return self.success(
+            UserProfileSerializer(user.userprofile, show_real_name=show_real_name).data
+        )
 
     @validate_serializer(EditUserProfileSerializer)
     @login_required
@@ -60,7 +75,19 @@ class UserProfileAPI(APIView):
         for k, v in data.items():
             setattr(user_profile, k, v)
         user_profile.save()
-        return self.success(UserProfileSerializer(user_profile, show_real_name=True).data)
+        return self.success(
+            UserProfileSerializer(user_profile, show_real_name=True).data
+        )
+
+
+class UserProfileAnalyse(APIView):
+    def get(self, request):
+        userid = request.GET.get("userid")
+        submission = Submission.objects.filter(user_id=userid).latest("create_time")
+        if not submission:
+            return self.error("暂无提交")
+        else:
+            return self.success({"now": timezone.now(), "last": submission.create_time})
 
 
 class AvatarUploadAPI(APIView):
@@ -104,7 +131,11 @@ class TwoFactorAuthAPI(APIView):
         user.save()
 
         label = f"{SysOptions.website_name_shortcut}:{user.username}"
-        image = qrcode.make(OtpAuth(token).to_uri("totp", label, SysOptions.website_name.replace(" ", "")))
+        image = qrcode.make(
+            OtpAuth(token).to_uri(
+                "totp", label, SysOptions.website_name.replace(" ", "")
+            )
+        )
         return self.success(img2base64(image))
 
     @login_required
@@ -197,12 +228,11 @@ class UsernameOrEmailCheck(APIView):
         """
         data = request.data
         # True means already exist.
-        result = {
-            "username": False,
-            "email": False
-        }
+        result = {"username": False, "email": False}
         if data.get("username"):
-            result["username"] = User.objects.filter(username=data["username"].lower()).exists()
+            result["username"] = User.objects.filter(
+                username=data["username"].lower()
+            ).exists()
         if data.get("email"):
             result["email"] = User.objects.filter(email=data["email"].lower()).exists()
         return self.success(result)
@@ -239,7 +269,9 @@ class UserChangeEmailAPI(APIView):
     @login_required
     def post(self, request):
         data = request.data
-        user = auth.authenticate(username=request.user.username, password=data["password"])
+        user = auth.authenticate(
+            username=request.user.username, password=data["password"]
+        )
         if user:
             if user.two_factor_auth:
                 if "tfa_code" not in data:
@@ -292,8 +324,12 @@ class ApplyResetPasswordAPI(APIView):
             user = User.objects.get(email__iexact=data["email"])
         except User.DoesNotExist:
             return self.error("User does not exist")
-        if user.reset_password_token_expire_time and 0 < int(
-                (user.reset_password_token_expire_time - now()).total_seconds()) < 20 * 60:
+        if (
+            user.reset_password_token_expire_time
+            and 0
+            < int((user.reset_password_token_expire_time - now()).total_seconds())
+            < 20 * 60
+        ):
             return self.error("You can only reset password once per 20 minutes")
         user.reset_password_token = rand_str()
         user.reset_password_token_expire_time = now() + timedelta(minutes=20)
@@ -301,14 +337,16 @@ class ApplyResetPasswordAPI(APIView):
         render_data = {
             "username": user.username,
             "website_name": SysOptions.website_name,
-            "link": f"{SysOptions.website_base_url}/reset-password/{user.reset_password_token}"
+            "link": f"{SysOptions.website_base_url}/reset-password/{user.reset_password_token}",
         }
         email_html = render_to_string("reset_password_email.html", render_data)
-        send_email_async.send(from_name=SysOptions.website_name_shortcut,
-                              to_email=user.email,
-                              to_name=user.username,
-                              subject="Reset your password",
-                              content=email_html)
+        send_email_async.send(
+            from_name=SysOptions.website_name_shortcut,
+            to_email=user.email,
+            to_name=user.username,
+            subject="Reset your password",
+            content=email_html,
+        )
         return self.success("Succeeded")
 
 
@@ -385,13 +423,18 @@ class UserRankAPI(APIView):
             n = 0
         if rule_type not in ContestRuleType.choices():
             rule_type = ContestRuleType.ACM
-        profiles = UserProfile.objects.filter(user__admin_type=AdminType.REGULAR_USER, user__is_disabled=False,
-                                              user__username__icontains=username).select_related("user")
+        profiles = UserProfile.objects.filter(
+            user__admin_type=AdminType.REGULAR_USER,
+            user__is_disabled=False,
+            user__username__icontains=username,
+        ).select_related("user")
         if rule_type == ContestRuleType.ACM:
-            profiles = profiles.filter(accepted_number__gte=0).order_by("-accepted_number", "submission_number")
+            profiles = profiles.filter(accepted_number__gte=0).order_by(
+                "-accepted_number", "submission_number"
+            )
         else:
             profiles = profiles.filter(total_score__gt=0).order_by("-total_score")
-        if n>0:
+        if n > 0:
             profiles = profiles[:n]
         return self.success(self.paginate_data(request, profiles, RankInfoSerializer))
 
@@ -401,11 +444,20 @@ class UserActivityRankAPI(APIView):
         start = request.GET.get("start")
         if not start:
             return self.error("start time is required")
-        admin_usernames = User.objects.filter(is_disabled=False).exclude(
-            admin_type=AdminType.REGULAR_USER).values_list("username", flat=True)
+        admin_usernames = (
+            User.objects.filter(is_disabled=False)
+            .exclude(admin_type=AdminType.REGULAR_USER)
+            .values_list("username", flat=True)
+        )
         admin_len = len(admin_usernames)
-        submissions = Submission.objects.filter(contest_id__isnull=True, create_time__gte=start, result=JudgeStatus.ACCEPTED)
-        counts = submissions.values("username").annotate(count=Count("problem_id", distinct=True)).order_by("-count")[:10+admin_len]
+        submissions = Submission.objects.filter(
+            contest_id__isnull=True, create_time__gte=start, result=JudgeStatus.ACCEPTED
+        )
+        counts = (
+            submissions.values("username")
+            .annotate(count=Count("problem_id", distinct=True))
+            .order_by("-count")[: 10 + admin_len]
+        )
         data = []
         for count in counts:
             if count["username"] not in admin_usernames:
@@ -422,7 +474,9 @@ class ProfileProblemDisplayIDRefreshAPI(APIView):
         ids = list(acm_problems.keys()) + list(oi_problems.keys())
         if not ids:
             return self.success()
-        display_ids = Problem.objects.filter(id__in=ids, visible=True).values_list("_id", flat=True)
+        display_ids = Problem.objects.filter(id__in=ids, visible=True).values_list(
+            "_id", flat=True
+        )
         id_map = dict(zip(ids, display_ids))
         for k, v in acm_problems.items():
             v["_id"] = id_map[k]
@@ -459,4 +513,10 @@ class SSOAPI(CSRFExemptAPIView):
             user = User.objects.get(auth_token=request.data["token"])
         except User.DoesNotExist:
             return self.error("User does not exist")
-        return self.success({"username": user.username, "avatar": user.userprofile.avatar, "admin_type": user.admin_type})
+        return self.success(
+            {
+                "username": user.username,
+                "avatar": user.userprofile.avatar,
+                "admin_type": user.admin_type,
+            }
+        )
