@@ -1,3 +1,4 @@
+from datetime import datetime
 import random
 from django.db.models import Q, Count
 from account.models import User
@@ -163,8 +164,10 @@ class ProblemSolvedPeopleCount(APIView):
         ).count()
         if submission_count == 0:
             return self.success("0%")
-
-        total_count = User.objects.filter(is_disabled=False).count()
+        today = datetime.today()
+        total_count = Submission.objects.filter(
+            create_time__gte=datetime(today.year - 1, today.month, today.day, 0, 0)
+        ).aggregate(user_count=Count("user_id", distinct=True))["user_count"]
         accepted_count = Submission.objects.filter(
             problem_id=problem_id, result=JudgeStatus.ACCEPTED
         ).aggregate(user_count=Count("user_id", distinct=True))["user_count"]
