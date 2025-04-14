@@ -165,11 +165,14 @@ class ProblemSolvedPeopleCount(APIView):
         if submission_count == 0:
             return self.success("0%")
         today = datetime.today()
-        total_count = Submission.objects.filter(
-            create_time__gte=datetime(today.year - 1, today.month, today.day, 0, 0)
-        ).aggregate(user_count=Count("user_id", distinct=True))["user_count"]
+        oneYearAge = datetime(today.year - 1, today.month, today.day, 0, 0)
+        total_count = User.objects.filter(
+            is_disabled=False, last_login__gte=oneYearAge
+        ).count()
         accepted_count = Submission.objects.filter(
-            problem_id=problem_id, result=JudgeStatus.ACCEPTED
+            problem_id=problem_id,
+            result=JudgeStatus.ACCEPTED,
+            create_time__gte=oneYearAge,
         ).aggregate(user_count=Count("user_id", distinct=True))["user_count"]
         if accepted_count < total_count:
             rate = "%.2f" % ((total_count - accepted_count) / total_count * 100)
