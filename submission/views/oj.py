@@ -190,13 +190,6 @@ class SubmissionListAPI(APIView):
         data["results"] = SubmissionListSerializer(
             data["results"], many=True, user=request.user
         ).data
-
-        today = datetime.today()
-        today_submissions_count = Submission.objects.filter(
-            create_time__gte=datetime(today.year, today.month, today.day, 0, 0)
-        ).count()
-        data["today_count"] = today_submissions_count
-        
         return self.success(data)
 
 
@@ -258,3 +251,12 @@ class SubmissionExistsAPI(APIView):
                 problem_id=request.GET["problem_id"], user_id=request.user.id
             ).exists()
         )
+
+
+class SubmissionsTodayCount(APIView):
+    def get(self, request):
+        today = datetime.today()
+        count = Submission.objects.filter(
+            create_time__gte=datetime(today.year, today.month, today.day, 0, 0)
+        ).count()
+        return self.success(count)
