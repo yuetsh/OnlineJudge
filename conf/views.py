@@ -1,7 +1,6 @@
 import hashlib
 import json
 import os
-import random
 import re
 import shutil
 import smtplib
@@ -298,9 +297,8 @@ class RandomUsernameAPI(APIView):
             return self.error("需要班级号")
         usernames = User.objects.filter(username__istartswith=classroom).values_list(
             "username", flat=True
-        )
-        random.shuffle(usernames)
-        if len(usernames) >= 10:
+        ).order_by("?")
+        if len(usernames) > 10:
             return self.success(usernames[:10])
         else:
             return self.success(usernames)
