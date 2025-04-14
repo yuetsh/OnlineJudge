@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import random
 import re
 import shutil
 import smtplib
@@ -23,10 +24,15 @@ from utils.api import APIView, CSRFExemptAPIView, validate_serializer
 from utils.shortcuts import send_email, get_env
 from utils.xss_filter import XSSHtml
 from .models import JudgeServer
-from .serializers import (CreateEditWebsiteConfigSerializer,
-                          CreateSMTPConfigSerializer, EditSMTPConfigSerializer,
-                          JudgeServerHeartbeatSerializer,
-                          JudgeServerSerializer, TestSMTPConfigSerializer, EditJudgeServerSerializer)
+from .serializers import (
+    CreateEditWebsiteConfigSerializer,
+    CreateSMTPConfigSerializer,
+    EditSMTPConfigSerializer,
+    JudgeServerHeartbeatSerializer,
+    JudgeServerSerializer,
+    TestSMTPConfigSerializer,
+    EditJudgeServerSerializer,
+)
 
 
 class SMTPAPI(APIView):
@@ -64,12 +70,14 @@ class SMTPTestAPI(APIView):
         if not SysOptions.smtp_config:
             return self.error("Please setup SMTP config at first")
         try:
-            send_email(smtp_config=SysOptions.smtp_config,
-                       from_name=SysOptions.website_name_shortcut,
-                       to_name=request.user.username,
-                       to_email=request.data["email"],
-                       subject="You have successfully configured SMTP",
-                       content="You have successfully configured SMTP")
+            send_email(
+                smtp_config=SysOptions.smtp_config,
+                from_name=SysOptions.website_name_shortcut,
+                to_name=request.user.username,
+                to_email=request.data["email"],
+                subject="You have successfully configured SMTP",
+                content="You have successfully configured SMTP",
+            )
         except smtplib.SMTPResponseException as e:
             # guess error message encoding
             msg = b"Failed to send email"
@@ -88,10 +96,18 @@ class SMTPTestAPI(APIView):
 
 class WebsiteConfigAPI(APIView):
     def get(self, request):
-        ret = {key: getattr(SysOptions, key) for key in
-               ["website_base_url", "website_name", "website_name_shortcut",
-                "website_footer", "allow_register", "submission_list_show_all",
-                "class_list"]}
+        ret = {
+            key: getattr(SysOptions, key)
+            for key in [
+                "website_base_url",
+                "website_name",
+                "website_name_shortcut",
+                "website_footer",
+                "allow_register",
+                "submission_list_show_all",
+                "class_list",
+            ]
+        }
         return self.success(ret)
 
     @super_admin_required
@@ -109,8 +125,12 @@ class JudgeServerAPI(APIView):
     @super_admin_required
     def get(self, request):
         servers = JudgeServer.objects.all().order_by("-last_heartbeat")
-        return self.success({"token": SysOptions.judge_server_token,
-                             "servers": JudgeServerSerializer(servers, many=True).data})
+        return self.success(
+            {
+                "token": SysOptions.judge_server_token,
+                "servers": JudgeServerSerializer(servers, many=True).data,
+            }
+        )
 
     @super_admin_required
     def delete(self, request):
@@ -123,7 +143,9 @@ class JudgeServerAPI(APIView):
     @super_admin_required
     def put(self, request):
         is_disabled = request.data.get("is_disabled", False)
-        JudgeServer.objects.filter(id=request.data["id"]).update(is_disabled=is_disabled)
+        JudgeServer.objects.filter(id=request.data["id"]).update(
+            is_disabled=is_disabled
+        )
         if not is_disabled:
             process_pending_task()
         return self.success()
@@ -134,7 +156,10 @@ class JudgeServerHeartbeatAPI(CSRFExemptAPIView):
     def post(self, request):
         data = request.data
         client_token = request.META.get("HTTP_X_JUDGE_SERVER_TOKEN")
-        if hashlib.sha256(SysOptions.judge_server_token.encode("utf-8")).hexdigest() != client_token:
+        if (
+            hashlib.sha256(SysOptions.judge_server_token.encode("utf-8")).hexdigest()
+            != client_token
+        ):
             return self.error("Invalid token")
 
         try:
@@ -146,17 +171,27 @@ class JudgeServerHeartbeatAPI(CSRFExemptAPIView):
             server.service_url = data["service_url"]
             server.ip = request.ip
             server.last_heartbeat = timezone.now()
-            server.save(update_fields=["judger_version", "cpu_core", "memory_usage", "service_url", "ip", "last_heartbeat"])
+            server.save(
+                update_fields=[
+                    "judger_version",
+                    "cpu_core",
+                    "memory_usage",
+                    "service_url",
+                    "ip",
+                    "last_heartbeat",
+                ]
+            )
         except JudgeServer.DoesNotExist:
-            JudgeServer.objects.create(hostname=data["hostname"],
-                                       judger_version=data["judger_version"],
-                                       cpu_core=data["cpu_core"],
-                                       memory_usage=data["memory"],
-                                       cpu_usage=data["cpu"],
-                                       ip=request.META["REMOTE_ADDR"],
-                                       service_url=data["service_url"],
-                                       last_heartbeat=timezone.now(),
-                                       )
+            JudgeServer.objects.create(
+                hostname=data["hostname"],
+                judger_version=data["judger_version"],
+                cpu_core=data["cpu_core"],
+                memory_usage=data["memory"],
+                cpu_usage=data["cpu"],
+                ip=request.META["REMOTE_ADDR"],
+                service_url=data["service_url"],
+                last_heartbeat=timezone.now(),
+            )
         # 新server上线 处理队列中的，防止没有新的提交而导致一直waiting
         process_pending_task()
 
@@ -165,7 +200,12 @@ class JudgeServerHeartbeatAPI(CSRFExemptAPIView):
 
 class LanguagesAPI(APIView):
     def get(self, request):
-        return self.success({"languages": SysOptions.languages, "spj_languages": SysOptions.spj_languages})
+        return self.success(
+            {
+                "languages": SysOptions.languages,
+                "spj_languages": SysOptions.spj_languages,
+            }
+        )
 
 
 class TestCasePruneAPI(APIView):
@@ -211,8 +251,11 @@ class TestCasePruneAPI(APIView):
 class ReleaseNotesAPI(APIView):
     def get(self, request):
         try:
-            resp = requests.get("https://raw.githubusercontent.com/QingdaoU/OnlineJudge/master/docs/data.json?_=" + str(time.time()),
-                                timeout=3)
+            resp = requests.get(
+                "https://raw.githubusercontent.com/QingdaoU/OnlineJudge/master/docs/data.json?_="
+                + str(time.time()),
+                timeout=3,
+            )
             releases = resp.json()
         except (RequestException, ValueError):
             return self.success()
@@ -226,16 +269,38 @@ class DashboardInfoAPI(APIView):
     def get(self, request):
         today = datetime.today()
         today_submission_count = Submission.objects.filter(
-            create_time__gte=datetime(today.year, today.month, today.day, 0, 0)).count()
-        recent_contest_count = Contest.objects.exclude(end_time__lt=timezone.now()).count()
-        judge_server_count = len(list(filter(lambda x: x.status == "normal", JudgeServer.objects.all())))
-        return self.success({
-            "user_count": User.objects.count(),
-            "recent_contest_count": recent_contest_count,
-            "today_submission_count": today_submission_count,
-            "judge_server_count": judge_server_count,
-            "env": {
-                "FORCE_HTTPS": get_env("FORCE_HTTPS", default=False),
-                "STATIC_CDN_HOST": get_env("STATIC_CDN_HOST", default="")
+            create_time__gte=datetime(today.year, today.month, today.day, 0, 0)
+        ).count()
+        recent_contest_count = Contest.objects.exclude(
+            end_time__lt=timezone.now()
+        ).count()
+        judge_server_count = len(
+            list(filter(lambda x: x.status == "normal", JudgeServer.objects.all()))
+        )
+        return self.success(
+            {
+                "user_count": User.objects.count(),
+                "recent_contest_count": recent_contest_count,
+                "today_submission_count": today_submission_count,
+                "judge_server_count": judge_server_count,
+                "env": {
+                    "FORCE_HTTPS": get_env("FORCE_HTTPS", default=False),
+                    "STATIC_CDN_HOST": get_env("STATIC_CDN_HOST", default=""),
+                },
             }
-        })
+        )
+
+
+class RandomUsernameAPI(APIView):
+    def get(self, request):
+        classroom = request.GET.get("classroom", "")
+        if not classroom:
+            return self.error("需要班级号")
+        usernames = User.objects.filter(username__istartswith=classroom).values_list(
+            "username", flat=True
+        )
+        random.shuffle(usernames)
+        if len(usernames) >= 10:
+            return self.success(usernames[:10])
+        else:
+            return self.success(usernames)
