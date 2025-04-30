@@ -13,12 +13,16 @@ from utils.shortcuts import rand_str
 
 from ..decorators import super_admin_required
 from ..models import AdminType, ProblemPermission, User, UserProfile
-from ..serializers import EditUserSerializer, UserAdminSerializer, GenerateUserSerializer
-from ..serializers import ImportUserSeralizer
+from ..serializers import (
+    EditUserSerializer,
+    UserAdminSerializer,
+    GenerateUserSerializer,
+)
+from ..serializers import ImportUserSerializer
 
 
 class UserAdminAPI(APIView):
-    @validate_serializer(ImportUserSeralizer)
+    @validate_serializer(ImportUserSerializer)
     @super_admin_required
     def post(self, request):
         """
@@ -30,12 +34,23 @@ class UserAdminAPI(APIView):
         for user_data in data:
             if len(user_data) != 4 or len(user_data[0]) > 32:
                 return self.error(f"Error occurred while processing data '{user_data}'")
-            user_list.append(User(username=user_data[0], password=make_password(user_data[1]), email=user_data[2]))
+            user_list.append(
+                User(
+                    username=user_data[0],
+                    password=make_password(user_data[1]),
+                    email=user_data[2],
+                )
+            )
 
         try:
             with transaction.atomic():
                 ret = User.objects.bulk_create(user_list)
-                UserProfile.objects.bulk_create([UserProfile(user=ret[i], real_name=data[i][3]) for i in range(len(ret))])
+                UserProfile.objects.bulk_create(
+                    [
+                        UserProfile(user=ret[i], real_name=data[i][3])
+                        for i in range(len(ret))
+                    ]
+                )
             return self.success()
         except IntegrityError as e:
             # Extract detail from exception message
@@ -54,9 +69,17 @@ class UserAdminAPI(APIView):
             user = User.objects.get(id=data["id"])
         except User.DoesNotExist:
             return self.error("User does not exist")
-        if User.objects.filter(username=data["username"].lower()).exclude(id=user.id).exists():
+        if (
+            User.objects.filter(username=data["username"].lower())
+            .exclude(id=user.id)
+            .exists()
+        ):
             return self.error("Username already exists")
-        if User.objects.filter(email=data["email"].lower()).exclude(id=user.id).exists():
+        if (
+            User.objects.filter(email=data["email"].lower())
+            .exclude(id=user.id)
+            .exists()
+        ):
             return self.error("Email already exists")
 
         pre_username = user.username
@@ -94,7 +117,9 @@ class UserAdminAPI(APIView):
 
         user.save()
         if pre_username != user.username:
-            Submission.objects.filter(username=pre_username).update(username=user.username)
+            Submission.objects.filter(username=pre_username).update(
+                username=user.username
+            )
 
         UserProfile.objects.filter(user=user).update(real_name=data["real_name"])
         return self.success(UserAdminSerializer(user).data)
@@ -114,11 +139,18 @@ class UserAdminAPI(APIView):
 
         user = User.objects.all().order_by("-create_time")
 
+        is_admin = request.GET.get("admin", False)
+
+        if is_admin:
+            user = user.exclude(admin_type=AdminType.REGULAR_USER)
+
         keyword = request.GET.get("keyword", None)
         if keyword:
-            user = user.filter(Q(username__icontains=keyword) |
-                               Q(userprofile__real_name__icontains=keyword) |
-                               Q(email__icontains=keyword))
+            user = user.filter(
+                Q(username__icontains=keyword)
+                | Q(userprofile__real_name__icontains=keyword)
+                | Q(email__icontains=keyword)
+            )
         return self.success(self.paginate_data(request, user, UserAdminSerializer))
 
     @super_admin_required
@@ -162,7 +194,9 @@ class GenerateUserAPI(APIView):
         Generate User
         """
         data = request.data
-        number_max_length = max(len(str(data["number_from"])), len(str(data["number_to"])))
+        number_max_length = max(
+            len(str(data["number_from"])), len(str(data["number_to"]))
+        )
         if number_max_length + len(data["prefix"]) + len(data["suffix"]) > 32:
             return self.error("Username should not more than 32 characters")
         if data["number_from"] > data["number_to"]:
@@ -180,15 +214,19 @@ class GenerateUserAPI(APIView):
         user_list = []
         for number in range(data["number_from"], data["number_to"] + 1):
             raw_password = rand_str(data["password_length"])
-            user = User(username=f"{data['prefix']}{number}{data['suffix']}", password=make_password(raw_password))
+            user = User(
+                username=f"{data['prefix']}{number}{data['suffix']}",
+                password=make_password(raw_password),
+            )
             user.raw_password = raw_password
             user_list.append(user)
 
         try:
             with transaction.atomic():
-
                 ret = User.objects.bulk_create(user_list)
-                UserProfile.objects.bulk_create([UserProfile(user=user) for user in ret])
+                UserProfile.objects.bulk_create(
+                    [UserProfile(user=user) for user in ret]
+                )
                 for item in user_list:
                     worksheet.write_string(i, 0, item.username)
                     worksheet.write_string(i, 1, item.raw_password)

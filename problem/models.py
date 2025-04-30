@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 from utils.models import JSONField
 
@@ -59,7 +60,7 @@ class Problem(models.Model):
     template = JSONField()
     create_time = models.DateTimeField(auto_now_add=True)
     # we can not use auto_now here
-    last_update_time = models.DateTimeField(null=True)
+    last_update_time = models.DateTimeField(auto_now=True)
     created_by = models.ForeignKey(User, on_delete=models.CASCADE)
     # ms
     time_limit = models.IntegerField()
@@ -82,7 +83,7 @@ class Problem(models.Model):
     total_score = models.IntegerField(default=0)
     submission_number = models.BigIntegerField(default=0)
     accepted_number = models.BigIntegerField(default=0)
-    # {JudgeStatus.ACCEPTED: 3, JudgeStaus.WRONG_ANSWER: 11}, the number means count
+    # {JudgeStatus.ACCEPTED: 3, JudgeStatus.WRONG_ANSWER: 11}, the number means count
     statistic_info = JSONField(default=dict)
     share_submission = models.BooleanField(default=False)
 
@@ -98,3 +99,13 @@ class Problem(models.Model):
     def add_ac_number(self):
         self.accepted_number = models.F("accepted_number") + 1
         self.save(update_fields=["accepted_number"])
+
+
+# class ProblemSet(models):
+#     title = models.CharField(max_length=20)
+#     subtitle = models.CharField(max_length=50)
+#     problems = models.ManyToManyField(Problem)
+#     badge = models.FilePathField(path=settings.UPLOAD_DIR)
+#     overviews = models.JSONField()
+#     create_time = models.DateTimeField(auto_now_add=True)
+#     update_time = models.DateTimeField(auto_now=True)

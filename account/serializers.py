@@ -43,9 +43,10 @@ class GenerateUserSerializer(serializers.Serializer):
     password_length = serializers.IntegerField(max_value=16, default=8)
 
 
-class ImportUserSeralizer(serializers.Serializer):
+class ImportUserSerializer(serializers.Serializer):
     users = serializers.ListField(
-        child=serializers.ListField(child=serializers.CharField(max_length=64)))
+        child=serializers.ListField(child=serializers.CharField(max_length=64))
+    )
 
 
 class UserAdminSerializer(serializers.ModelSerializer):
@@ -53,8 +54,19 @@ class UserAdminSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["id", "username", "email", "admin_type", "problem_permission", "real_name",
-                  "create_time", "last_login", "two_factor_auth", "open_api", "is_disabled"]
+        fields = [
+            "id",
+            "username",
+            "email",
+            "admin_type",
+            "problem_permission",
+            "real_name",
+            "create_time",
+            "last_login",
+            "two_factor_auth",
+            "open_api",
+            "is_disabled",
+        ]
 
     def get_real_name(self, obj):
         return obj.userprofile.real_name
@@ -63,8 +75,18 @@ class UserAdminSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ["id", "username", "email", "admin_type", "problem_permission",
-                  "create_time", "last_login", "two_factor_auth", "open_api", "is_disabled"]
+        fields = [
+            "id",
+            "username",
+            "email",
+            "admin_type",
+            "problem_permission",
+            "create_time",
+            "last_login",
+            "two_factor_auth",
+            "open_api",
+            "is_disabled",
+        ]
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
@@ -87,11 +109,16 @@ class EditUserSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     username = serializers.CharField(max_length=32)
     real_name = serializers.CharField(max_length=32, allow_blank=True, allow_null=True)
-    password = serializers.CharField(min_length=6, allow_blank=True, required=False, default=None)
+    password = serializers.CharField(
+        min_length=6, allow_blank=True, required=False, default=None
+    )
     email = serializers.EmailField(max_length=64)
-    admin_type = serializers.ChoiceField(choices=(AdminType.REGULAR_USER, AdminType.ADMIN, AdminType.SUPER_ADMIN))
-    problem_permission = serializers.ChoiceField(choices=(ProblemPermission.NONE, ProblemPermission.OWN,
-                                                          ProblemPermission.ALL))
+    admin_type = serializers.ChoiceField(
+        choices=(AdminType.REGULAR_USER, AdminType.ADMIN, AdminType.SUPER_ADMIN)
+    )
+    problem_permission = serializers.ChoiceField(
+        choices=(ProblemPermission.NONE, ProblemPermission.OWN, ProblemPermission.ALL)
+    )
     open_api = serializers.BooleanField()
     two_factor_auth = serializers.BooleanField()
     is_disabled = serializers.BooleanField()
