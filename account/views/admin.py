@@ -139,9 +139,9 @@ class UserAdminAPI(APIView):
 
         user = User.objects.all().order_by("-create_time")
 
-        is_admin = request.GET.get("admin", False)
+        is_admin = request.GET.get("admin", "0")
 
-        if is_admin:
+        if is_admin == "1":
             user = user.exclude(admin_type=AdminType.REGULAR_USER)
 
         keyword = request.GET.get("keyword", None)
