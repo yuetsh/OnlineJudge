@@ -13,6 +13,6 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='problem',
             name='last_update_time',
-            field=models.DateTimeField(auto_now=True),
+            field=models.DateTimeField(auto_now=True, null=True),
         ),
     ]
