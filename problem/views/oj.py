@@ -178,4 +178,4 @@ class ProblemSolvedPeopleCount(APIView):
             rate = "%.2f" % ((total_count - accepted_count) / total_count * 100)
         else:
             rate = "0"
-        return self.success(f"{rate}%")
+        return self.success(rate)
