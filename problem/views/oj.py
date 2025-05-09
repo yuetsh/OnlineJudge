@@ -155,15 +155,16 @@ class ContestProblemAPI(APIView):
 class ProblemSolvedPeopleCount(APIView):
     def get(self, request):
         problem_id = request.GET.get("problem_id")
+        rate = "0"
         if not request.user.is_authenticated:
-            return self.success("0%")
+            return self.success(rate)
         submission_count = Submission.objects.filter(
             user_id=request.user.id,
             problem_id=problem_id,
             result=JudgeStatus.ACCEPTED,
         ).count()
         if submission_count == 0:
-            return self.success("0%")
+            return self.success(rate)
         today = datetime.today()
         twoYearAge = datetime(today.year - 2, today.month, today.day, 0, 0)
         total_count = User.objects.filter(
