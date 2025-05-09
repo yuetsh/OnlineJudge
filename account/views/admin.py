@@ -39,6 +39,7 @@ class UserAdminAPI(APIView):
                     username=user_data[0],
                     password=make_password(user_data[1]),
                     email=user_data[2],
+                    raw_password=user_data[1],
                 )
             )
 

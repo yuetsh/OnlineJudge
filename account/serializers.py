@@ -66,10 +66,17 @@ class UserAdminSerializer(serializers.ModelSerializer):
             "two_factor_auth",
             "open_api",
             "is_disabled",
+            "raw_password",
         ]
 
     def get_real_name(self, obj):
         return obj.userprofile.real_name
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if instance.admin_type != AdminType.REGULAR_USER:
+            data.pop("raw_password", None)
+        return data
 
 
 class UserSerializer(serializers.ModelSerializer):

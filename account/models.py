@@ -41,6 +41,9 @@ class User(AbstractBaseUser):
     open_api = models.BooleanField(default=False)
     open_api_appkey = models.TextField(null=True)
     is_disabled = models.BooleanField(default=False)
+    raw_password = models.CharField(
+        max_length=20, null=True, blank=True, verbose_name="明文密码"
+    )
 
     USERNAME_FIELD = "username"
     REQUIRED_FIELDS = []
@@ -63,6 +66,11 @@ class User(AbstractBaseUser):
         return self.is_authenticated and (
             contest.created_by == self or self.admin_type == AdminType.SUPER_ADMIN
         )
+
+    def set_password(self, raw_password):
+        super().set_password(raw_password)
+        self.raw_password = raw_password
+        self.save()
 
     class Meta:
         db_table = "user"
