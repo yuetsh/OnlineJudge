@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import random
 import re
 import shutil
 import smtplib
@@ -20,6 +21,7 @@ from options.options import SysOptions
 from problem.models import Problem
 from submission.models import Submission
 from utils.api import APIView, CSRFExemptAPIView, validate_serializer
+from utils.cache import JsonDataLoader
 from utils.shortcuts import send_email, get_env
 from utils.xss_filter import XSSHtml
 from .models import JudgeServer
@@ -295,10 +297,21 @@ class RandomUsernameAPI(APIView):
         classroom = request.GET.get("classroom", "")
         if not classroom:
             return self.error("需要班级号")
-        usernames = User.objects.filter(username__istartswith=classroom).values_list(
-            "username", flat=True
-        ).order_by("?")
+        usernames = (
+            User.objects.filter(username__istartswith=classroom)
+            .values_list("username", flat=True)
+            .order_by("?")
+        )
         if len(usernames) > 10:
             return self.success(usernames[:10])
         else:
             return self.success(usernames)
+
+
+class HitokotoAPI(APIView):
+    def get(self, request):
+        categories = JsonDataLoader.load_data(settings.HITOKOTO_DIR, "categories.json")
+        path = random.choice(categories).get("path")
+        sentences = JsonDataLoader.load_data(settings.HITOKOTO_DIR, path)
+        sentence = random.choice(sentences)
+        return self.success(sentence)

@@ -1,5 +1,6 @@
-from django.core.cache import cache, caches  # noqa
-from django.conf import settings  # noqa
+import json
+from pathlib import Path
+from django.core.cache import cache
 
 from django_redis.cache import RedisCache
 from django_redis.client.default import DefaultClient
@@ -25,3 +26,22 @@ class MyRedisCache(RedisCache):
 
     def __getattr__(self, item):
         return getattr(self.client, item)
+
+
+class JsonDataLoader:
+    @classmethod
+    def load_data(cls, dir, filename):
+        cache_key = f"json_data_{filename}"
+        if cached := cache.get(cache_key):
+            return cached
+
+        file_path = Path(dir, filename)
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                cache.set(cache_key, data, timeout=7200)
+                return data
+        except FileNotFoundError:
+            raise ValueError(f"Data file {filename} not found")
+        except json.JSONDecodeError:
+            raise ValueError(f"Invalid JSON format in {filename}")

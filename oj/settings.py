@@ -136,6 +136,8 @@ AVATAR_UPLOAD_DIR = f"{DATA_DIR}{AVATAR_URI_PREFIX}"
 UPLOAD_PREFIX = "/public/upload"
 UPLOAD_DIR = f"{DATA_DIR}{UPLOAD_PREFIX}"
 
+HITOKOTO_DIR = os.path.join(DATA_DIR, "hitokoto")
+
 STATICFILES_DIRS = [os.path.join(DATA_DIR, "public")]
 
 
