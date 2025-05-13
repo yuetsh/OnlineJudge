@@ -69,8 +69,9 @@ class User(AbstractBaseUser):
 
     def set_password(self, raw_password):
         super().set_password(raw_password)
-        self.raw_password = raw_password
-        self.save()
+        if self.username:
+            self.raw_password = raw_password
+            self.save()
 
     class Meta:
         db_table = "user"
