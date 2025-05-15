@@ -8,7 +8,7 @@ from django.template.loader import render_to_string
 from django.utils.decorators import method_decorator
 from django.utils.timezone import now
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.utils import timezone
 
 import qrcode
@@ -455,23 +455,22 @@ class UserActivityRankAPI(APIView):
         start = request.GET.get("start")
         if not start:
             return self.error("start time is required")
-        admin_usernames = (
-            User.objects.filter(is_disabled=False)
-            .exclude(admin_type=AdminType.REGULAR_USER)
-            .values_list("username", flat=True)
-        )
-        admin_len = len(admin_usernames)
+        hidden_names = User.objects.filter(
+            Q(admin_type=AdminType.SUPER_ADMIN)
+            | Q(admin_type=AdminType.ADMIN)
+            | Q(is_disabled=True)
+        ).values_list("username", flat=True)
         submissions = Submission.objects.filter(
             contest_id__isnull=True, create_time__gte=start, result=JudgeStatus.ACCEPTED
         )
         counts = (
             submissions.values("username")
             .annotate(count=Count("problem_id", distinct=True))
-            .order_by("-count")[: 10 + admin_len]
+            .order_by("-count")[: 10 + len(hidden_names)]
         )
         data = []
         for count in counts:
-            if count["username"] not in admin_usernames:
+            if count["username"] not in hidden_names:
                 data.append(count)
         return self.success(data[:10])
 
