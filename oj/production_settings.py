@@ -20,4 +20,6 @@ DEBUG = False
 
 ALLOWED_HOSTS = ["*"]
 
+CSRF_TRUSTED_ORIGINS = ["https://oj.xuyue.cc"]
+
 DATA_DIR = "/data"
