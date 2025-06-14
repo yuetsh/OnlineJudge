@@ -18,7 +18,13 @@ REDIS_CONF = {
 
 DEBUG = False
 
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = [
+    "localhost",
+    "127.0.0.1",
+    "10.13.114.114",
+    "150.158.29.156",
+    "oj.xuyue.cc",
+]
 
 CSRF_TRUSTED_ORIGINS = [
     "https://oj.xuyue.cc", 
