@@ -11,6 +11,7 @@ class Tutorial(models.Model):
     order = models.IntegerField(default=0)
 
     class Meta:
+        db_table = "tutorial"
         ordering = ['order', '-created_at']
 
     def __str__(self):
