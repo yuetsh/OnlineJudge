@@ -20,6 +20,10 @@ DEBUG = False
 
 ALLOWED_HOSTS = ["*"]
 
-CSRF_TRUSTED_ORIGINS = ["https://oj.xuyue.cc", "http://10.13.114.114:81"]
+CSRF_TRUSTED_ORIGINS = [
+    "https://oj.xuyue.cc", 
+    "http://10.13.114.114:81",
+    "http://150.158.29.156:8881",
+]
 
 DATA_DIR = "/data"
