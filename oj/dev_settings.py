@@ -19,22 +19,6 @@ REDIS_CONF = {
 
 DEBUG = True
 
-ALLOWED_HOSTS = [
-    "localhost",
-    "127.0.0.1",
-    "10.13.114.114",
-    "150.158.29.156",
-    "oj.xuyue.cc",
-    "ojtest.xuyue.cc",
-]
-
-CSRF_TRUSTED_ORIGINS = [
-    "https://oj.xuyue.cc",
-    "https://ojtest.xuyue.cc",
-    "http://10.13.114.114:81",
-    "http://150.158.29.156:8881",
-    "http://localhost:5173",
-]
-
+ALLOWED_HOSTS = ["*"]
 
 DATA_DIR = f"{BASE_DIR}/data"
