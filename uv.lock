@@ -322,7 +322,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "coverage", specifier = "==6.5.0" },
-    { name = "django", specifier = "==5.2.3" },
+    { name = "django", specifier = ">=5.2.3" },
     { name = "django-cas-ng", specifier = "==5.0.1" },
     { name = "django-dbconn-retry", specifier = "==0.1.8" },
     { name = "django-dramatiq", specifier = "==0.13.0" },
