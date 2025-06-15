@@ -25,12 +25,15 @@ ALLOWED_HOSTS = [
     "ojtest.xuyue.cc",
     "10.13.114.114",
     "150.158.29.156",
+    "oj-judge-test",
+    "oj-judge",
 ]
 
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
     "http://localhost:9005",  # health check
-    "http://localhost:8080",  # judge server
+    "http://oj-judge-test:8080",
+    "http://oj-judge:8080",  # judge server
     "http://127.0.0.1:5173",
     "https://oj.xuyue.cc",
     "https://ojtest.xuyue.cc",
