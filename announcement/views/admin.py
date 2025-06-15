@@ -2,8 +2,11 @@ from account.decorators import super_admin_required
 from utils.api import APIView, validate_serializer
 
 from announcement.models import Announcement
-from announcement.serializers import (AnnouncementSerializer, CreateAnnouncementSerializer,
-                                      EditAnnouncementSerializer)
+from announcement.serializers import (
+    AnnouncementSerializer,
+    CreateAnnouncementSerializer,
+    EditAnnouncementSerializer,
+)
 
 
 class AnnouncementAdminAPI(APIView):
@@ -50,7 +53,9 @@ class AnnouncementAdminAPI(APIView):
         announcement = Announcement.objects.all().order_by("-create_time")
         if request.GET.get("visible") == "true":
             announcement = announcement.filter(visible=True)
-        return self.success(self.paginate_data(request, announcement, AnnouncementSerializer))
+        return self.success(
+            self.paginate_data(request, announcement, AnnouncementSerializer)
+        )
 
     @super_admin_required
     def delete(self, request):

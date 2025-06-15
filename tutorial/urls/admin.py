@@ -1,10 +1,10 @@
-from django.urls import path, include
-from rest_framework.routers import DefaultRouter
-from ..views.admin import AdminTutorialViewSet
-
-router = DefaultRouter()
-router.register(r'tutorials', AdminTutorialViewSet)
+from django.urls import path
+from ..views.admin import TutorialAdminAPI, TutorialVisibilityAPI
 
 urlpatterns = [
-    path('', include(router.urls)),
-] 
+    path("tutorial", TutorialAdminAPI.as_view()),
+    path(
+        "tutorial/visibility",
+        TutorialVisibilityAPI.as_view(),
+    ),
+]

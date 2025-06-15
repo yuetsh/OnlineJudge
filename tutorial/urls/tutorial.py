@@ -1,10 +1,7 @@
-from django.urls import path, include
-from rest_framework.routers import DefaultRouter
-from ..views.tutorial import TutorialViewSet
-
-router = DefaultRouter()
-router.register(r'tutorials', TutorialViewSet)
+from django.urls import path
+from ..views.oj import TutorialAPI, TutorialTitlesAPI
 
 urlpatterns = [
-    path('', include(router.urls)),
-] 
+    path("tutorial", TutorialAPI.as_view()),
+    path("tutorials", TutorialTitlesAPI.as_view()),
+]
