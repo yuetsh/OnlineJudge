@@ -30,6 +30,7 @@ ALLOWED_HOSTS = [
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
     "http://localhost:9005",  # health check
+    "http://localhost:8080",  # judge server
     "http://127.0.0.1:5173",
     "https://oj.xuyue.cc",
     "https://ojtest.xuyue.cc",
