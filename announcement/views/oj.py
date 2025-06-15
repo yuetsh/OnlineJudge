@@ -1,8 +1,7 @@
 from utils.api import APIView
 
 from announcement.models import Announcement
-from announcement.serializers import (AnnouncementSerializer, 
-                                      AnnouncementListSerializer)
+from announcement.serializers import AnnouncementSerializer, AnnouncementListSerializer
 
 
 class AnnouncementAPI(APIView):
@@ -16,4 +15,6 @@ class AnnouncementAPI(APIView):
                 return self.error("Announcement does not exist")
 
         announcements = Announcement.objects.filter(visible=True)
-        return self.success(self.paginate_data(request, announcements, AnnouncementListSerializer))
+        return self.success(
+            self.paginate_data(request, announcements, AnnouncementListSerializer)
+        )

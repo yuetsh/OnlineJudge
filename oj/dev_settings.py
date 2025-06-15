@@ -21,4 +21,6 @@ DEBUG = True
 
 ALLOWED_HOSTS = ["*"]
 
+CSRF_TRUSTED_ORIGINS = ["http://localhost:5173"]
+
 DATA_DIR = f"{BASE_DIR}/data"
