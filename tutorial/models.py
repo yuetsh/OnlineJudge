@@ -9,7 +9,7 @@ class Tutorial(models.Model):
     
     title = models.CharField(max_length=128)
     content = models.TextField()
-    code = models.TextField(default="")
+    code = models.TextField(null=True, blank=True)
     type = models.CharField(max_length=10, choices=TYPE_CHOICES, default='python')
     created_by = models.ForeignKey(User, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
