@@ -9,4 +9,4 @@ class TutorialSerializer(serializers.ModelSerializer):
         model = Tutorial
         fields = ['id', 'title', 'content', 'created_by', 'created_at', 
                  'updated_at', 'is_public', 'order']
-        read_only_fields = ['created_by', 'created_at', 'updated_at'] 
+        read_only_fields = ['id', 'created_by', 'created_at', 'updated_at'] 
