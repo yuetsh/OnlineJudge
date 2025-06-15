@@ -77,11 +77,4 @@ class CommentStatisticsAPI(APIView):
             difficulty=Round(Avg("difficulty_rating"), 2),
             comprehensive=Round(Avg("comprehensive_rating"), 2),
         )
-        contents = comments.exclude(content="").values_list("content", flat=True)
-        return self.success(
-            {
-                "count": count,
-                "rating": rating,
-                "contents": list(contents),
-            }
-        )
+        return self.success({"count": count, "rating": rating})
