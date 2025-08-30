@@ -263,7 +263,4 @@ class ResetUserPasswordAPI(APIView):
         user.set_password(new_password)
         user.save()
         
-        return self.success({
-            "message": "Password reset successfully",
-            "new_password": new_password
-        }) 
+        return self.success(new_password)
