@@ -1,8 +1,9 @@
 from django.urls import path
 
-from ..views.admin import UserAdminAPI, GenerateUserAPI
+from ..views.admin import UserAdminAPI, GenerateUserAPI, ResetUserPasswordAPI
 
 urlpatterns = [
     path("user", UserAdminAPI.as_view()),
     path("generate_user", GenerateUserAPI.as_view()),
+    path("reset_password", ResetUserPasswordAPI.as_view()),
 ]

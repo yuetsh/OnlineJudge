@@ -6,6 +6,7 @@ from django.db import transaction, IntegrityError
 from django.db.models import Q
 from django.http import HttpResponse
 from django.contrib.auth.hashers import make_password
+from django.utils.crypto import get_random_string
 
 from submission.models import Submission
 from utils.api import APIView, validate_serializer
@@ -239,3 +240,30 @@ class GenerateUserAPI(APIView):
             #    duplicate key value violates unique constraint "user_username_key"
             #    DETAIL:  Key (username)=(root11) already exists.
             return self.error(str(e).split("\n")[1])
+
+
+class ResetUserPasswordAPI(APIView):
+    @super_admin_required
+    def post(self, request):
+        """
+        重置用户密码为随机6位数字(不包括0)
+        """
+        data = request.data
+        user_id = data["id"]
+        
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return self.error("User does not exist")
+        
+        # 生成6位随机数字密码(不包括0)
+        new_password = get_random_string(6, allowed_chars="123456789")
+        
+        # 设置新密码
+        user.set_password(new_password)
+        user.save()
+        
+        return self.success({
+            "message": "Password reset successfully",
+            "new_password": new_password
+        }) 
