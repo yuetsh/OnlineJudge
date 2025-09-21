@@ -6,14 +6,18 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": os.path.join(BASE_DIR, "db.sqlite3"),
+        "ENGINE": "django.db.backends.postgresql",
+        "HOST": "10.13.114.114",
+        "PORT": "5433",
+        "NAME": "onlinejudge",
+        "USER": "onlinejudge",
+        "PASSWORD": "onlinejudge",
     }
 }
 
 REDIS_CONF = {
-    "host": get_env("REDIS_HOST", "127.0.0.1"),
-    "port": get_env("REDIS_PORT", "6380"),
+    "host": "10.13.114.114",
+    "port": 6379,
 }
 
 

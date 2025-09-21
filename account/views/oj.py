@@ -1,4 +1,5 @@
 import os
+import re
 from datetime import timedelta
 from importlib import import_module
 
@@ -473,6 +474,47 @@ class UserActivityRankAPI(APIView):
             if count["username"] not in hidden_names:
                 data.append(count)
         return self.success(data[:10])
+
+
+class UserProblemRankAPI(APIView):
+    def get(self, request):
+        problem_id = request.GET.get("problem_id")
+        user = request.user
+        if not user.is_authenticated:
+            return self.error("User is not authenticated")
+
+        problem = Problem.objects.get(_id=problem_id, contest_id__isnull=True, visible=True)
+        submissions = Submission.objects.filter(problem=problem, result=JudgeStatus.ACCEPTED)
+        all_ac_users = submissions.values("user_id").distinct()
+        all_ac_count = len(all_ac_users)
+
+        class_name = user.class_name or ""
+        class_ac_count = 0
+
+        if class_name:
+            users = User.objects.filter(class_name=user.class_name, is_disabled=False).values_list("id", flat=True)
+            submissions = submissions.filter(user_id__in=list(users))
+            class_ac_users = submissions.values("user_id").distinct()
+            class_ac_count = len(class_ac_users)
+        
+        my_submissions = submissions.filter(user_id=user.id)
+        
+        if len(my_submissions) == 0:
+            return self.success({
+                "class_name": class_name,
+                "rank": -1,
+                "class_ac_count": class_ac_count,
+                "all_ac_count": all_ac_count
+            })
+
+        my_first_submission = my_submissions.order_by("create_time").first()
+        rank = submissions.filter(create_time__lte=my_first_submission.create_time).count()
+        return self.success({
+            "class_name": class_name,
+            "rank": rank,
+            "class_ac_count": class_ac_count,
+            "all_ac_count": all_ac_count,
+        })
 
 
 class ProfileProblemDisplayIDRefreshAPI(APIView):

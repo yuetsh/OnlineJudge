@@ -67,6 +67,7 @@ class UserAdminSerializer(serializers.ModelSerializer):
             "open_api",
             "is_disabled",
             "raw_password",
+            "class_name",
         ]
 
     def get_real_name(self, obj):
@@ -93,6 +94,7 @@ class UserSerializer(serializers.ModelSerializer):
             "two_factor_auth",
             "open_api",
             "is_disabled",
+            "class_name",
         ]
 
 
@@ -129,7 +131,7 @@ class EditUserSerializer(serializers.Serializer):
     open_api = serializers.BooleanField()
     two_factor_auth = serializers.BooleanField()
     is_disabled = serializers.BooleanField()
-
+    class_name = serializers.CharField(max_length=32, allow_blank=True, required=False)
 
 class EditUserProfileSerializer(serializers.Serializer):
     real_name = serializers.CharField(max_length=32, allow_null=True, required=False)
@@ -140,7 +142,6 @@ class EditUserProfileSerializer(serializers.Serializer):
     school = serializers.CharField(max_length=64, allow_blank=True, required=False)
     major = serializers.CharField(max_length=64, allow_blank=True, required=False)
     language = serializers.CharField(max_length=32, allow_blank=True, required=False)
-
 
 class ApplyResetPasswordSerializer(serializers.Serializer):
     email = serializers.EmailField()

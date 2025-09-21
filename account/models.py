@@ -25,6 +25,7 @@ class UserManager(models.Manager):
 
 class User(AbstractBaseUser):
     username = models.TextField(unique=True)
+    class_name = models.TextField(null=True)
     email = models.TextField(null=True)
     create_time = models.DateTimeField(auto_now_add=True, null=True)
     # One of UserType

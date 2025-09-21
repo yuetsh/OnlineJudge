@@ -15,6 +15,7 @@ from ..views.oj import (
     UserProfileAPI,
     UserRankAPI,
     UserActivityRankAPI,
+    UserProblemRankAPI,
     CheckTFARequiredAPI,
     SessionManagementAPI,
     ProfileProblemDisplayIDRefreshAPI,
@@ -45,6 +46,7 @@ urlpatterns = [
     ),
     path("user_rank", UserRankAPI.as_view()),
     path("user_activity_rank", UserActivityRankAPI.as_view()),
+    path("user_problem_rank", UserProblemRankAPI.as_view()),
     path("sessions", SessionManagementAPI.as_view()),
     path(
         "open_api_appkey",
