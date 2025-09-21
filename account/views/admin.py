@@ -22,6 +22,19 @@ from ..serializers import (
 from ..serializers import ImportUserSerializer
 
 
+# ks251XXX 或者 ks2510XX 返回 251 或者 2510
+# 其他返回 ""
+def get_class_name(username):
+    if username.startswith("ks"):
+        result = re.search(r"ks\d+", username)
+        if result:
+            return result.group(0)[2:]
+        else:
+            return ""
+    else:
+        return ""
+
+
 class UserAdminAPI(APIView):
     @validate_serializer(ImportUserSerializer)
     @super_admin_required
@@ -41,6 +54,7 @@ class UserAdminAPI(APIView):
                     password=make_password(user_data[1]),
                     email=user_data[2],
                     raw_password=user_data[1],
+                    class_name=get_class_name(user_data[0]),
                 )
             )
 
@@ -86,6 +100,7 @@ class UserAdminAPI(APIView):
 
         pre_username = user.username
         user.username = data["username"].lower()
+        user.class_name = get_class_name(data["username"])
         user.email = data["email"].lower()
         user.admin_type = data["admin_type"]
         user.is_disabled = data["is_disabled"]
