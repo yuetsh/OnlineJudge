@@ -164,6 +164,7 @@ class SubmissionListAPI(APIView):
         myself = request.GET.get("myself")
         result = request.GET.get("result")
         username = request.GET.get("username")
+        language = request.GET.get("language")
         if problem_id:
             try:
                 problem = Problem.objects.get(
@@ -185,6 +186,8 @@ class SubmissionListAPI(APIView):
             submissions = submissions.filter(username__icontains=username)
         if result:
             submissions = submissions.filter(result=result)
+        if language:
+            submissions = submissions.filter(language=language)
 
         data = self.paginate_data(request, submissions)
         data["results"] = SubmissionListSerializer(
