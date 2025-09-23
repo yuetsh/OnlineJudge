@@ -1,5 +1,4 @@
 import os
-import re
 from datetime import timedelta
 from importlib import import_module
 
@@ -485,17 +484,17 @@ class UserProblemRankAPI(APIView):
 
         problem = Problem.objects.get(_id=problem_id, contest_id__isnull=True, visible=True)
         submissions = Submission.objects.filter(problem=problem, result=JudgeStatus.ACCEPTED)
-        all_ac_users = submissions.values("user_id").distinct()
-        all_ac_count = len(all_ac_users)
+
+        all_ac_count = submissions.values("user_id").distinct().count()
 
         class_name = user.class_name or ""
         class_ac_count = 0
 
         if class_name:
             users = User.objects.filter(class_name=user.class_name, is_disabled=False).values_list("id", flat=True)
-            submissions = submissions.filter(user_id__in=list(users))
-            class_ac_users = submissions.values("user_id").distinct()
-            class_ac_count = len(class_ac_users)
+            user_ids = list(users)
+            submissions = submissions.filter(user_id__in=user_ids)
+            class_ac_count = submissions.values("user_id").distinct().count()
         
         my_submissions = submissions.filter(user_id=user.id)
         
