@@ -17,6 +17,8 @@ from account.models import User
 from problem.models import Problem
 from submission.models import Submission, JudgeStatus
 from account.decorators import login_required
+from ai.models import AIAnalysis
+from textwrap import dedent
 
 
 # 常量定义
@@ -414,30 +416,58 @@ class AIWeeklyDataAPI(APIView):
 
 
 class AIAnalysisAPI(APIView):
+    @login_required
     def post(self, request):
+        user = request.user
         details = request.data.get("details")
         weekly = request.data.get("weekly")
 
-        API_KEY = get_env("AI_KEY")
+        api_key = get_env("AI_KEY")
 
-        if not API_KEY:
+        if not api_key:
             return self.error("API_KEY is not set")
 
-        client = OpenAI(api_key=API_KEY, base_url="https://api.deepseek.com")
+        client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
 
-        system_prompt = """
-                    你是一个风趣的编程老师，学生使用判题狗平台进行编程练习。
-                    请根据学生提供的详细数据和每周数据，给出用户的学习建议。
-                    请使用 markdown 格式输出，不要在代码块中输出。
-                    最后不要忘记写一句祝福语。
-                    """
+        system_prompt ="""
+            你是一个风趣的编程老师，学生使用判题狗平台进行编程练习。
+            请根据学生提供的详细数据和每周数据，给出用户的学习建议。
+            请使用 markdown 格式输出，不要在代码块中输出。
+            最后不要忘记写一句祝福语。
+            """
 
         user_prompt = f"""
-                    这段时间内的详细数据: {details}
-                    每周或每月的数据: {weekly}
-                    """
+            这段时间内的详细数据: {details}
+            每周或每月的数据: {weekly}
+            """
+
+        analysis_chunks = []
+        saved = False
+        save_error = None
+        store_error_sent = False
+
+        def try_save():
+            nonlocal saved, save_error
+            if saved:
+                return
+            if not analysis_chunks:
+                saved = True
+                return
+            try:
+                AIAnalysis.objects.create(
+                    user=user,
+                    data={"details": details, "weekly": weekly},
+                    system_prompt=dedent(system_prompt).strip(),
+                    user_prompt="这段时间内的详细数据, 每周或每月的数据",
+                    analysis="".join(analysis_chunks).strip(),
+                )
+            except Exception as exc:
+                save_error = str(exc)
+            finally:
+                saved = True
 
         def stream_generator():
+            nonlocal store_error_sent
             try:
                 stream = client.chat.completions.create(
                     model="deepseek-chat",
@@ -470,13 +500,36 @@ class AIAnalysisAPI(APIView):
                     finish_reason = getattr(choice, "finish_reason", None)
 
                     delta = getattr(choice, "delta", None)
-                    if delta and getattr(delta, "content", None):
-                        payload = json.dumps(
-                            {"type": "delta", "content": delta.content}
-                        )
-                        yield f"data: {payload}\n\n"
+                    raw_content = getattr(delta, "content", None)
+                    if raw_content:
+                        if isinstance(raw_content, list):
+                            text_content = "".join(
+                                (
+                                    item.get("text")
+                                    if isinstance(item, dict)
+                                    else getattr(item, "text", None) or ""
+                                )
+                                for item in raw_content
+                            )
+                        else:
+                            text_content = str(raw_content)
+
+                        if text_content:
+                            analysis_chunks.append(text_content)
+                            payload = json.dumps(
+                                {"type": "delta", "content": text_content}
+                            )
+                            yield f"data: {payload}\n\n"
 
                     if finish_reason:
+                        try_save()
+                        if save_error and not store_error_sent:
+                            error_payload = json.dumps(
+                                {"type": "store_error", "message": save_error}
+                            )
+                            yield f"data: {error_payload}\n\n"
+                            store_error_sent = True
+
                         payload = json.dumps({"type": "done"})
                         yield f"data: {payload}\n\n"
                         break
@@ -484,6 +537,14 @@ class AIAnalysisAPI(APIView):
                 payload = json.dumps({"type": "error", "message": str(exc)})
                 yield f"data: {payload}\n\n"
             finally:
+                try_save()
+                if save_error and not store_error_sent:
+                    error_payload = json.dumps(
+                        {"type": "store_error", "message": save_error}
+                    )
+                    yield f"data: {error_payload}\n\n"
+                    store_error_sent = True
+
                 yield "event: end\n\n"
 
         response = StreamingHttpResponse(

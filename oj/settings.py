@@ -55,6 +55,7 @@ LOCAL_APPS = [
     "message",
     "comment",
     "tutorial",
+    "ai",
 ]
 
 INSTALLED_APPS = VENDOR_APPS + LOCAL_APPS
