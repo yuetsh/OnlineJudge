@@ -1,13 +1,17 @@
 from collections import defaultdict
-from datetime import timedelta, datetime
+from datetime import datetime, timedelta
+import hashlib
+import json
+
 from dateutil.relativedelta import relativedelta
+from django.core.cache import cache
+from django.db.models import Min
+from django.http import StreamingHttpResponse
+from django.utils import timezone
+from openai import OpenAI
+
 from utils.api import APIView
 from utils.shortcuts import get_env
-from django.db.models import Min
-from django.utils import timezone
-from django.core.cache import cache
-import hashlib
-from openai import OpenAI
 
 from account.models import User
 from problem.models import Problem
@@ -414,28 +418,77 @@ class AIAnalysisAPI(APIView):
         details = request.data.get("details")
         weekly = request.data.get("weekly")
 
-        # 把 details 和 weekly 发送个 openai 询问一下
-
         API_KEY = get_env("AI_KEY")
+
         if not API_KEY:
             return self.error("API_KEY is not set")
 
         client = OpenAI(api_key=API_KEY, base_url="https://api.deepseek.com")
 
-        response = client.chat.completions.create(
-            model="deepseek-chat",
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant"},
-                {"role": "user", "content": "Hello"},
-            ],
-            stream=False,
-        )
+        system_prompt = """
+                    你是一个风趣的编程老师，学生使用 OJ 进行编程练习。
+                    请根据学生提供的详细数据和每周数据，给出用户的学习建议。
+                    请使用 markdown 格式输出，不要在代码块中输出。
+                    最后不要忘记写一句祝福语。
+                    """
 
-        print(response.choices[0].message.content)
+        user_prompt = f"""
+                    这段时间内的详细数据: {details}
+                    每周或每月的数据: {weekly}
+                    """
 
-        return self.success(
-            {
-                "details": details,
-                "weekly": weekly,
-            }
+        def stream_generator():
+            try:
+                stream = client.chat.completions.create(
+                    model="deepseek-chat",
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": system_prompt,
+                        },
+                        {
+                            "role": "user",
+                            "content": user_prompt,
+                        },
+                    ],
+                    stream=True,
+                )
+            except Exception as exc:
+                payload = json.dumps({"type": "error", "message": str(exc)})
+                yield f"data: {payload}\n\n"
+                yield "event: end\n\n"
+                return
+
+            yield "event: start\n\n"
+
+            try:
+                for chunk in stream:
+                    if not chunk.choices:
+                        continue
+
+                    choice = chunk.choices[0]
+                    finish_reason = getattr(choice, "finish_reason", None)
+
+                    delta = getattr(choice, "delta", None)
+                    if delta and getattr(delta, "content", None):
+                        payload = json.dumps(
+                            {"type": "delta", "content": delta.content}
+                        )
+                        yield f"data: {payload}\n\n"
+
+                    if finish_reason:
+                        payload = json.dumps({"type": "done"})
+                        yield f"data: {payload}\n\n"
+                        break
+            except Exception as exc:
+                payload = json.dumps({"type": "error", "message": str(exc)})
+                yield f"data: {payload}\n\n"
+            finally:
+                yield "event: end\n\n"
+
+        response = StreamingHttpResponse(
+            streaming_content=stream_generator(),
+            content_type="text/event-stream",
         )
+        response["Cache-Control"] = "no-cache"
+        return response

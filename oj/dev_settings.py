@@ -1,6 +1,5 @@
 # coding=utf-8
 import os
-from utils.shortcuts import get_env
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
