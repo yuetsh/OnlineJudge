@@ -2,10 +2,12 @@ from collections import defaultdict
 from datetime import timedelta, datetime
 from dateutil.relativedelta import relativedelta
 from utils.api import APIView
+from utils.shortcuts import get_env
 from django.db.models import Min
 from django.utils import timezone
 from django.core.cache import cache
 import hashlib
+from openai import OpenAI
 
 from account.models import User
 from problem.models import Problem
@@ -359,7 +361,7 @@ class AIWeeklyDataAPI(APIView):
         # 默认配置
         show_count = 4
         show_unit = "weeks"
-        total_delta = timedelta(weeks=show_count+1)
+        total_delta = timedelta(weeks=show_count + 1)
         delta = timedelta(weeks=1)
 
         if unit == "months" and count == 2:
@@ -408,5 +410,32 @@ class AIWeeklyDataAPI(APIView):
 
 
 class AIAnalysisAPI(APIView):
-    def get(self, request):
-        return self.success("AI分析")
+    def post(self, request):
+        details = request.data.get("details")
+        weekly = request.data.get("weekly")
+
+        # 把 details 和 weekly 发送个 openai 询问一下
+
+        API_KEY = get_env("AI_KEY")
+        if not API_KEY:
+            return self.error("API_KEY is not set")
+
+        client = OpenAI(api_key=API_KEY, base_url="https://api.deepseek.com")
+
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant"},
+                {"role": "user", "content": "Hello"},
+            ],
+            stream=False,
+        )
+
+        print(response.choices[0].message.content)
+
+        return self.success(
+            {
+                "details": details,
+                "weekly": weekly,
+            }
+        )
