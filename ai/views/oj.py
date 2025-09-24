@@ -418,6 +418,15 @@ class AIAnalysisAPI(APIView):
     @login_required
     def post(self, request):
         user = request.user
+
+        # 如果超管帮别人查询，则需要获取用户信息
+        username = request.data.get("username")
+        if username:
+            try:
+                user = User.objects.get(username=username)
+            except User.DoesNotExist:
+                return self.error("User does not exist")
+
         details = request.data.get("details")
         weekly = request.data.get("weekly")
 
