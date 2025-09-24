@@ -8,7 +8,7 @@ DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
         "HOST": "10.13.114.114",
-        "PORT": "5432",
+        "PORT": "5433",
         "NAME": "onlinejudge",
         "USER": "onlinejudge",
         "PASSWORD": "onlinejudge",
