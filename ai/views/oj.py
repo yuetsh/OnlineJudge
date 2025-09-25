@@ -5,7 +5,8 @@ import json
 
 from dateutil.relativedelta import relativedelta
 from django.core.cache import cache
-from django.db.models import Min
+from django.db.models import Min, Count
+from django.db.models.functions import TruncDate
 from django.http import StreamingHttpResponse
 from django.utils import timezone
 from openai import OpenAI
@@ -412,3 +413,48 @@ class AIAnalysisAPI(APIView):
         )
         response["Cache-Control"] = "no-cache"
         return response
+
+
+class AIHeatmapDataAPI(APIView):
+    @login_required
+    def get(self, request):
+        user = request.user
+        cache_key = get_cache_key("ai_heatmap", user.id, user.class_name or "")
+        cached_result = cache.get(cache_key)
+        if cached_result:
+            return self.success(cached_result)
+
+        end = datetime.now()
+        start = end - timedelta(days=365)
+
+        # 使用单次查询获取所有数据，按日期分组统计
+        submission_counts = (
+            Submission.objects.filter(
+                user_id=user.id, create_time__gte=start, create_time__lte=end
+            )
+            .annotate(date=TruncDate("create_time"))
+            .values("date")
+            .annotate(count=Count("id"))
+            .order_by("date")
+        )
+
+        # 将查询结果转换为字典，便于快速查找
+        submission_dict = {item["date"]: item["count"] for item in submission_counts}
+
+        # 生成365天的热力图数据
+        heatmap_data = []
+        current_date = start.date()
+        for i in range(365):
+            day_date = current_date + timedelta(days=i)
+            submission_count = submission_dict.get(day_date, 0)
+            heatmap_data.append(
+                {
+                    "timestamp": int(datetime.combine(
+                        day_date, datetime.min.time()
+                    ).timestamp() * 1000),
+                    "value": submission_count,
+                }
+            )
+
+        cache.set(cache_key, heatmap_data, CACHE_TIMEOUT)
+        return self.success(heatmap_data)

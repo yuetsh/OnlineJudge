@@ -41,7 +41,12 @@ class Submission(models.Model):
     ip = models.TextField(null=True)
 
     def check_user_permission(self, user, check_share=True):
-        if self.user_id == user.id or user.is_super_admin() or user.can_mgmt_all_problem() or self.problem.created_by_id == user.id:
+        if (
+            self.user_id == user.id
+            or user.is_super_admin()
+            or user.can_mgmt_all_problem()
+            or self.problem.created_by_id == user.id
+        ):
             return True
 
         if check_share:
@@ -54,6 +59,11 @@ class Submission(models.Model):
     class Meta:
         db_table = "submission"
         ordering = ("-create_time",)
+        indexes = [
+            models.Index(
+                fields=["user_id", "create_time"], name="user_create_time_idx"
+            ),
+        ]
 
     def __str__(self):
         return self.id
