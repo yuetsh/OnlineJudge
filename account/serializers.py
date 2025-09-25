@@ -1,5 +1,4 @@
 from django import forms
-from httpx import request
 
 from utils.api import serializers, UsernameSerializer
 
