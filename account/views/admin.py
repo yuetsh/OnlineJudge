@@ -106,7 +106,7 @@ class UserAdminAPI(APIView):
         user.is_disabled = data["is_disabled"]
 
         if data["admin_type"] == AdminType.ADMIN:
-            user.problem_permission = data["problem_permission"]
+            user.problem_permission = data["problem_permission"] or ProblemPermission.OWN
         elif data["admin_type"] == AdminType.SUPER_ADMIN:
             user.problem_permission = ProblemPermission.ALL
         else:
@@ -156,10 +156,10 @@ class UserAdminAPI(APIView):
 
         user = User.objects.all().order_by("-create_time")
 
-        is_admin = request.GET.get("admin", "0")
+        type = request.GET.get("type", "")
 
-        if is_admin == "1":
-            user = user.exclude(admin_type=AdminType.REGULAR_USER)
+        if type:
+            user = user.filter(admin_type=type)
 
         keyword = request.GET.get("keyword", None)
         if keyword:

@@ -1,4 +1,5 @@
 from django import forms
+from httpx import request
 
 from utils.api import serializers, UsernameSerializer
 
@@ -131,7 +132,7 @@ class EditUserSerializer(serializers.Serializer):
     open_api = serializers.BooleanField()
     two_factor_auth = serializers.BooleanField()
     is_disabled = serializers.BooleanField()
-    class_name = serializers.CharField(max_length=32, allow_blank=True, required=False)
+    class_name = serializers.CharField(required=False, allow_null=True)
 
 class EditUserProfileSerializer(serializers.Serializer):
     real_name = serializers.CharField(max_length=32, allow_null=True, required=False)

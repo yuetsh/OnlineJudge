@@ -51,6 +51,9 @@ class User(AbstractBaseUser):
 
     objects = UserManager()
 
+    def is_regular_user(self):
+        return self.admin_type == AdminType.REGULAR_USER
+
     def is_admin(self):
         return self.admin_type == AdminType.ADMIN
 

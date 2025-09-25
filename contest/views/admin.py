@@ -6,7 +6,7 @@ from ipaddress import ip_network
 import dateutil.parser
 from django.http import FileResponse
 
-from account.decorators import check_contest_permission, ensure_created_by
+from account.decorators import super_admin_required
 from account.models import User
 from submission.models import Submission, JudgeStatus
 from utils.api import APIView, validate_serializer
@@ -23,6 +23,7 @@ from ..serializers import (ContestAnnouncementSerializer, ContestAdminSerializer
 
 class ContestAPI(APIView):
     @validate_serializer(CreateConetestSeriaizer)
+    @super_admin_required
     def post(self, request):
         data = request.data
         data["start_time"] = dateutil.parser.parse(data["start_time"])
@@ -41,11 +42,11 @@ class ContestAPI(APIView):
         return self.success(ContestAdminSerializer(contest).data)
 
     @validate_serializer(EditConetestSeriaizer)
+    @super_admin_required
     def put(self, request):
         data = request.data
         try:
             contest = Contest.objects.get(id=data.pop("id"))
-            ensure_created_by(contest, request.user)
         except Contest.DoesNotExist:
             return self.error("Contest does not exist")
         data["start_time"] = dateutil.parser.parse(data["start_time"])
@@ -68,19 +69,17 @@ class ContestAPI(APIView):
         contest.save()
         return self.success(ContestAdminSerializer(contest).data)
 
+    @super_admin_required
     def get(self, request):
         contest_id = request.GET.get("id")
         if contest_id:
             try:
                 contest = Contest.objects.get(id=contest_id)
-                ensure_created_by(contest, request.user)
                 return self.success(ContestAdminSerializer(contest).data)
             except Contest.DoesNotExist:
                 return self.error("Contest does not exist")
 
         contests = Contest.objects.all().order_by("-create_time")
-        if request.user.is_admin():
-            contests = contests.filter(created_by=request.user)
 
         keyword = request.GET.get("keyword")
         if keyword:
@@ -90,6 +89,7 @@ class ContestAPI(APIView):
 
 class ContestAnnouncementAPI(APIView):
     @validate_serializer(CreateContestAnnouncementSerializer)
+    @super_admin_required
     def post(self, request):
         """
         Create one contest_announcement.
@@ -97,7 +97,6 @@ class ContestAnnouncementAPI(APIView):
         data = request.data
         try:
             contest = Contest.objects.get(id=data.pop("contest_id"))
-            ensure_created_by(contest, request.user)
             data["contest"] = contest
             data["created_by"] = request.user
         except Contest.DoesNotExist:
@@ -106,6 +105,7 @@ class ContestAnnouncementAPI(APIView):
         return self.success(ContestAnnouncementSerializer(announcement).data)
 
     @validate_serializer(EditContestAnnouncementSerializer)
+    @super_admin_required
     def put(self, request):
         """
         update contest_announcement
@@ -113,7 +113,6 @@ class ContestAnnouncementAPI(APIView):
         data = request.data
         try:
             contest_announcement = ContestAnnouncement.objects.get(id=data.pop("id"))
-            ensure_created_by(contest_announcement, request.user)
         except ContestAnnouncement.DoesNotExist:
             return self.error("Contest announcement does not exist")
         for k, v in data.items():
@@ -121,19 +120,17 @@ class ContestAnnouncementAPI(APIView):
         contest_announcement.save()
         return self.success()
 
+    @super_admin_required
     def delete(self, request):
         """
         Delete one contest_announcement.
         """
         contest_announcement_id = request.GET.get("id")
         if contest_announcement_id:
-            if request.user.is_admin():
-                ContestAnnouncement.objects.filter(id=contest_announcement_id,
-                                                   contest__created_by=request.user).delete()
-            else:
-                ContestAnnouncement.objects.filter(id=contest_announcement_id).delete()
+            ContestAnnouncement.objects.filter(id=contest_announcement_id).delete()
         return self.success()
 
+    @super_admin_required
     def get(self, request):
         """
         Get one contest_announcement or contest_announcement list.
@@ -142,7 +139,6 @@ class ContestAnnouncementAPI(APIView):
         if contest_announcement_id:
             try:
                 contest_announcement = ContestAnnouncement.objects.get(id=contest_announcement_id)
-                ensure_created_by(contest_announcement, request.user)
                 return self.success(ContestAnnouncementSerializer(contest_announcement).data)
             except ContestAnnouncement.DoesNotExist:
                 return self.error("Contest announcement does not exist")
@@ -151,8 +147,6 @@ class ContestAnnouncementAPI(APIView):
         if not contest_id:
             return self.error("Parameter error")
         contest_announcements = ContestAnnouncement.objects.filter(contest_id=contest_id)
-        if request.user.is_admin():
-            contest_announcements = contest_announcements.filter(created_by=request.user)
         keyword = request.GET.get("keyword")
         if keyword:
             contest_announcements = contest_announcements.filter(title__contains=keyword)
@@ -160,9 +154,17 @@ class ContestAnnouncementAPI(APIView):
 
 
 class ACMContestHelper(APIView):
-    @check_contest_permission(check_type="ranks")
+    @super_admin_required
     def get(self, request):
-        ranks = ACMContestRank.objects.filter(contest=self.contest, accepted_number__gt=0) \
+        contest_id = request.GET.get("contest_id")
+        if not contest_id:
+            return self.error("Parameter error, contest_id is required")
+        try:
+            contest = Contest.objects.get(id=contest_id, visible=True)
+        except Contest.DoesNotExist:
+            return self.error("Contest does not exist")
+        
+        ranks = ACMContestRank.objects.filter(contest=contest, accepted_number__gt=0) \
             .values("id", "user__username", "user__userprofile__real_name", "submission_info")
         results = []
         for rank in ranks:
@@ -179,7 +181,7 @@ class ACMContestHelper(APIView):
         results.sort(key=lambda x: -x["ac_info"]["ac_time"])
         return self.success(results)
 
-    @check_contest_permission(check_type="ranks")
+    @super_admin_required
     @validate_serializer(ACMContesHelperSerializer)
     def put(self, request):
         data = request.data
@@ -222,13 +224,13 @@ class DownloadContestSubmissions(APIView):
                     user_ac_map[problem_id] = True
         return path
 
+    @super_admin_required
     def get(self, request):
         contest_id = request.GET.get("contest_id")
         if not contest_id:
             return self.error("Parameter error")
         try:
             contest = Contest.objects.get(id=contest_id)
-            ensure_created_by(contest, request.user)
         except Contest.DoesNotExist:
             return self.error("Contest does not exist")
 

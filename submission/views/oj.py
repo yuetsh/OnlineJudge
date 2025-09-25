@@ -176,7 +176,7 @@ class SubmissionListAPI(APIView):
 
         if (
             not SysOptions.submission_list_show_all
-            and not request.user.is_super_admin()
+            and request.user.is_regular_user()
         ):
             return self.success({"results": [], "total": 0})
 

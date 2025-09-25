@@ -434,8 +434,9 @@ class UserRankAPI(APIView):
             n = 0
         if rule_type not in ContestRuleType.choices():
             rule_type = ContestRuleType.ACM
+
         profiles = UserProfile.objects.filter(
-            user__admin_type=AdminType.REGULAR_USER,
+            user__admin_type__in=[AdminType.REGULAR_USER, AdminType.ADMIN],
             user__is_disabled=False,
             user__username__icontains=username,
         ).select_related("user")
@@ -456,23 +457,19 @@ class UserActivityRankAPI(APIView):
         if not start:
             return self.error("start time is required")
         hidden_names = User.objects.filter(
-            Q(admin_type=AdminType.SUPER_ADMIN)
-            | Q(admin_type=AdminType.ADMIN)
-            | Q(is_disabled=True)
+            Q(admin_type=AdminType.SUPER_ADMIN) | Q(is_disabled=True)
         ).values_list("username", flat=True)
         submissions = Submission.objects.filter(
-            contest_id__isnull=True, create_time__gte=start, result=JudgeStatus.ACCEPTED
-        )
-        counts = (
+            contest_id__isnull=True,
+            create_time__gte=start,
+            result=JudgeStatus.ACCEPTED,
+        ).exclude(username__in=hidden_names)
+        data = list(
             submissions.values("username")
             .annotate(count=Count("problem_id", distinct=True))
-            .order_by("-count")[: 10 + len(hidden_names)]
+            .order_by("-count")[:10]
         )
-        data = []
-        for count in counts:
-            if count["username"] not in hidden_names:
-                data.append(count)
-        return self.success(data[:10])
+        return self.success(data)
 
 
 class UserProblemRankAPI(APIView):
@@ -482,8 +479,12 @@ class UserProblemRankAPI(APIView):
         if not user.is_authenticated:
             return self.error("User is not authenticated")
 
-        problem = Problem.objects.get(_id=problem_id, contest_id__isnull=True, visible=True)
-        submissions = Submission.objects.filter(problem=problem, result=JudgeStatus.ACCEPTED)
+        problem = Problem.objects.get(
+            _id=problem_id, contest_id__isnull=True, visible=True
+        )
+        submissions = Submission.objects.filter(
+            problem=problem, result=JudgeStatus.ACCEPTED
+        )
 
         all_ac_count = submissions.values("user_id").distinct().count()
 
@@ -491,29 +492,37 @@ class UserProblemRankAPI(APIView):
         class_ac_count = 0
 
         if class_name:
-            users = User.objects.filter(class_name=user.class_name, is_disabled=False).values_list("id", flat=True)
+            users = User.objects.filter(
+                class_name=user.class_name, is_disabled=False
+            ).values_list("id", flat=True)
             user_ids = list(users)
             submissions = submissions.filter(user_id__in=user_ids)
             class_ac_count = submissions.values("user_id").distinct().count()
-        
+
         my_submissions = submissions.filter(user_id=user.id)
-        
+
         if len(my_submissions) == 0:
-            return self.success({
-                "class_name": class_name,
-                "rank": -1,
-                "class_ac_count": class_ac_count,
-                "all_ac_count": all_ac_count
-            })
+            return self.success(
+                {
+                    "class_name": class_name,
+                    "rank": -1,
+                    "class_ac_count": class_ac_count,
+                    "all_ac_count": all_ac_count,
+                }
+            )
 
         my_first_submission = my_submissions.order_by("create_time").first()
-        rank = submissions.filter(create_time__lte=my_first_submission.create_time).count()
-        return self.success({
-            "class_name": class_name,
-            "rank": rank,
-            "class_ac_count": class_ac_count,
-            "all_ac_count": all_ac_count,
-        })
+        rank = submissions.filter(
+            create_time__lte=my_first_submission.create_time
+        ).count()
+        return self.success(
+            {
+                "class_name": class_name,
+                "rank": rank,
+                "class_ac_count": class_ac_count,
+                "all_ac_count": all_ac_count,
+            }
+        )
 
 
 class ProfileProblemDisplayIDRefreshAPI(APIView):
