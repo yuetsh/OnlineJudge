@@ -131,7 +131,7 @@ class EditUserSerializer(serializers.Serializer):
     open_api = serializers.BooleanField()
     two_factor_auth = serializers.BooleanField()
     is_disabled = serializers.BooleanField()
-    class_name = serializers.CharField(required=False, allow_null=True)
+    class_name = serializers.CharField(required=False, allow_null=True, allow_blank=True)
 
 class EditUserProfileSerializer(serializers.Serializer):
     real_name = serializers.CharField(max_length=32, allow_null=True, required=False)
