@@ -48,7 +48,6 @@ def get_grade(rank, submission_count):
 
 
 def get_class_user_ids(user):
-    """Get user IDs in the same class with caching."""
     if not user.class_name:
         return []
 
@@ -65,7 +64,6 @@ def get_class_user_ids(user):
 def get_user_first_ac_submissions(
     user_id, start, end, class_user_ids=None, use_class_scope=False
 ):
-    """Get user's first AC submissions with ranking data."""
     base_qs = Submission.objects.filter(
         result=JudgeStatus.ACCEPTED, create_time__gte=start, create_time__lte=end
     )
@@ -87,7 +85,6 @@ def get_user_first_ac_submissions(
         .annotate(first_ac_time=Min("create_time"))
     )
 
-    # Group by problem and sort by AC time
     by_problem = defaultdict(list)
     for item in ranked_first_ac:
         by_problem[item["problem_id"]].append(item)
