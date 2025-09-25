@@ -23,16 +23,16 @@ from ..serializers import ImportUserSerializer
 
 
 # ks251XXX 或者 ks2510XX 返回 251 或者 2510
-# 其他返回 ""
+# 其他返回 None
 def get_class_name(username):
     if username.startswith("ks"):
         result = re.search(r"ks\d+", username)
         if result:
             return result.group(0)[2:]
         else:
-            return ""
+            return None
     else:
-        return ""
+        return None
 
 
 class UserAdminAPI(APIView):
