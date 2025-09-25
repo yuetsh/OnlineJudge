@@ -6,8 +6,8 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "HOST": "150.158.29.156",
-        "PORT": "5432",
+        "HOST": "10.13.114.114",
+        "PORT": "5433",
         "NAME": "onlinejudge",
         "USER": "onlinejudge",
         "PASSWORD": "onlinejudge",
@@ -15,7 +15,7 @@ DATABASES = {
 }
 
 REDIS_CONF = {
-    "host": "150.158.29.156",
+    "host": "10.13.114.114",
     "port": 6379,
 }
 
