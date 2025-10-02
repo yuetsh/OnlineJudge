@@ -57,11 +57,6 @@ def datetime2str(value, format="iso-8601"):
         return value
     return value.strftime(format)
 
-
-def timestamp2utcstr(value):
-    return datetime.datetime.utcfromtimestamp(value).isoformat()
-
-
 def natural_sort_key(s, _nsre=re.compile(r"(\d+)")):
     return [int(text) if text.isdigit() else text.lower()
             for text in re.split(_nsre, s)]

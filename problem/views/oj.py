@@ -1,10 +1,12 @@
 from datetime import datetime
 import random
 from django.db.models import Q, Count
+from django.core.cache import cache
 from account.models import User
 from submission.models import Submission, JudgeStatus
 from utils.api import APIView
 from account.decorators import check_contest_permission
+from utils.constants import CacheKey
 from ..models import ProblemTag, Problem, ProblemRuleType
 from ..serializers import (
     ProblemSerializer,
@@ -82,6 +84,11 @@ class ProblemAPI(APIView):
             .filter(contest_id__isnull=True, visible=True)
             .order_by("-create_time")
         )
+
+        author = request.GET.get("author")
+        if author:
+            problems = problems.filter(created_by__username=author)
+
         # 按照标签筛选
         tag_text = request.GET.get("tag")
         if tag_text:
@@ -98,6 +105,7 @@ class ProblemAPI(APIView):
         difficulty = request.GET.get("difficulty")
         if difficulty:
             problems = problems.filter(difficulty=difficulty)
+
         # 根据profile 为做过的题目添加标记
         data = self.paginate_data(request, problems, ProblemListSerializer)
         self._add_problem_status(request, data)
@@ -166,17 +174,44 @@ class ProblemSolvedPeopleCount(APIView):
         if submission_count == 0:
             return self.success(rate)
         today = datetime.today()
-        twoYearAge = datetime(today.year - 2, today.month, today.day, 0, 0)
+        years_ago = datetime(today.year - 2, today.month, today.day, 0, 0)
         total_count = User.objects.filter(
-            is_disabled=False, last_login__gte=twoYearAge
+            is_disabled=False, last_login__gte=years_ago
         ).count()
         accepted_count = Submission.objects.filter(
             problem_id=problem_id,
             result=JudgeStatus.ACCEPTED,
-            create_time__gte=twoYearAge,
+            create_time__gte=years_ago,
         ).aggregate(user_count=Count("user_id", distinct=True))["user_count"]
         if accepted_count < total_count:
             rate = "%.2f" % ((total_count - accepted_count) / total_count * 100)
         else:
             rate = "0"
         return self.success(rate)
+
+
+class ProblemAuthorAPI(APIView):
+    def get(self, request):
+        # 统计出题用户
+        cached_data = cache.get(CacheKey.problem_authors)
+        if cached_data:
+            return self.success(cached_data)
+
+        authors = (
+            Problem.objects.filter(
+                visible=True, contest_id__isnull=True, created_by__is_disabled=False
+            )
+            .values("created_by__username")
+            .annotate(problem_count=Count("id"))
+            .order_by("-problem_count")
+        )
+        result = [
+            {
+                "username": author["created_by__username"],
+                "problem_count": author["problem_count"],
+            }
+            for author in authors
+        ]
+
+        cache.set(CacheKey.problem_authors, result, 3600)
+        return self.success(result)
