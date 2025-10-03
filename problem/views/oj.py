@@ -192,15 +192,19 @@ class ProblemSolvedPeopleCount(APIView):
 
 class ProblemAuthorAPI(APIView):
     def get(self, request):
-        # 统计出题用户
-        cached_data = cache.get(CacheKey.problem_authors)
+        show_all = request.GET.get("all", "0") == "1"
+        cached_data = cache.get(
+            f"{CacheKey.problem_authors}{'_all' if show_all else '_only_visible'}"
+        )
         if cached_data:
             return self.success(cached_data)
 
+        problem_filter = {"contest_id__isnull": True, "created_by__is_disabled": False}
+        if not show_all:
+            problem_filter["visible"] = True
+
         authors = (
-            Problem.objects.filter(
-                visible=True, contest_id__isnull=True, created_by__is_disabled=False
-            )
+            Problem.objects.filter(**problem_filter)
             .values("created_by__username")
             .annotate(problem_count=Count("id"))
             .order_by("-problem_count")
@@ -213,5 +217,5 @@ class ProblemAuthorAPI(APIView):
             for author in authors
         ]
 
-        cache.set(CacheKey.problem_authors, result, 3600)
+        cache.set(CacheKey.problem_authors, result, 7200)
         return self.success(result)
