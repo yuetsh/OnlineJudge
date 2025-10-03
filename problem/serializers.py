@@ -157,6 +157,7 @@ class ProblemSerializer(BaseProblemSerializer):
             "spj_code",
             "spj_version",
             "spj_compile_ok",
+            "answers",
         )
 
 
@@ -194,6 +195,7 @@ class ProblemSafeSerializer(BaseProblemSerializer):
             "submission_number",
             "accepted_number",
             "statistic_info",
+            "answers",
         )
 
 
