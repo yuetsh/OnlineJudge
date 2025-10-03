@@ -1,6 +1,5 @@
 from django.conf import settings
 from django.db import models
-from utils.models import JSONField
 
 from account.models import User
 from contest.models import Contest
@@ -51,13 +50,13 @@ class Problem(models.Model):
     input_description = RichTextField()
     output_description = RichTextField()
     # [{input: "test", output: "123"}, {input: "test123", output: "456"}]
-    samples = JSONField()
+    samples = models.JSONField()
     test_case_id = models.TextField()
     # [{"input_name": "1.in", "output_name": "1.out", "score": 0}]
-    test_case_score = JSONField()
+    test_case_score = models.JSONField()
     hint = RichTextField(null=True)
-    languages = JSONField()
-    template = JSONField()
+    languages = models.JSONField()
+    template = models.JSONField()
     create_time = models.DateTimeField(auto_now_add=True)
     # we can not use auto_now here
     last_update_time = models.DateTimeField(auto_now=True, null=True)
@@ -67,7 +66,7 @@ class Problem(models.Model):
     # MB
     memory_limit = models.IntegerField()
     # io mode
-    io_mode = JSONField(default=_default_io_mode)
+    io_mode = models.JSONField(default=_default_io_mode)
     # special judge related
     spj = models.BooleanField(default=False)
     spj_language = models.TextField(null=True)
@@ -80,12 +79,14 @@ class Problem(models.Model):
     tags = models.ManyToManyField(ProblemTag)
     source = models.TextField(null=True)
     prompt = models.TextField(null=True)
+    # [{language: "python", code: "..."}]
+    answers = models.JSONField(null=True)
     # for OI mode
     total_score = models.IntegerField(default=0)
     submission_number = models.BigIntegerField(default=0)
     accepted_number = models.BigIntegerField(default=0)
     # {JudgeStatus.ACCEPTED: 3, JudgeStatus.WRONG_ANSWER: 11}, the number means count
-    statistic_info = JSONField(default=dict)
+    statistic_info = models.JSONField(default=dict)
     share_submission = models.BooleanField(default=False)
 
     class Meta:

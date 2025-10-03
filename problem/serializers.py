@@ -25,6 +25,11 @@ class CreateSampleSerializer(serializers.Serializer):
     output = serializers.CharField(trim_whitespace=False)
 
 
+class CreateAnswerSerializer(serializers.Serializer):
+    language = serializers.CharField()
+    code = serializers.CharField()
+
+
 class CreateTestCaseScoreSerializer(serializers.Serializer):
     input_name = serializers.CharField(max_length=32)
     output_name = serializers.CharField(max_length=32)
@@ -80,6 +85,11 @@ class CreateOrEditProblemSerializer(serializers.Serializer):
     hint = serializers.CharField(allow_blank=True, allow_null=True)
     source = serializers.CharField(max_length=256, allow_blank=True, allow_null=True)
     prompt = serializers.CharField(allow_blank=True, allow_null=True)
+    answers = serializers.ListField(
+        child=CreateAnswerSerializer(),
+        allow_empty=True,
+        allow_null=True,
+    )
     share_submission = serializers.BooleanField()
 
 
