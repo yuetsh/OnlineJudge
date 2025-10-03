@@ -79,6 +79,7 @@ class Problem(models.Model):
     difficulty = models.TextField()
     tags = models.ManyToManyField(ProblemTag)
     source = models.TextField(null=True)
+    prompt = models.TextField(null=True)
     # for OI mode
     total_score = models.IntegerField(default=0)
     submission_number = models.BigIntegerField(default=0)
