@@ -310,8 +310,11 @@ class RandomUsernameAPI(APIView):
 
 class HitokotoAPI(APIView):
     def get(self, request):
-        categories = JsonDataLoader.load_data(settings.HITOKOTO_DIR, "categories.json")
-        path = random.choice(categories).get("path")
-        sentences = JsonDataLoader.load_data(settings.HITOKOTO_DIR, path)
-        sentence = random.choice(sentences)
-        return self.success(sentence)
+        try:
+            categories = JsonDataLoader.load_data(settings.HITOKOTO_DIR, "categories.json")
+            path = random.choice(categories).get("path")
+            sentences = JsonDataLoader.load_data(settings.HITOKOTO_DIR, path)
+            sentence = random.choice(sentences)
+            return self.success(sentence)
+        except Exception:
+            return self.error("获取一言失败，请稍后再试")
