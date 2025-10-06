@@ -24,7 +24,20 @@ from ai.models import AIAnalysis
 CACHE_TIMEOUT = 300
 DIFFICULTY_MAP = {"Low": "简单", "Mid": "中等", "High": "困难"}
 DEFAULT_CLASS_SIZE = 45
-GRADE_THRESHOLDS = [(20, "S"), (50, "A"), (85, "B")]
+
+# 评级阈值配置：(百分位上限, 评级)
+GRADE_THRESHOLDS = [
+    (10, "S"),   # 前10%: S级 - 卓越
+    (35, "A"),   # 前35%: A级 - 优秀
+    (75, "B"),   # 前75%: B级 - 良好
+    (100, "C"),  # 其余: C级 - 及格
+]
+
+# 小规模参与惩罚配置：(最小人数, 等级降级映射)
+SMALL_SCALE_PENALTY = {
+    "threshold": 10,
+    "downgrade": {"S": "A", "A": "B"},
+}
 
 
 def get_cache_key(prefix, *args):
@@ -36,16 +49,44 @@ def get_difficulty(difficulty):
 
 
 def get_grade(rank, submission_count):
+    """
+    计算题目完成评级
+    
+    评级标准：
+    - S级：前10%，卓越水平（10%的人）
+    - A级：前35%，优秀水平（25%的人）
+    - B级：前75%，良好水平（40%的人）
+    - C级：75%之后，及格水平（25%的人）
+    
+    特殊规则：
+    - 参与人数少于10人时，S级降为A级，A级降为B级（避免因人少而评级虚高）
+    
+    Args:
+        rank: 用户排名（1表示第一名）
+        submission_count: 总AC人数
+    
+    Returns:
+        评级字符串 ("S", "A", "B", "C")
+    """
+    # 边界检查
     if not rank or rank <= 0 or submission_count <= 0:
         return "C"
-    if submission_count < DEFAULT_CLASS_SIZE // 3:
-        return "S"
-
-    top_percent = round(rank / submission_count * 100)
+    
+    # 计算百分位（0-100），使用 (rank-1) 使第一名的百分位为0
+    percentile = (rank - 1) / submission_count * 100
+    
+    # 根据百分位确定基础评级
+    base_grade = "C"
     for threshold, grade in GRADE_THRESHOLDS:
-        if top_percent < threshold:
-            return grade
-    return "C"
+        if percentile < threshold:
+            base_grade = grade
+            break
+    
+    # 小规模参与惩罚：人数太少时降低评级
+    if submission_count < SMALL_SCALE_PENALTY["threshold"]:
+        base_grade = SMALL_SCALE_PENALTY["downgrade"].get(base_grade, base_grade)
+    
+    return base_grade
 
 
 def get_class_user_ids(user):
@@ -219,7 +260,7 @@ class AIDetailDataAPI(APIView):
         }
 
 
-class AIWeeklyDataAPI(APIView):
+class AIDurationDataAPI(APIView):
     @login_required
     def get(self, request):
         end_iso = request.GET.get("end")
@@ -228,7 +269,7 @@ class AIWeeklyDataAPI(APIView):
         user = request.user
 
         cache_key = get_cache_key(
-            "ai_weekly", user.id, user.class_name or "", end_iso, duration
+            "ai_duration", user.id, user.class_name or "", end_iso, duration
         )
         cached_result = cache.get(cache_key)
         if cached_result:
@@ -239,7 +280,7 @@ class AIWeeklyDataAPI(APIView):
         time_config = self._parse_duration(duration)
         start = datetime.fromisoformat(end_iso) - time_config["total_delta"]
 
-        weekly_data = []
+        duration_data = []
         for i in range(time_config["show_count"]):
             start = start + time_config["delta"]
             period_end = start + time_config["delta"]
@@ -272,10 +313,10 @@ class AIWeeklyDataAPI(APIView):
                         user_first_ac, by_problem, user.id
                     )
 
-            weekly_data.append(period_data)
+            duration_data.append(period_data)
 
-        cache.set(cache_key, weekly_data, CACHE_TIMEOUT)
-        return self.success(weekly_data)
+        cache.set(cache_key, duration_data, CACHE_TIMEOUT)
+        return self.success(duration_data)
 
     def _parse_duration(self, duration):
         unit, count = duration.split(":")
@@ -332,7 +373,7 @@ class AIAnalysisAPI(APIView):
     @login_required
     def post(self, request):
         details = request.data.get("details")
-        weekly = request.data.get("weekly")
+        duration = request.data.get("duration")
 
         api_key = get_env("AI_KEY")
 
@@ -342,7 +383,7 @@ class AIAnalysisAPI(APIView):
         client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
 
         system_prompt = "你是一个风趣的编程老师，学生使用判题狗平台进行编程练习。请根据学生提供的详细数据和每周数据，给出用户的学习建议，最后写一句鼓励学生的话。请使用 markdown 格式输出，不要在代码块中输出。"
-        user_prompt = f"这段时间内的详细数据: {details}\n每周或每月的数据: {weekly}"
+        user_prompt = f"这段时间内的详细数据: {details}\n每周或每月的数据: {duration}"
 
         analysis_chunks = []
         saved_instance = None
@@ -355,7 +396,7 @@ class AIAnalysisAPI(APIView):
                     user=request.user,
                     provider="deepseek",
                     model="deepseek-chat",
-                    data={"details": details, "weekly": weekly},
+                    data={"details": details, "duration": duration},
                     system_prompt=system_prompt,
                     user_prompt="这段时间内的详细数据，每周或每月的数据。",
                     analysis="".join(analysis_chunks).strip(),
