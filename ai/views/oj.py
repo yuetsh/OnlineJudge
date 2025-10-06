@@ -227,6 +227,7 @@ class AIDetailDataAPI(APIView):
                     "rank": rank,
                     "ac_count": len(ranking_list),
                     "grade": get_grade(rank, len(ranking_list)),
+                    "difficulty": get_difficulty(problem.difficulty),
                 }
             )
 
