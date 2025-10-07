@@ -11,13 +11,8 @@ import os
 from django.core.asgi import get_asgi_application
 from channels.routing import ProtocolTypeRouter, URLRouter
 from channels.auth import AuthMiddlewareStack
-from utils.shortcuts import get_env
 
-production_env = get_env("OJ_ENV", "dev") == "production"
-if production_env:
-    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "oj.production_settings")
-else:
-    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "oj.dev_settings")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "oj.settings")
 
 # Initialize Django ASGI application early to ensure the AppRegistry
 # is populated before importing code that may import ORM models.
