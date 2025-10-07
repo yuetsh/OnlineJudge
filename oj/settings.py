@@ -28,12 +28,14 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Applications
 VENDOR_APPS = [
+    "daphne",  # Channels ASGI server - must be first
     "django.contrib.auth",
     "django.contrib.sessions",
     "django.contrib.contenttypes",
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
+    "channels",
     "django_dramatiq",
     "django_dbconn_retry",
 ]
@@ -91,6 +93,9 @@ TEMPLATES = [
     },
 ]
 WSGI_APPLICATION = "oj.wsgi.application"
+
+# ASGI Application for WebSocket support
+ASGI_APPLICATION = "oj.asgi.application"
 
 # Password validation
 # https://docs.djangoproject.com/en/1.9/ref/settings/#auth-password-validators
@@ -211,6 +216,18 @@ CACHES = {"default": redis_config(db=1)}
 
 SESSION_ENGINE = "django.contrib.sessions.backends.cache"
 SESSION_CACHE_ALIAS = "default"
+
+# Channels Configuration
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [(REDIS_CONF["host"], REDIS_CONF["port"])],
+            "capacity": 1500,  # 每个频道的最大消息数
+            "expiry": 10,  # 消息过期时间（秒）
+        },
+    },
+}
 
 DRAMATIQ_BROKER = {
     "BROKER": "dramatiq.brokers.redis.RedisBroker",

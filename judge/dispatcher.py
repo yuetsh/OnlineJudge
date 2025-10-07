@@ -16,6 +16,7 @@ from problem.utils import parse_problem_template
 from submission.models import JudgeStatus, Submission
 from utils.cache import cache
 from utils.constants import CacheKey
+from utils.websocket import push_submission_update
 
 logger = logging.getLogger(__name__)
 
@@ -156,12 +157,56 @@ class JudgeDispatcher(DispatcherBase):
             if not server:
                 data = {"submission_id": self.submission.id, "problem_id": self.problem.id}
                 cache.lpush(CacheKey.waiting_queue, json.dumps(data))
+                # 推送排队状态
+                try:
+                    push_submission_update(
+                        submission_id=str(self.submission.id),
+                        user_id=self.submission.user_id,
+                        data={
+                            "type": "submission_update",
+                            "submission_id": str(self.submission.id),
+                            "result": JudgeStatus.PENDING,
+                            "status": "pending",
+                        }
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to push submission update: {str(e)}")
                 return
             Submission.objects.filter(id=self.submission.id).update(result=JudgeStatus.JUDGING)
+            
+            # 推送判题中状态
+            try:
+                push_submission_update(
+                    submission_id=str(self.submission.id),
+                    user_id=self.submission.user_id,
+                    data={
+                        "type": "submission_update",
+                        "submission_id": str(self.submission.id),
+                        "result": JudgeStatus.JUDGING,
+                        "status": "judging",
+                    }
+                )
+            except Exception as e:
+                logger.error(f"Failed to push submission update: {str(e)}")
+            
             resp = self._request(urljoin(server.service_url, "/judge"), data=data)
 
         if not resp:
             Submission.objects.filter(id=self.submission.id).update(result=JudgeStatus.SYSTEM_ERROR)
+            # 推送系统错误状态
+            try:
+                push_submission_update(
+                    submission_id=str(self.submission.id),
+                    user_id=self.submission.user_id,
+                    data={
+                        "type": "submission_update",
+                        "submission_id": str(self.submission.id),
+                        "result": JudgeStatus.SYSTEM_ERROR,
+                        "status": "error",
+                    }
+                )
+            except Exception as e:
+                logger.error(f"Failed to push submission update: {str(e)}")
             return
 
         if resp["err"]:
@@ -182,6 +227,24 @@ class JudgeDispatcher(DispatcherBase):
             else:
                 self.submission.result = JudgeStatus.PARTIALLY_ACCEPTED
         self.submission.save()
+        
+        # 推送判题完成状态
+        try:
+            push_submission_update(
+                submission_id=str(self.submission.id),
+                user_id=self.submission.user_id,
+                data={
+                    "type": "submission_update",
+                    "submission_id": str(self.submission.id),
+                    "result": self.submission.result,
+                    "status": "finished",
+                    "time_cost": self.submission.statistic_info.get("time_cost"),
+                    "memory_cost": self.submission.statistic_info.get("memory_cost"),
+                    "score": self.submission.statistic_info.get("score", 0),
+                }
+            )
+        except Exception as e:
+            logger.error(f"Failed to push submission update: {str(e)}")
 
         if self.contest_id:
             if self.contest.status != ContestStatus.CONTEST_UNDERWAY or \
