@@ -234,12 +234,50 @@ class AIDetailDataAPI(APIView):
         return sorted(solved, key=lambda x: x["ac_time"]), contest_ids
 
     def _calculate_average_grade(self, solved):
+        """
+        计算平均等级，使用加权平均方法
+        
+        等级权重：S=4, A=3, B=2, C=1
+        计算加权平均后，根据阈值确定最终等级
+        
+        Args:
+            solved: 已解决的题目列表，每个包含grade字段
+            
+        Returns:
+            平均等级字符串 ("S", "A", "B", "C")
+        """
         if not solved:
             return ""
-        grade_count = defaultdict(int)
+        
+        # 等级权重映射
+        grade_weights = {"S": 4, "A": 3, "B": 2, "C": 1}
+        
+        # 计算加权总分
+        total_weight = 0
+        total_score = 0
+        
         for s in solved:
-            grade_count[s["grade"]] += 1
-        return max(grade_count, key=grade_count.get)
+            grade = s["grade"]
+            if grade in grade_weights:
+                total_score += grade_weights[grade]
+                total_weight += 1
+        
+        if total_weight == 0:
+            return ""
+        
+        # 计算平均权重
+        average_weight = total_score / total_weight
+        
+        # 根据平均权重确定等级
+        # S级: 3.5-4.0, A级: 2.5-3.5, B级: 1.5-2.5, C级: 1.0-1.5
+        if average_weight >= 3.5:
+            return "S"
+        elif average_weight >= 2.5:
+            return "A"
+        elif average_weight >= 1.5:
+            return "B"
+        else:
+            return "C"
 
     def _calculate_top_tags(self, problems):
         tags_counter = defaultdict(int)
@@ -355,7 +393,30 @@ class AIDurationDataAPI(APIView):
         )
 
     def _calculate_period_grade(self, user_first_ac, by_problem, user_id):
-        grade_count = defaultdict(int)
+        """
+        计算时间段内的平均等级，使用加权平均方法
+        
+        等级权重：S=4, A=3, B=2, C=1
+        计算加权平均后，根据阈值确定最终等级
+        
+        Args:
+            user_first_ac: 用户首次AC的提交记录
+            by_problem: 按题目分组的排名数据
+            user_id: 用户ID
+            
+        Returns:
+            平均等级字符串 ("S", "A", "B", "C")
+        """
+        if not user_first_ac:
+            return ""
+        
+        # 等级权重映射
+        grade_weights = {"S": 4, "A": 3, "B": 2, "C": 1}
+        
+        # 计算加权总分
+        total_weight = 0
+        total_score = 0
+        
         for item in user_first_ac:
             ranking_list = by_problem.get(item["problem_id"], [])
             rank = next(
@@ -366,8 +427,28 @@ class AIDurationDataAPI(APIView):
                 ),
                 None,
             )
-            grade_count[get_grade(rank, len(ranking_list))] += 1
-        return max(grade_count, key=grade_count.get) if grade_count else ""
+            if rank:
+                grade = get_grade(rank, len(ranking_list))
+                if grade in grade_weights:
+                    total_score += grade_weights[grade]
+                    total_weight += 1
+        
+        if total_weight == 0:
+            return ""
+        
+        # 计算平均权重
+        average_weight = total_score / total_weight
+        
+        # 根据平均权重确定等级
+        # S级: 3.5-4.0, A级: 2.5-3.5, B级: 1.5-2.5, C级: 1.0-1.5
+        if average_weight >= 3.5:
+            return "S"
+        elif average_weight >= 2.5:
+            return "A"
+        elif average_weight >= 1.5:
+            return "B"
+        else:
+            return "C"
 
 
 class AIAnalysisAPI(APIView):
