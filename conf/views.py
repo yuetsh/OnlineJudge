@@ -24,6 +24,7 @@ from utils.api import APIView, CSRFExemptAPIView, validate_serializer
 from utils.cache import JsonDataLoader
 from utils.shortcuts import send_email, get_env
 from utils.xss_filter import XSSHtml
+from utils.websocket import push_config_update
 from .models import JudgeServer
 from .serializers import (
     CreateEditWebsiteConfigSerializer,
@@ -107,6 +108,7 @@ class WebsiteConfigAPI(APIView):
                 "allow_register",
                 "submission_list_show_all",
                 "class_list",
+                "enable_maxkb",
             ]
         }
         return self.success(ret)
@@ -119,6 +121,10 @@ class WebsiteConfigAPI(APIView):
                 with XSSHtml() as parser:
                     v = parser.clean(v)
             setattr(SysOptions, k, v)
+            
+            # 推送配置更新到所有连接的客户端
+            push_config_update(k, v)
+            
         return self.success()
 
 

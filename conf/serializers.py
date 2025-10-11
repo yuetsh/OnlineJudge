@@ -27,6 +27,7 @@ class CreateEditWebsiteConfigSerializer(serializers.Serializer):
     allow_register = serializers.BooleanField()
     submission_list_show_all = serializers.BooleanField()
     class_list = serializers.ListField(child=serializers.CharField(max_length=64))
+    enable_maxkb = serializers.BooleanField()
 
 
 class JudgeServerSerializer(serializers.ModelSerializer):

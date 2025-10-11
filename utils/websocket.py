@@ -73,3 +73,37 @@ def push_to_user(user_id: int, message_type: str, data: dict):
     except Exception as e:
         logger.error(f"Failed to push message to user {user_id}: error={str(e)}")
 
+
+def push_config_update(key: str, value):
+    """
+    推送配置更新到所有连接的客户端
+    
+    Args:
+        key: 配置键名
+        value: 配置值
+    """
+    channel_layer = get_channel_layer()
+    
+    if channel_layer is None:
+        logger.warning("Channel layer is not configured, cannot push config update")
+        return
+    
+    # 使用全局配置组名
+    group_name = "config_updates"
+    
+    try:
+        # 向所有连接的客户端发送配置更新
+        async_to_sync(channel_layer.group_send)(
+            group_name,
+            {
+                "type": "config_update",
+                "data": {
+                    "type": "config_update",
+                    "key": key,
+                    "value": value
+                }
+            }
+        )
+        logger.info(f"Pushed config update: {key}={value}")
+    except Exception as e:
+        logger.error(f"Failed to push config update: {key}={value}, error={str(e)}")
