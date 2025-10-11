@@ -156,6 +156,15 @@ class ProblemSerializer(BaseProblemSerializer):
             "answers",
         )
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # 如果 allow_flowchart=False，则不返回 flowchart 相关字段
+        if not instance.allow_flowchart:
+            flowchart_fields = ['mermaid_code', 'flowchart_data', 'flowchart_hint', 'show_flowchart']
+            for field in flowchart_fields:
+                data.pop(field, None)
+        return data
+
 
 class ProblemListSerializer(BaseProblemSerializer):
     class Meta:
@@ -172,6 +181,15 @@ class ProblemListSerializer(BaseProblemSerializer):
             "contest",
             "rule_type",
         ]
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # 如果 allow_flowchart=False，则不返回 flowchart 相关字段
+        if not instance.allow_flowchart:
+            flowchart_fields = ['mermaid_code', 'flowchart_data', 'flowchart_hint', 'show_flowchart']
+            for field in flowchart_fields:
+                data.pop(field, None)
+        return data
 
 
 class ProblemSafeSerializer(BaseProblemSerializer):
@@ -190,6 +208,15 @@ class ProblemSafeSerializer(BaseProblemSerializer):
             "statistic_info",
             "answers",
         )
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # 如果 allow_flowchart=False，则不返回 flowchart 相关字段
+        if not instance.allow_flowchart:
+            flowchart_fields = ['mermaid_code', 'flowchart_data', 'flowchart_hint', 'show_flowchart']
+            for field in flowchart_fields:
+                data.pop(field, None)
+        return data
 
 
 class ContestProblemMakePublicSerializer(serializers.Serializer):
