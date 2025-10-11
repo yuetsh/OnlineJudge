@@ -67,26 +67,6 @@ class DispatcherBase(object):
             logger.exception(e)
 
 
-class SPJCompiler(DispatcherBase):
-    def __init__(self, spj_code, spj_version, spj_language):
-        super().__init__()
-        spj_compile_config = list(filter(lambda config: spj_language == config["name"], SysOptions.spj_languages))[0]["spj"][
-            "compile"]
-        self.data = {
-            "src": spj_code,
-            "spj_version": spj_version,
-            "spj_compile_config": spj_compile_config
-        }
-
-    def compile_spj(self):
-        with ChooseJudgeServer() as server:
-            if not server:
-                return "No available judge_server"
-            result = self._request(urljoin(server.service_url, "compile_spj"), data=self.data)
-            if not result:
-                return "Failed to call judge server"
-            if result["err"]:
-                return result["data"]
 
 
 class JudgeDispatcher(DispatcherBase):
@@ -126,12 +106,6 @@ class JudgeDispatcher(DispatcherBase):
     def judge(self):
         language = self.submission.language
         sub_config = list(filter(lambda item: language == item["name"], SysOptions.languages))[0]
-        spj_config = {}
-        if self.problem.spj_code:
-            for lang in SysOptions.spj_languages:
-                if lang["name"] == self.problem.spj_language:
-                    spj_config = lang["spj"]
-                    break
 
         if language in self.problem.template:
             template = parse_problem_template(self.problem.template[language])
@@ -146,10 +120,6 @@ class JudgeDispatcher(DispatcherBase):
             "max_memory": 1024 * 1024 * self.problem.memory_limit,
             "test_case_id": self.problem.test_case_id,
             "output": False,
-            "spj_version": self.problem.spj_version,
-            "spj_config": spj_config.get("config"),
-            "spj_compile_config": spj_config.get("compile"),
-            "spj_src": self.problem.spj_code,
             "io_mode": self.problem.io_mode
         }
 

@@ -210,7 +210,6 @@ class LanguagesAPI(APIView):
         return self.success(
             {
                 "languages": SysOptions.languages,
-                "spj_languages": SysOptions.spj_languages,
             }
         )
 

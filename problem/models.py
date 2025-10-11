@@ -1,4 +1,3 @@
-from django.conf import settings
 from django.db import models
 
 from account.models import User
@@ -67,12 +66,6 @@ class Problem(models.Model):
     memory_limit = models.IntegerField()
     # io mode
     io_mode = models.JSONField(default=_default_io_mode)
-    # special judge related
-    spj = models.BooleanField(default=False)
-    spj_language = models.TextField(null=True)
-    spj_code = models.TextField(null=True)
-    spj_version = models.TextField(null=True)
-    spj_compile_ok = models.BooleanField(default=False)
     rule_type = models.TextField()
     visible = models.BooleanField(default=True)
     difficulty = models.TextField()
@@ -88,6 +81,13 @@ class Problem(models.Model):
     # {JudgeStatus.ACCEPTED: 3, JudgeStatus.WRONG_ANSWER: 11}, the number means count
     statistic_info = models.JSONField(default=dict)
     share_submission = models.BooleanField(default=False)
+    
+    # 流程图相关字段
+    allow_flowchart = models.BooleanField(default=False)  # 是否允许/需要提交流程图
+    mermaid_code = models.TextField(null=True, blank=True)  # 流程图答案(Mermaid代码)
+    flowchart_data = models.JSONField(default=dict)  # 流程图答案元数据(JSON格式)
+    flowchart_hint = models.TextField(null=True, blank=True)  # 流程图提示信息
+    show_flowchart = models.BooleanField(default=False)  # 是否显示流程图答案数据，如果True，这样就不需要提交流程图了，说明就是给学生看的
 
     class Meta:
         db_table = "problem"

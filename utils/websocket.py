@@ -74,6 +74,39 @@ def push_to_user(user_id: int, message_type: str, data: dict):
         logger.error(f"Failed to push message to user {user_id}: error={str(e)}")
 
 
+def push_flowchart_evaluation_update(submission_id: str, user_id: int, data: dict):
+    """
+    推送流程图评分状态更新到指定用户的 WebSocket 连接
+    
+    Args:
+        submission_id: 流程图提交 ID
+        user_id: 用户 ID
+        data: 要发送的数据，应该包含 type, submission_id, score, grade, feedback 等字段
+    """
+    channel_layer = get_channel_layer()
+    
+    if channel_layer is None:
+        logger.warning("Channel layer is not configured, cannot push flowchart evaluation update")
+        return
+    
+    # 构建组名，与 SubmissionConsumer 中的组名一致
+    group_name = f"submission_user_{user_id}"
+    
+    try:
+        # 向指定用户组发送消息
+        # type 字段对应 consumer 中的方法名（flowchart_evaluation_update）
+        async_to_sync(channel_layer.group_send)(
+            group_name,
+            {
+                "type": "flowchart_evaluation_update",  # 对应 SubmissionConsumer.flowchart_evaluation_update 方法
+                "data": data,
+            }
+        )
+        logger.info(f"Pushed flowchart evaluation update: submission_id={submission_id}, user_id={user_id}, type={data.get('type')}")
+    except Exception as e:
+        logger.error(f"Failed to push flowchart evaluation update: submission_id={submission_id}, user_id={user_id}, error={str(e)}")
+
+
 def push_config_update(key: str, value):
     """
     推送配置更新到所有连接的客户端

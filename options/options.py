@@ -274,16 +274,8 @@ class _SysOptionsMeta(type):
         cls._set_option(OptionKeys.languages, value)
 
     @my_property(ttl=DEFAULT_SHORT_TTL)
-    def spj_languages(cls):
-        return [item for item in cls.languages if "spj" in item]
-
-    @my_property(ttl=DEFAULT_SHORT_TTL)
     def language_names(cls):
         return [item["name"] for item in cls.languages]
-
-    @my_property(ttl=DEFAULT_SHORT_TTL)
-    def spj_language_names(cls):
-        return [item["name"] for item in cls.languages if "spj" in item]
 
     @my_property(ttl=DEFAULT_SHORT_TTL)
     def enable_maxkb(cls):

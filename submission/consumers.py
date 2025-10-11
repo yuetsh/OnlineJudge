@@ -4,7 +4,6 @@ WebSocket consumers for submission updates
 import json
 import logging
 from channels.generic.websocket import AsyncWebsocketConsumer
-from channels.db import database_sync_to_async
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +72,7 @@ class SubmissionConsumer(AsyncWebsocketConsumer):
 
     async def submission_update(self, event):
         """
-        接收来自 channel layer 的提交更新消息并发送给客户端
+        接收来自 channel layer 的代码提交更新消息并发送给客户端
         这个方法名对应 push_submission_update 中的 type 字段
         """
         try:
