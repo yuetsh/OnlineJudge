@@ -145,6 +145,8 @@ class ProblemAdminListSerializer(BaseProblemSerializer):
 
 class ProblemSerializer(BaseProblemSerializer):
     template = serializers.SerializerMethodField("get_public_template")
+    mermaid_code = serializers.SerializerMethodField()
+    flowchart_data = serializers.SerializerMethodField()
 
     class Meta:
         model = Problem
@@ -155,6 +157,18 @@ class ProblemSerializer(BaseProblemSerializer):
             "is_public",
             "answers",
         )
+
+    def get_mermaid_code(self, obj):
+        # 当 allow_flowchart 为 True 时，不返回 mermaid_code
+        if obj.allow_flowchart:
+            return None
+        return obj.mermaid_code
+
+    def get_flowchart_data(self, obj):
+        # 当 allow_flowchart 为 True 时，不返回 flowchart_data
+        if obj.allow_flowchart:
+            return None
+        return obj.flowchart_data
 
 
 class ProblemListSerializer(BaseProblemSerializer):
@@ -176,6 +190,8 @@ class ProblemListSerializer(BaseProblemSerializer):
 
 class ProblemSafeSerializer(BaseProblemSerializer):
     template = serializers.SerializerMethodField("get_public_template")
+    mermaid_code = serializers.SerializerMethodField()
+    flowchart_data = serializers.SerializerMethodField()
 
     class Meta:
         model = Problem
@@ -190,6 +206,18 @@ class ProblemSafeSerializer(BaseProblemSerializer):
             "statistic_info",
             "answers",
         )
+
+    def get_mermaid_code(self, obj):
+        # 当 allow_flowchart 为 True 时，不返回 mermaid_code
+        if obj.allow_flowchart:
+            return None
+        return obj.mermaid_code
+
+    def get_flowchart_data(self, obj):
+        # 当 allow_flowchart 为 True 时，不返回 flowchart_data
+        if obj.allow_flowchart:
+            return None
+        return obj.flowchart_data
 
 class ContestProblemMakePublicSerializer(serializers.Serializer):
     id = serializers.IntegerField()
