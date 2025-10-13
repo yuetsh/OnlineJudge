@@ -93,7 +93,9 @@ def evaluate_flowchart_task(submission_id):
                 "submission_id": str(submission.id),
                 "score": score_data['score'],
                 "grade": score_data['grade'],
-                "feedback": score_data['feedback']
+                "feedback": score_data['feedback'],
+                "suggestions": score_data['suggestions'],
+                "criteria_details": score_data['criteria_details'],
             }
         )
         

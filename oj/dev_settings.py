@@ -7,7 +7,7 @@ DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
         "HOST": "150.158.29.156",
-        "PORT": "5432",
+        "PORT": "5445",
         "NAME": "onlinejudge",
         "USER": "onlinejudge",
         "PASSWORD": "onlinejudge",
@@ -16,7 +16,7 @@ DATABASES = {
 
 REDIS_CONF = {
     "host": "150.158.29.156",
-    "port": 6379,
+    "port": 5446,
 }
 
 
