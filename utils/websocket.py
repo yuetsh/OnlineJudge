@@ -89,8 +89,8 @@ def push_flowchart_evaluation_update(submission_id: str, user_id: int, data: dic
         logger.warning("Channel layer is not configured, cannot push flowchart evaluation update")
         return
     
-    # 构建组名，与 SubmissionConsumer 中的组名一致
-    group_name = f"submission_user_{user_id}"
+    # 构建组名，与 FlowchartConsumer 中的组名一致
+    group_name = f"flowchart_user_{user_id}"
     
     try:
         # 向指定用户组发送消息
@@ -98,7 +98,7 @@ def push_flowchart_evaluation_update(submission_id: str, user_id: int, data: dic
         async_to_sync(channel_layer.group_send)(
             group_name,
             {
-                "type": "flowchart_evaluation_update",  # 对应 SubmissionConsumer.flowchart_evaluation_update 方法
+                "type": "flowchart_evaluation_update",  # 对应 FlowchartConsumer.flowchart_evaluation_update 方法
                 "data": data,
             }
         )
