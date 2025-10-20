@@ -65,32 +65,32 @@ class FlowchartSubmissionAPI(APIView):
 
 
 class FlowchartSubmissionListAPI(APIView):
-    @login_required
     def get(self, request):
         """获取流程图提交列表"""
-        user_id = request.GET.get("user_id")
+        username = request.GET.get("username")
         problem_id = request.GET.get("problem_id")
-        offset = int(request.GET.get("offset", 0))
-        limit = int(request.GET.get("limit", 20))
+        myself = request.GET.get("myself")
 
         queryset = FlowchartSubmission.objects.select_related("user", "problem")
 
-        # 权限过滤
-        if not request.user.is_admin_role():
-            queryset = queryset.filter(user=request.user)
-
-        # 其他过滤条件
-        if user_id:
-            queryset = queryset.filter(user_id=user_id)
         if problem_id:
-            queryset = queryset.filter(problem_id=problem_id)
+            try:
+                problem = Problem.objects.get(
+                    _id=problem_id, contest_id__isnull=True, visible=True
+                )
+            except Problem.DoesNotExist:
+                return self.error("Problem doesn't exist")
+            queryset = queryset.filter(problem=problem)
+        if myself and myself == "1":
+            queryset = queryset.filter(user=request.user)
+        if username:
+            queryset = queryset.filter(user__username__icontains=username)
 
-        total = queryset.count()
-        submissions = queryset[offset : offset + limit]
-
-        serializer = FlowchartSubmissionListSerializer(submissions, many=True)
-
-        return self.success({"results": serializer.data, "total": total})
+        data = self.paginate_data(request, queryset)
+        data["results"] = FlowchartSubmissionListSerializer(
+            data["results"], many=True
+        ).data
+        return self.success(data)
 
 
 class FlowchartSubmissionRetryAPI(APIView):

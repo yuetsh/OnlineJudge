@@ -41,14 +41,15 @@ class FlowchartSubmissionListSerializer(serializers.ModelSerializer):
     """用于列表显示的简化序列化器"""
 
     username = serializers.CharField(source="user.username")
+    problem = serializers.CharField(source="problem._id")
     problem_title = serializers.CharField(source="problem.title")
-
     class Meta:
         model = FlowchartSubmission
         fields = [
             "id",
             "username",
             "problem_title",
+            "problem",
             "status",
             "create_time",
             "ai_score",
@@ -58,3 +59,33 @@ class FlowchartSubmissionListSerializer(serializers.ModelSerializer):
             "processing_time",
             "evaluation_time",
         ]
+
+
+class FlowchartSubmissionSummarySerializer(serializers.ModelSerializer):
+    """用于AI详情页面的极简序列化器，只包含必要字段"""
+
+    problem_title = serializers.CharField(source="problem.title")
+    problem__id = serializers.CharField(source="problem._id")
+
+    class Meta:
+        model = FlowchartSubmission
+        fields = [
+            "id",
+            "problem__id",
+            "problem_title",
+            "ai_score",
+            "ai_grade",
+            "create_time",
+        ]
+
+
+class FlowchartSubmissionMergedSerializer(serializers.Serializer):
+    """合并后的流程图提交序列化器"""
+
+    problem__id = serializers.CharField()
+    problem_title = serializers.CharField()
+    submission_count = serializers.IntegerField()
+    best_score = serializers.FloatField()
+    best_grade = serializers.CharField()
+    latest_submission_time = serializers.DateTimeField()
+    avg_score = serializers.FloatField()

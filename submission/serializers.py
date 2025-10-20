@@ -34,6 +34,7 @@ class SubmissionSafeModelSerializer(serializers.ModelSerializer):
 
 class SubmissionListSerializer(serializers.ModelSerializer):
     problem = serializers.SlugRelatedField(read_only=True, slug_field="_id")
+    problem_title = serializers.CharField(source="problem.title")
     show_link = serializers.SerializerMethodField()
 
     def __init__(self, *args, **kwargs):

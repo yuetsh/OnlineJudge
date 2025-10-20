@@ -17,9 +17,9 @@ from utils.shortcuts import get_env
 from account.models import User
 from problem.models import Problem
 from submission.models import Submission, JudgeStatus
+from flowchart.models import FlowchartSubmission, FlowchartSubmissionStatus
 from account.decorators import login_required
 from ai.models import AIAnalysis
-
 
 CACHE_TIMEOUT = 300
 DIFFICULTY_MAP = {"Low": "简单", "Mid": "中等", "High": "困难"}
@@ -27,9 +27,9 @@ DEFAULT_CLASS_SIZE = 45
 
 # 评级阈值配置：(百分位上限, 评级)
 GRADE_THRESHOLDS = [
-    (10, "S"),   # 前10%: S级 - 卓越
-    (35, "A"),   # 前35%: A级 - 优秀
-    (75, "B"),   # 前75%: B级 - 良好
+    (10, "S"),  # 前10%: S级 - 卓越
+    (35, "A"),  # 前35%: A级 - 优秀
+    (75, "B"),  # 前75%: B级 - 良好
     (100, "C"),  # 其余: C级 - 及格
 ]
 
@@ -51,41 +51,41 @@ def get_difficulty(difficulty):
 def get_grade(rank, submission_count):
     """
     计算题目完成评级
-    
+
     评级标准：
     - S级：前10%，卓越水平（10%的人）
     - A级：前35%，优秀水平（25%的人）
     - B级：前75%，良好水平（40%的人）
     - C级：75%之后，及格水平（25%的人）
-    
+
     特殊规则：
     - 参与人数少于10人时，S级降为A级，A级降为B级（避免因人少而评级虚高）
-    
+
     Args:
         rank: 用户排名（1表示第一名）
         submission_count: 总AC人数
-    
+
     Returns:
         评级字符串 ("S", "A", "B", "C")
     """
     # 边界检查
     if not rank or rank <= 0 or submission_count <= 0:
         return "C"
-    
+
     # 计算百分位（0-100），使用 (rank-1) 使第一名的百分位为0
     percentile = (rank - 1) / submission_count * 100
-    
+
     # 根据百分位确定基础评级
     base_grade = "C"
     for threshold, grade in GRADE_THRESHOLDS:
         if percentile < threshold:
             base_grade = grade
             break
-    
+
     # 小规模参与惩罚：人数太少时降低评级
     if submission_count < SMALL_SCALE_PENALTY["threshold"]:
         base_grade = SMALL_SCALE_PENALTY["downgrade"].get(base_grade, base_grade)
-    
+
     return base_grade
 
 
@@ -163,6 +163,7 @@ class AIDetailDataAPI(APIView):
             "start": start,
             "end": end,
             "solved": [],
+            "flowcharts": [],
             "grade": "",
             "tags": {},
             "difficulty": {},
@@ -179,9 +180,79 @@ class AIDetailDataAPI(APIView):
             solved, contest_ids = self._build_solved_records(
                 user_first_ac, by_problem, problems, user.id
             )
+            # 查找 flowchart submissions
+            flowcharts_query = FlowchartSubmission.objects.filter(
+                user_id=user,
+                status=FlowchartSubmissionStatus.COMPLETED,
+            )
+
+            # 添加时间范围过滤
+            if start:
+                flowcharts_query = flowcharts_query.filter(create_time__gte=start)
+            if end:
+                flowcharts_query = flowcharts_query.filter(create_time__lte=end)
+
+            flowcharts = flowcharts_query.select_related("problem").only(
+                "id",
+                "create_time",
+                "ai_score",
+                "ai_grade",
+                "problem___id",
+                "problem__title",
+            )
+
+            # 按problem分组
+            problem_groups = defaultdict(list)
+            for flowchart in flowcharts:
+                problem_id = flowchart.problem._id
+                problem_groups[problem_id].append(flowchart)
+
+            flowcharts_data = []
+            for problem_id, submissions in problem_groups.items():
+                if not submissions:
+                    continue
+
+                # 获取第一个提交的基本信息
+                first_submission = submissions[0]
+
+                # 计算统计数据
+                scores = [s.ai_score for s in submissions if s.ai_score is not None]
+                times = [s.create_time for s in submissions]
+
+                # 找到最高分和对应的等级
+                best_score = max(scores) if scores else 0
+                best_submission = next(
+                    (s for s in submissions if s.ai_score == best_score), submissions[0]
+                )
+                best_grade = best_submission.ai_grade or ""
+
+                # 计算平均分
+                avg_score = sum(scores) / len(scores) if scores else 0
+
+                # 最新提交时间
+                latest_time = max(times) if times else first_submission.create_time
+
+                merged_item = {
+                    "problem__id": problem_id,
+                    "problem_title": first_submission.problem.title,
+                    "submission_count": len(submissions),
+                    "best_score": best_score,
+                    "best_grade": best_grade,
+                    "latest_submission_time": latest_time.isoformat() if latest_time else None,
+                    "avg_score": round(avg_score, 0),
+                }
+
+                flowcharts_data.append(merged_item)
+
+            # 按最新提交时间排序
+            flowcharts_data.sort(
+                key=lambda x: x["latest_submission_time"] or "", reverse=True
+            )
+
             result.update(
                 {
                     "solved": solved,
+                    "flowcharts": flowcharts_data,
                     "grade": self._calculate_average_grade(solved),
                     "tags": self._calculate_top_tags(problems.values()),
                     "difficulty": self._calculate_difficulty_distribution(
@@ -236,38 +307,38 @@ class AIDetailDataAPI(APIView):
     def _calculate_average_grade(self, solved):
         """
         计算平均等级，使用加权平均方法
-        
+
         等级权重：S=4, A=3, B=2, C=1
         计算加权平均后，根据阈值确定最终等级
-        
+
         Args:
             solved: 已解决的题目列表，每个包含grade字段
-            
+
         Returns:
             平均等级字符串 ("S", "A", "B", "C")
         """
         if not solved:
             return ""
-        
+
         # 等级权重映射
         grade_weights = {"S": 4, "A": 3, "B": 2, "C": 1}
-        
+
         # 计算加权总分
         total_weight = 0
         total_score = 0
-        
+
         for s in solved:
             grade = s["grade"]
             if grade in grade_weights:
                 total_score += grade_weights[grade]
                 total_weight += 1
-        
+
         if total_weight == 0:
             return ""
-        
+
         # 计算平均权重
         average_weight = total_score / total_weight
-        
+
         # 根据平均权重确定等级
         # S级: 3.5-4.0, A级: 2.5-3.5, B级: 1.5-2.5, C级: 1.0-1.5
         if average_weight >= 3.5:
@@ -395,28 +466,28 @@ class AIDurationDataAPI(APIView):
     def _calculate_period_grade(self, user_first_ac, by_problem, user_id):
         """
         计算时间段内的平均等级，使用加权平均方法
-        
+
         等级权重：S=4, A=3, B=2, C=1
         计算加权平均后，根据阈值确定最终等级
-        
+
         Args:
             user_first_ac: 用户首次AC的提交记录
             by_problem: 按题目分组的排名数据
             user_id: 用户ID
-            
+
         Returns:
             平均等级字符串 ("S", "A", "B", "C")
         """
         if not user_first_ac:
             return ""
-        
+
         # 等级权重映射
         grade_weights = {"S": 4, "A": 3, "B": 2, "C": 1}
-        
+
         # 计算加权总分
         total_weight = 0
         total_score = 0
-        
+
         for item in user_first_ac:
             ranking_list = by_problem.get(item["problem_id"], [])
             rank = next(
@@ -432,13 +503,13 @@ class AIDurationDataAPI(APIView):
                 if grade in grade_weights:
                     total_score += grade_weights[grade]
                     total_weight += 1
-        
+
         if total_weight == 0:
             return ""
-        
+
         # 计算平均权重
         average_weight = total_score / total_weight
-        
+
         # 根据平均权重确定等级
         # S级: 3.5-4.0, A级: 2.5-3.5, B级: 1.5-2.5, C级: 1.0-1.5
         if average_weight >= 3.5:
@@ -572,9 +643,10 @@ class AIHeatmapDataAPI(APIView):
             submission_count = submission_dict.get(day_date, 0)
             heatmap_data.append(
                 {
-                    "timestamp": int(datetime.combine(
-                        day_date, datetime.min.time()
-                    ).timestamp() * 1000),
+                    "timestamp": int(
+                        datetime.combine(day_date, datetime.min.time()).timestamp()
+                        * 1000
+                    ),
                     "value": submission_count,
                 }
             )
