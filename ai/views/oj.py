@@ -536,7 +536,7 @@ class AIAnalysisAPI(APIView):
         client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
 
         system_prompt = "你是一个风趣的编程老师，学生使用判题狗平台进行编程练习。请根据学生提供的详细数据和每周数据，给出用户的学习建议，最后写一句鼓励学生的话。请使用 markdown 格式输出，不要在代码块中输出。"
-        user_prompt = f"这段时间内的详细数据: {details}\n每周或每月的数据: {duration}"
+        user_prompt = f"这段时间内的详细数据: {details}\n(其中部分字段含义是 flowcharts:流程图的提交,solved:代码的提交)\n每周或每月的数据: {duration}"
 
         analysis_chunks = []
         saved_instance = None
