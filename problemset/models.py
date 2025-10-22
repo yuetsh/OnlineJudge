@@ -20,8 +20,6 @@ class ProblemSet(models.Model):
     last_update_time = models.DateTimeField(auto_now=True, verbose_name="更新时间")
     # 是否可见
     visible = models.BooleanField(default=True, verbose_name="是否可见")
-    # 是否公开（所有用户都可以看到）
-    is_public = models.BooleanField(default=True, verbose_name="是否公开")
     # 题单难度等级
     difficulty = models.TextField(default="Easy", verbose_name="难度等级")
     # 题单状态
@@ -81,8 +79,6 @@ class ProblemSetBadge(models.Model):
         verbose_name="获得条件类型"
     )  # all_problems, problem_count, score
     condition_value = models.IntegerField(default=0, verbose_name="条件值")
-    # 奖章等级
-    level = models.IntegerField(default=1, verbose_name="奖章等级")
 
     class Meta:
         db_table = "problemset_badge"

@@ -56,6 +56,7 @@ class ProblemSetListSerializer(serializers.ModelSerializer):
             "status",
             "problems_count",
             "user_progress",
+            "visible",
         ]
 
     def get_problems_count(self, obj):
@@ -100,7 +101,6 @@ class CreateProblemSetSerializer(serializers.Serializer):
     title = serializers.CharField(max_length=200)
     description = serializers.CharField()
     difficulty = serializers.CharField(default="Easy")
-    is_public = serializers.BooleanField(default=True)
     status = serializers.CharField(default="active")
 
 
@@ -111,7 +111,6 @@ class EditProblemSetSerializer(serializers.Serializer):
     title = serializers.CharField(max_length=200, required=False)
     description = serializers.CharField(required=False)
     difficulty = serializers.CharField(required=False)
-    is_public = serializers.BooleanField(required=False)
     status = serializers.CharField(required=False)
     visible = serializers.BooleanField(required=False)
 
@@ -135,11 +134,19 @@ class ProblemSetProblemSerializer(serializers.ModelSerializer):
 class AddProblemToSetSerializer(serializers.Serializer):
     """添加题目到题单序列化器"""
 
-    problemset_id = serializers.IntegerField()
-    problem_id = serializers.IntegerField()
+    problem_id = serializers.CharField()
     order = serializers.IntegerField(default=0)
     is_required = serializers.BooleanField(default=True)
     score = serializers.IntegerField(default=0)
+    hint = serializers.CharField(required=False, allow_blank=True)
+
+
+class EditProblemInSetSerializer(serializers.Serializer):
+    """编辑题单中的题目序列化器"""
+
+    order = serializers.IntegerField(required=False)
+    is_required = serializers.BooleanField(required=False)
+    score = serializers.IntegerField(required=False)
     hint = serializers.CharField(required=False, allow_blank=True)
 
 
@@ -153,14 +160,20 @@ class ProblemSetBadgeSerializer(serializers.ModelSerializer):
 
 class CreateProblemSetBadgeSerializer(serializers.Serializer):
     """创建题单奖章序列化器"""
-
-    problemset_id = serializers.IntegerField()
     name = serializers.CharField(max_length=100)
     description = serializers.CharField()
     icon = serializers.CharField()
     condition_type = serializers.CharField()  # all_problems, problem_count, score
     condition_value = serializers.IntegerField()
-    level = serializers.IntegerField(default=1)
+
+
+class EditProblemSetBadgeSerializer(serializers.Serializer):
+    """编辑题单奖章序列化器"""
+    name = serializers.CharField(max_length=100, required=False)
+    description = serializers.CharField(required=False)
+    icon = serializers.CharField(required=False)
+    condition_type = serializers.CharField(required=False)  # all_problems, problem_count, score
+    condition_value = serializers.IntegerField(required=False)
 
 
 class ProblemSetProgressSerializer(serializers.ModelSerializer):

@@ -50,9 +50,7 @@ class ProblemSetAPI(APIView):
         if status_filter:
             problem_sets = problem_sets.filter(status=status_filter)
 
-        # 只显示公开的题单，除非是管理员
-        if not request.user.is_authenticated or not request.user.is_admin_role():
-            problem_sets = problem_sets.filter(is_public=True)
+        # 所有用户都可以看到可见的题单
 
         # 排序
         sort = request.GET.get("sort")
@@ -83,12 +81,7 @@ class ProblemSetDetailAPI(APIView):
         except ProblemSet.DoesNotExist:
             return self.error("题单不存在")
 
-        # 检查权限
-        if not problem_set.is_public and not (
-            request.user.is_authenticated and request.user.is_admin_role()
-        ):
-            return self.error("无权限访问该题单")
-
+        # 题单可见即可访问
         serializer = ProblemSetSerializer(problem_set, context={"request": request})
         return self.success(serializer.data)
 
@@ -139,11 +132,7 @@ class ProblemSetProblemAPI(APIView):
         except ProblemSet.DoesNotExist:
             return self.error("题单不存在")
 
-        # 检查权限
-        if not problem_set.is_public and not (
-            request.user.is_authenticated and request.user.is_admin_role()
-        ):
-            return self.error("无权限访问该题单")
+        # 题单可见即可访问
 
         problems = ProblemSetProblem.objects.filter(problemset=problem_set).order_by(
             "order"
@@ -221,9 +210,7 @@ class ProblemSetProgressAPI(APIView):
         except ProblemSet.DoesNotExist:
             return self.error("题单不存在")
 
-        # 检查权限
-        if not problem_set.is_public and not request.user.is_admin_role():
-            return self.error("无权限加入该题单")
+        # 题单可见即可加入
 
         # 检查是否已经加入
         if ProblemSetProgress.objects.filter(

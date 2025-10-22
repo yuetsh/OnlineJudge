@@ -24,7 +24,7 @@ urlpatterns = [
         name="admin_problemset_problems_api",
     ),
     path(
-        "problemset/<int:problem_set_id>/problems/<int:problem_id>/",
+        "problemset/<int:problem_set_id>/problems/<int:problem_set_problem_id>/",
         ProblemSetProblemAdminAPI.as_view(),
         name="admin_problemset_problem_detail_api",
     ),

@@ -16,8 +16,10 @@ from problemset.serializers import (
     EditProblemSetSerializer,
     ProblemSetProblemSerializer,
     AddProblemToSetSerializer,
+    EditProblemInSetSerializer,
     ProblemSetBadgeSerializer,
     CreateProblemSetBadgeSerializer,
+    EditProblemSetBadgeSerializer,
     ProblemSetProgressSerializer,
 )
 from problem.models import Problem
@@ -152,7 +154,7 @@ class ProblemSetProblemAdminAPI(APIView):
 
         data = request.data
         try:
-            problem = Problem.objects.get(id=data["problem_id"])
+            problem = Problem.objects.get(_id=data["problem_id"])
         except Problem.DoesNotExist:
             return self.error("题目不存在")
 
@@ -174,7 +176,38 @@ class ProblemSetProblemAdminAPI(APIView):
         return self.success("题目已添加到题单")
 
     @super_admin_required
-    def delete(self, request, problem_set_id, problem_id):
+    @validate_serializer(EditProblemInSetSerializer)
+    def put(self, request, problem_set_id, problem_set_problem_id):
+        """编辑题单中的题目（管理员）"""
+        try:
+            problem_set = ProblemSet.objects.get(id=problem_set_id)
+            ensure_created_by(problem_set, request.user)
+        except ProblemSet.DoesNotExist:
+            return self.error("题单不存在")
+
+        try:
+            problem_set_problem = ProblemSetProblem.objects.get(
+                id=problem_set_problem_id, problemset=problem_set
+            )
+        except ProblemSetProblem.DoesNotExist:
+            return self.error("题目不在该题单中")
+
+        data = request.data
+        # 更新题目属性
+        if 'order' in data:
+            problem_set_problem.order = data['order']
+        if 'is_required' in data:
+            problem_set_problem.is_required = data['is_required']
+        if 'score' in data:
+            problem_set_problem.score = data['score']
+        if 'hint' in data:
+            problem_set_problem.hint = data['hint']
+        
+        problem_set_problem.save()
+        return self.success("题目已更新")
+
+    @super_admin_required
+    def delete(self, request, problem_set_id, problem_set_problem_id):
         """从题单中移除题目（管理员）"""
         try:
             problem_set = ProblemSet.objects.get(id=problem_set_id)
@@ -184,7 +217,7 @@ class ProblemSetProblemAdminAPI(APIView):
 
         try:
             problem_set_problem = ProblemSetProblem.objects.get(
-                problemset=problem_set, problem_id=problem_id
+                id=problem_set_problem_id, problemset=problem_set
             )
             problem_set_problem.delete()
             return self.success("题目已从题单中移除")
@@ -223,6 +256,39 @@ class ProblemSetBadgeAdminAPI(APIView):
         badge = ProblemSetBadge.objects.create(**data)
 
         return self.success(ProblemSetBadgeSerializer(badge).data)
+
+    @super_admin_required
+    @validate_serializer(EditProblemSetBadgeSerializer)
+    def put(self, request, problem_set_id, badge_id):
+        """编辑题单奖章（管理员）"""
+        try:
+            problem_set = ProblemSet.objects.get(id=problem_set_id)
+            ensure_created_by(problem_set, request.user)
+        except ProblemSet.DoesNotExist:
+            return self.error("题单不存在")
+
+        try:
+            badge = ProblemSetBadge.objects.get(id=badge_id, problemset=problem_set)
+        except ProblemSetBadge.DoesNotExist:
+            return self.error("奖章不存在")
+
+        data = request.data
+        # 更新奖章属性
+        if 'name' in data:
+            badge.name = data['name']
+        if 'description' in data:
+            badge.description = data['description']
+        if 'icon' in data:
+            badge.icon = data['icon']
+        if 'condition_type' in data:
+            badge.condition_type = data['condition_type']
+        if 'condition_value' in data:
+            badge.condition_value = data['condition_value']
+        if 'level' in data:
+            badge.level = data['level']
+        
+        badge.save()
+        return self.success("奖章已更新")
 
     @super_admin_required
     def delete(self, request, problem_set_id, badge_id):
