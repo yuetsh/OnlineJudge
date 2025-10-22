@@ -1,5 +1,6 @@
 
 from django.db.models import Q
+from django.db import models
 from django.utils import timezone
 
 from utils.api import APIView, validate_serializer
@@ -10,30 +11,27 @@ from problemset.models import (
     ProblemSetBadge,
     ProblemSetProgress,
     UserBadge,
+    ProblemSetSubmission,
 )
 from problemset.serializers import (
     ProblemSetSerializer,
     ProblemSetListSerializer,
-    CreateProblemSetSerializer,
-    EditProblemSetSerializer,
     ProblemSetProblemSerializer,
-    AddProblemToSetSerializer,
     ProblemSetBadgeSerializer,
-    CreateProblemSetBadgeSerializer,
     ProblemSetProgressSerializer,
     UserBadgeSerializer,
     JoinProblemSetSerializer,
     UpdateProgressSerializer,
+    ProblemSetSubmissionSerializer,
 )
-from problem.models import Problem
 
 
 class ProblemSetAPI(APIView):
-    """题单API"""
+    """题单API - 用户端"""
 
     def get(self, request):
         """获取题单列表"""
-        problem_sets = ProblemSet.objects.filter(visible=True)
+        problem_sets = ProblemSet.objects.filter(visible=True).exclude(status="draft")
 
         # 过滤条件
         keyword = request.GET.get("keyword", "").strip()
@@ -50,8 +48,6 @@ class ProblemSetAPI(APIView):
         if status_filter:
             problem_sets = problem_sets.filter(status=status_filter)
 
-        # 所有用户都可以看到可见的题单
-
         # 排序
         sort = request.GET.get("sort")
         if sort:
@@ -62,77 +58,30 @@ class ProblemSetAPI(APIView):
         data = self.paginate_data(request, problem_sets, ProblemSetListSerializer)
         return self.success(data)
 
-    @validate_serializer(CreateProblemSetSerializer)
-    def post(self, request):
-        """创建题单"""
-        data = request.data
-        data["created_by"] = request.user
-        problem_set = ProblemSet.objects.create(**data)
-        return self.success(ProblemSetSerializer(problem_set).data)
-
 
 class ProblemSetDetailAPI(APIView):
-    """题单详情API"""
+    """题单详情API - 用户端"""
 
     def get(self, request, problem_set_id):
         """获取题单详情"""
         try:
-            problem_set = ProblemSet.objects.get(id=problem_set_id, visible=True)
+            problem_set = ProblemSet.objects.filter(id=problem_set_id, visible=True).exclude(status="draft").get()
         except ProblemSet.DoesNotExist:
             return self.error("题单不存在")
 
-        # 题单可见即可访问
         serializer = ProblemSetSerializer(problem_set, context={"request": request})
         return self.success(serializer.data)
 
-    @validate_serializer(EditProblemSetSerializer)
-    def put(self, request, problem_set_id):
-        """编辑题单"""
-        try:
-            problem_set = ProblemSet.objects.get(id=problem_set_id)
-        except ProblemSet.DoesNotExist:
-            return self.error("题单不存在")
-
-        # 检查权限
-        if not request.user.is_admin_role() and problem_set.created_by != request.user:
-            return self.error("无权限编辑该题单")
-
-        data = request.data
-        for key, value in data.items():
-            if key != "id":
-                setattr(problem_set, key, value)
-        problem_set.save()
-
-        return self.success(ProblemSetSerializer(problem_set).data)
-
-    def delete(self, request, problem_set_id):
-        """删除题单"""
-        try:
-            problem_set = ProblemSet.objects.get(id=problem_set_id)
-        except ProblemSet.DoesNotExist:
-            return self.error("题单不存在")
-
-        # 检查权限
-        if not request.user.is_admin_role() and problem_set.created_by != request.user:
-            return self.error("无权限删除该题单")
-
-        problem_set.visible = False
-        problem_set.save()
-
-        return self.success("题单已删除")
-
 
 class ProblemSetProblemAPI(APIView):
-    """题单题目管理API"""
+    """题单题目API - 用户端"""
 
     def get(self, request, problem_set_id):
         """获取题单中的题目列表"""
         try:
-            problem_set = ProblemSet.objects.get(id=problem_set_id, visible=True)
+            problem_set = ProblemSet.objects.filter(id=problem_set_id, visible=True).exclude(status="draft").get()
         except ProblemSet.DoesNotExist:
             return self.error("题单不存在")
-
-        # 题单可见即可访问
 
         problems = ProblemSetProblem.objects.filter(problemset=problem_set).order_by(
             "order"
@@ -141,61 +90,6 @@ class ProblemSetProblemAPI(APIView):
             problems, many=True, context={"request": request}
         )
         return self.success(serializer.data)
-
-    @validate_serializer(AddProblemToSetSerializer)
-    def post(self, request, problem_set_id):
-        """添加题目到题单"""
-        try:
-            problem_set = ProblemSet.objects.get(id=problem_set_id)
-        except ProblemSet.DoesNotExist:
-            return self.error("题单不存在")
-
-        # 检查权限
-        if not request.user.is_admin_role() and problem_set.created_by != request.user:
-            return self.error("无权限管理该题单")
-
-        data = request.data
-        try:
-            problem = Problem.objects.get(id=data["problem_id"])
-        except Problem.DoesNotExist:
-            return self.error("题目不存在")
-
-        # 检查题目是否已经在题单中
-        if ProblemSetProblem.objects.filter(
-            problemset=problem_set, problem=problem
-        ).exists():
-            return self.error("题目已在该题单中")
-
-        ProblemSetProblem.objects.create(
-            problemset=problem_set,
-            problem=problem,
-            order=data.get("order", 0),
-            is_required=data.get("is_required", True),
-            score=data.get("score", 0),
-            hint=data.get("hint", ""),
-        )
-
-        return self.success("题目已添加到题单")
-
-    def delete(self, request, problem_set_id, problem_id):
-        """从题单中移除题目"""
-        try:
-            problem_set = ProblemSet.objects.get(id=problem_set_id)
-        except ProblemSet.DoesNotExist:
-            return self.error("题单不存在")
-
-        # 检查权限
-        if not request.user.is_admin_role() and problem_set.created_by != request.user:
-            return self.error("无权限管理该题单")
-
-        try:
-            problem_set_problem = ProblemSetProblem.objects.get(
-                problemset=problem_set, problem_id=problem_id
-            )
-            problem_set_problem.delete()
-            return self.success("题目已从题单中移除")
-        except ProblemSetProblem.DoesNotExist:
-            return self.error("题目不在该题单中")
 
 
 class ProblemSetProgressAPI(APIView):
@@ -206,13 +100,10 @@ class ProblemSetProgressAPI(APIView):
         """加入题单"""
         data = request.data
         try:
-            problem_set = ProblemSet.objects.get(id=data["problemset_id"], visible=True)
+            problem_set = ProblemSet.objects.filter(id=data["problemset_id"], visible=True).exclude(status="draft").get()
         except ProblemSet.DoesNotExist:
             return self.error("题单不存在")
 
-        # 题单可见即可加入
-
-        # 检查是否已经加入
         if ProblemSetProgress.objects.filter(
             problemset=problem_set, user=request.user
         ).exists():
@@ -229,7 +120,7 @@ class ProblemSetProgressAPI(APIView):
     def get(self, request, problem_set_id):
         """获取题单进度"""
         try:
-            problem_set = ProblemSet.objects.get(id=problem_set_id, visible=True)
+            problem_set = ProblemSet.objects.filter(id=problem_set_id, visible=True).exclude(status="draft").get()
         except ProblemSet.DoesNotExist:
             return self.error("题单不存在")
 
@@ -248,7 +139,7 @@ class ProblemSetProgressAPI(APIView):
         """更新进度"""
         data = request.data
         try:
-            problem_set = ProblemSet.objects.get(id=data["problemset_id"], visible=True)
+            problem_set = ProblemSet.objects.filter(id=data["problemset_id"], visible=True).exclude(status="draft").get()
         except ProblemSet.DoesNotExist:
             return self.error("题单不存在")
 
@@ -329,12 +220,12 @@ class UserBadgeAPI(APIView):
 
 
 class ProblemSetBadgeAPI(APIView):
-    """题单奖章管理API"""
+    """题单奖章API - 用户端"""
 
     def get(self, request, problem_set_id):
         """获取题单的奖章列表"""
         try:
-            problem_set = ProblemSet.objects.get(id=problem_set_id, visible=True)
+            problem_set = ProblemSet.objects.filter(id=problem_set_id, visible=True).exclude(status="draft").get()
         except ProblemSet.DoesNotExist:
             return self.error("题单不存在")
 
@@ -342,20 +233,125 @@ class ProblemSetBadgeAPI(APIView):
         serializer = ProblemSetBadgeSerializer(badges, many=True)
         return self.success(serializer.data)
 
-    @validate_serializer(CreateProblemSetBadgeSerializer)
-    def post(self, request, problem_set_id):
-        """创建题单奖章"""
+
+class ProblemSetSubmissionAPI(APIView):
+    """题单提交记录API - 用户端"""
+
+    def get(self, request, problem_set_id):
+        """获取用户在题单中的提交记录"""
         try:
-            problem_set = ProblemSet.objects.get(id=problem_set_id)
+            problem_set = ProblemSet.objects.filter(id=problem_set_id, visible=True).exclude(status="draft").get()
         except ProblemSet.DoesNotExist:
             return self.error("题单不存在")
 
-        # 检查权限
-        if not request.user.is_admin_role() and problem_set.created_by != request.user:
-            return self.error("无权限管理该题单")
+        # 检查用户是否已加入该题单
+        try:
+            ProblemSetProgress.objects.get(problemset=problem_set, user=request.user)
+        except ProblemSetProgress.DoesNotExist:
+            return self.error("您还未加入该题单")
 
-        data = request.data
-        data["problemset"] = problem_set
-        badge = ProblemSetBadge.objects.create(**data)
+        # 获取查询参数
+        problem_id = request.GET.get("problem_id")
+        result = request.GET.get("result")
+        language = request.GET.get("language")
+        
+        # 构建查询条件
+        query_filter = {
+            "problemset": problem_set,
+            "user": request.user
+        }
+        
+        if problem_id:
+            query_filter["problem_id"] = problem_id
+        if result:
+            query_filter["result"] = result
+        if language:
+            query_filter["language"] = language
 
-        return self.success(ProblemSetBadgeSerializer(badge).data)
+        # 获取提交记录
+        submissions = ProblemSetSubmission.objects.filter(**query_filter).order_by("-submit_time")
+
+        # 分页
+        data = self.paginate_data(request, submissions, ProblemSetSubmissionSerializer)
+        return self.success(data)
+
+
+class ProblemSetStatisticsAPI(APIView):
+    """题单统计API - 用户端"""
+
+    def get(self, request, problem_set_id):
+        """获取题单统计信息"""
+        try:
+            problem_set = ProblemSet.objects.filter(id=problem_set_id, visible=True).exclude(status="draft").get()
+        except ProblemSet.DoesNotExist:
+            return self.error("题单不存在")
+
+        # 检查用户是否已加入该题单
+        try:
+            progress = ProblemSetProgress.objects.get(problemset=problem_set, user=request.user)
+        except ProblemSetProgress.DoesNotExist:
+            return self.error("您还未加入该题单")
+
+        # 获取统计信息
+        total_submissions = ProblemSetSubmission.objects.filter(
+            problemset=problem_set, user=request.user
+        ).count()
+        
+        accepted_submissions = ProblemSetSubmission.objects.filter(
+            problemset=problem_set, user=request.user, result=0
+        ).count()
+        
+        # 按题目统计
+        problem_stats = {}
+        problemset_problems = ProblemSetProblem.objects.filter(problemset=problem_set)
+        
+        for psp in problemset_problems:
+            problem_id = psp.problem.id
+            problem_submissions = ProblemSetSubmission.objects.filter(
+                problemset=problem_set, 
+                user=request.user, 
+                problem=psp.problem
+            )
+            
+            problem_stats[str(problem_id)] = {
+                "problem_title": psp.problem.title,
+                "total_submissions": problem_submissions.count(),
+                "accepted_submissions": problem_submissions.filter(result=0).count(),
+                "is_completed": str(problem_id) in progress.progress_detail and 
+                               progress.progress_detail[str(problem_id)].get("status") == "completed"
+            }
+
+        # 按语言统计
+        language_stats = {}
+        language_submissions = ProblemSetSubmission.objects.filter(
+            problemset=problem_set, user=request.user
+        ).values('language').annotate(count=models.Count('id'))
+        
+        for item in language_submissions:
+            language_stats[item['language']] = item['count']
+
+        # 按结果统计
+        result_stats = {}
+        result_submissions = ProblemSetSubmission.objects.filter(
+            problemset=problem_set, user=request.user
+        ).values('result').annotate(count=models.Count('id'))
+        
+        for item in result_submissions:
+            result_stats[item['result']] = item['count']
+
+        data = {
+            "total_submissions": total_submissions,
+            "accepted_submissions": accepted_submissions,
+            "acceptance_rate": round(accepted_submissions / total_submissions * 100, 2) if total_submissions > 0 else 0,
+            "problem_stats": problem_stats,
+            "language_stats": language_stats,
+            "result_stats": result_stats,
+            "progress": {
+                "completed_problems_count": progress.completed_problems_count,
+                "total_problems_count": progress.total_problems_count,
+                "progress_percentage": progress.progress_percentage,
+                "total_score": progress.total_score
+            }
+        }
+        
+        return self.success(data)

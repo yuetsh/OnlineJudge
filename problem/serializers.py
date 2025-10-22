@@ -184,7 +184,6 @@ class ProblemListSerializer(BaseProblemSerializer):
             "created_by",
             "tags",
             "contest",
-            "rule_type",
             "allow_flowchart",
         ]
 

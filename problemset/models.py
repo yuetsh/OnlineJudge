@@ -24,7 +24,7 @@ class ProblemSet(models.Model):
     difficulty = models.TextField(default="Easy", verbose_name="难度等级")
     # 题单状态
     status = models.TextField(
-        default="active", verbose_name="状态"
+        default="draft", verbose_name="状态"
     )  # active, archived, draft
 
     class Meta:
@@ -162,6 +162,49 @@ class ProblemSetProgress(models.Model):
             self.complete_time = now()
 
         self.save()
+
+
+class ProblemSetSubmission(models.Model):
+    """题单提交记录模型"""
+    
+    problemset = models.ForeignKey(
+        ProblemSet, on_delete=models.CASCADE, verbose_name="题单"
+    )
+    user = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="用户")
+    submission = models.ForeignKey(
+        "submission.Submission", on_delete=models.CASCADE, verbose_name="提交记录"
+    )
+    problem = models.ForeignKey(
+        "problem.Problem", on_delete=models.CASCADE, verbose_name="题目"
+    )
+    # 提交时间
+    submit_time = models.DateTimeField(auto_now_add=True, verbose_name="提交时间")
+    # 提交结果
+    result = models.IntegerField(verbose_name="提交结果")
+    # 得分
+    score = models.IntegerField(default=0, verbose_name="得分")
+    # 语言
+    language = models.CharField(max_length=20, verbose_name="编程语言")
+    # 代码长度
+    code_length = models.IntegerField(default=0, verbose_name="代码长度")
+    # 执行时间（毫秒）
+    execution_time = models.IntegerField(default=0, verbose_name="执行时间")
+    # 内存使用（KB）
+    memory_usage = models.IntegerField(default=0, verbose_name="内存使用")
+    
+    class Meta:
+        db_table = "problemset_submission"
+        ordering = ("-submit_time",)
+        verbose_name = "题单提交记录"
+        verbose_name_plural = "题单提交记录"
+        indexes = [
+            models.Index(fields=["problemset", "user"]),
+            models.Index(fields=["problemset", "problem"]),
+            models.Index(fields=["user", "submit_time"]),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} - {self.problemset.title} - {self.problem.title}"
 
 
 class UserBadge(models.Model):

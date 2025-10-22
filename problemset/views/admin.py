@@ -154,9 +154,13 @@ class ProblemSetProblemAdminAPI(APIView):
 
         data = request.data
         try:
-            problem = Problem.objects.get(_id=data["problem_id"])
+            problem = Problem.objects.filter(
+                _id=data["problem_id"],
+                visible=True,
+                contest_id__isnull=True,
+            ).get()
         except Problem.DoesNotExist:
-            return self.error("题目不存在")
+            return self.error("题目不存在或不可见")
 
         # 检查题目是否已经在题单中
         if ProblemSetProblem.objects.filter(
@@ -194,15 +198,15 @@ class ProblemSetProblemAdminAPI(APIView):
 
         data = request.data
         # 更新题目属性
-        if 'order' in data:
-            problem_set_problem.order = data['order']
-        if 'is_required' in data:
-            problem_set_problem.is_required = data['is_required']
-        if 'score' in data:
-            problem_set_problem.score = data['score']
-        if 'hint' in data:
-            problem_set_problem.hint = data['hint']
-        
+        if "order" in data:
+            problem_set_problem.order = data["order"]
+        if "is_required" in data:
+            problem_set_problem.is_required = data["is_required"]
+        if "score" in data:
+            problem_set_problem.score = data["score"]
+        if "hint" in data:
+            problem_set_problem.hint = data["hint"]
+
         problem_set_problem.save()
         return self.success("题目已更新")
 
@@ -274,19 +278,19 @@ class ProblemSetBadgeAdminAPI(APIView):
 
         data = request.data
         # 更新奖章属性
-        if 'name' in data:
-            badge.name = data['name']
-        if 'description' in data:
-            badge.description = data['description']
-        if 'icon' in data:
-            badge.icon = data['icon']
-        if 'condition_type' in data:
-            badge.condition_type = data['condition_type']
-        if 'condition_value' in data:
-            badge.condition_value = data['condition_value']
-        if 'level' in data:
-            badge.level = data['level']
-        
+        if "name" in data:
+            badge.name = data["name"]
+        if "description" in data:
+            badge.description = data["description"]
+        if "icon" in data:
+            badge.icon = data["icon"]
+        if "condition_type" in data:
+            badge.condition_type = data["condition_type"]
+        if "condition_value" in data:
+            badge.condition_value = data["condition_value"]
+        if "level" in data:
+            badge.level = data["level"]
+
         badge.save()
         return self.success("奖章已更新")
 
@@ -319,9 +323,9 @@ class ProblemSetProgressAdminAPI(APIView):
         except ProblemSet.DoesNotExist:
             return self.error("题单不存在")
 
-        progress_list = ProblemSetProgress.objects.filter(problemset=problem_set).order_by(
-            "-join_time"
-        )
+        progress_list = ProblemSetProgress.objects.filter(
+            problemset=problem_set
+        ).order_by("-join_time")
         serializer = ProblemSetProgressSerializer(progress_list, many=True)
         return self.success(serializer.data)
 

@@ -2,14 +2,15 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils import timezone
 
-from .models import ProblemSetProgress, ProblemSetBadge, UserBadge
+from .models import ProblemSetProgress, ProblemSetBadge, UserBadge, ProblemSetSubmission
 from submission.models import Submission
 
 
 @receiver(post_save, sender=Submission)
 def update_problemset_progress(sender, instance, created, **kwargs):
     """当提交状态更新时，自动更新题单进度"""
-    if not created:  # 只处理更新，不处理新建
+    # 处理新建和更新，但只在提交状态确定时更新（不是Pending状态）
+    if instance.result == 6:  # 6表示PENDING状态，不更新进度
         return
 
     # 检查该提交是否属于某个题单中的题目
@@ -24,14 +25,34 @@ def update_problemset_progress(sender, instance, created, **kwargs):
                 problemset=psp.problemset, user=instance.user
             )
 
+            # 创建题单提交记录
+            ProblemSetSubmission.objects.create(
+                problemset=psp.problemset,
+                user=instance.user,
+                submission=instance,
+                problem=instance.problem,
+                result=instance.result,
+                score=instance.score if hasattr(instance, "score") else 0,
+                language=instance.language,
+                code_length=len(instance.code) if hasattr(instance, "code") else 0,
+                execution_time=instance.statistic_info.get("time_cost", 0) if hasattr(instance, "statistic_info") else 0,
+                memory_usage=instance.statistic_info.get("memory_cost", 0) if hasattr(instance, "statistic_info") else 0,
+            )
+
             # 更新详细进度
             problem_id = str(instance.problem.id)
+            
+            # 确定题目状态
+            if instance.result == 0:  # ACCEPTED 
+                status = "completed"  # 部分通过也算完成
+            else:  # 其他状态（错误、超时等）
+                status = "attempted"
+            
             progress.progress_detail[problem_id] = {
-                "status": "completed"
-                if instance.result == 0
-                else "attempted",  # 0表示AC
+                "status": status,
                 "score": instance.score if hasattr(instance, "score") else 0,
                 "submit_time": timezone.now().isoformat(),
+                "result": instance.result,  # 保存原始结果代码
             }
 
             # 更新进度

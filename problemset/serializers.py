@@ -5,7 +5,39 @@ from .models import (
     ProblemSetBadge,
     ProblemSetProgress,
     UserBadge,
+    ProblemSetSubmission,
 )
+
+
+def get_user_progress_data(problemset, request):
+    """获取当前用户在该题单中的进度 - 公共方法"""
+    if request and request.user.is_authenticated:
+        try:
+            progress = ProblemSetProgress.objects.get(
+                problemset=problemset, user=request.user
+            )
+            return {
+                "is_joined": True,
+                "progress_percentage": progress.progress_percentage,
+                "completed_count": progress.completed_problems_count,
+                "total_count": progress.total_problems_count,
+                "is_completed": progress.is_completed,
+            }
+        except ProblemSetProgress.DoesNotExist:
+            return {
+                "is_joined": False,
+                "progress_percentage": 0,
+                "completed_count": 0,
+                "total_count": 0,
+                "is_completed": False,
+            }
+    return {
+        "is_joined": False,
+        "progress_percentage": 0,
+        "completed_count": 0,
+        "total_count": 0,
+        "is_completed": False,
+    }
 
 
 class ProblemSetSerializer(serializers.ModelSerializer):
@@ -14,6 +46,7 @@ class ProblemSetSerializer(serializers.ModelSerializer):
     created_by = UsernameSerializer()
     problems_count = serializers.SerializerMethodField()
     completed_count = serializers.SerializerMethodField()
+    user_progress = serializers.SerializerMethodField()
 
     class Meta:
         model = ProblemSet
@@ -36,6 +69,11 @@ class ProblemSetSerializer(serializers.ModelSerializer):
                 return 0
         return 0
 
+    def get_user_progress(self, obj):
+        """获取当前用户在该题单中的进度"""
+        request = self.context.get("request")
+        return get_user_progress_data(obj, request)
+
 
 class ProblemSetListSerializer(serializers.ModelSerializer):
     """题单列表序列化器"""
@@ -43,6 +81,7 @@ class ProblemSetListSerializer(serializers.ModelSerializer):
     created_by = UsernameSerializer()
     problems_count = serializers.SerializerMethodField()
     user_progress = serializers.SerializerMethodField()
+    badges = serializers.SerializerMethodField()
 
     class Meta:
         model = ProblemSet
@@ -56,6 +95,7 @@ class ProblemSetListSerializer(serializers.ModelSerializer):
             "status",
             "problems_count",
             "user_progress",
+            "badges",
             "visible",
         ]
 
@@ -66,33 +106,12 @@ class ProblemSetListSerializer(serializers.ModelSerializer):
     def get_user_progress(self, obj):
         """获取当前用户在该题单中的进度"""
         request = self.context.get("request")
-        if request and request.user.is_authenticated:
-            try:
-                progress = ProblemSetProgress.objects.get(
-                    problemset=obj, user=request.user
-                )
-                return {
-                    "is_joined": True,
-                    "progress_percentage": progress.progress_percentage,
-                    "completed_count": progress.completed_problems_count,
-                    "total_count": progress.total_problems_count,
-                    "is_completed": progress.is_completed,
-                }
-            except ProblemSetProgress.DoesNotExist:
-                return {
-                    "is_joined": False,
-                    "progress_percentage": 0,
-                    "completed_count": 0,
-                    "total_count": 0,
-                    "is_completed": False,
-                }
-        return {
-            "is_joined": False,
-            "progress_percentage": 0,
-            "completed_count": 0,
-            "total_count": 0,
-            "is_completed": False,
-        }
+        return get_user_progress_data(obj, request)
+
+    def get_badges(self, obj):
+        """获取题单的奖章列表"""
+        badges = ProblemSetBadge.objects.filter(problemset=obj)
+        return ProblemSetBadgeSerializer(badges, many=True).data
 
 
 class CreateProblemSetSerializer(serializers.Serializer):
@@ -126,9 +145,9 @@ class ProblemSetProblemSerializer(serializers.ModelSerializer):
 
     def get_problem(self, obj):
         """获取题目详细信息"""
-        from problem.serializers import ProblemSerializer
+        from problem.serializers import ProblemListSerializer
 
-        return ProblemSerializer(obj.problem, context=self.context).data
+        return ProblemListSerializer(obj.problem, context=self.context).data
 
 
 class AddProblemToSetSerializer(serializers.Serializer):
@@ -211,3 +230,46 @@ class UpdateProgressSerializer(serializers.Serializer):
     status = serializers.CharField()  # completed, attempted, not_started
     score = serializers.IntegerField(default=0)
     submit_time = serializers.DateTimeField(required=False)
+
+
+class ProblemSetSubmissionSerializer(serializers.ModelSerializer):
+    """题单提交记录序列化器"""
+    
+    problem_title = serializers.CharField(source="problem.title", read_only=True)
+    problem_id = serializers.IntegerField(source="problem.id", read_only=True)
+    result_text = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = ProblemSetSubmission
+        fields = [
+            "id",
+            "problem",
+            "problem_id", 
+            "problem_title",
+            "submission",
+            "result",
+            "result_text",
+            "score",
+            "language",
+            "code_length",
+            "execution_time",
+            "memory_usage",
+            "submit_time",
+        ]
+    
+    def get_result_text(self, obj):
+        """获取结果文本"""
+        result_map = {
+            -2: "编译错误",
+            -1: "答案错误", 
+            0: "通过",
+            1: "时间超限",
+            2: "时间超限",
+            3: "内存超限",
+            4: "运行时错误",
+            5: "系统错误",
+            6: "等待中",
+            7: "评测中",
+            8: "部分通过",
+        }
+        return result_map.get(obj.result, "未知")
