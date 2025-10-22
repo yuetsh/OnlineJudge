@@ -164,7 +164,7 @@ class CreateProblemSetBadgeSerializer(serializers.Serializer):
     description = serializers.CharField()
     icon = serializers.CharField()
     condition_type = serializers.CharField()  # all_problems, problem_count, score
-    condition_value = serializers.IntegerField()
+    condition_value = serializers.IntegerField(required=False)
 
 
 class EditProblemSetBadgeSerializer(serializers.Serializer):
