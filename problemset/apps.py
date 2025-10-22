@@ -1,0 +1,9 @@
+from django.apps import AppConfig
+
+
+class ProblemsetConfig(AppConfig):
+    default_auto_field = 'django.db.models.BigAutoField'
+    name = 'problemset'
+    
+    def ready(self):
+        import problemset.signals
