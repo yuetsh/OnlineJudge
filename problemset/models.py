@@ -87,6 +87,41 @@ class ProblemSetBadge(models.Model):
 
     def __str__(self):
         return f"{self.problemset.title} - {self.name}"
+    
+    def recalculate_user_badges(self):
+        """重新计算所有用户的徽章资格"""
+        # 获取所有已加入该题单的用户进度
+        user_progresses = ProblemSetProgress.objects.filter(problemset=self.problemset)
+        
+        # 删除该徽章的所有现有用户徽章记录
+        UserBadge.objects.filter(badge=self).delete()
+        
+        # 重新评估每个用户的徽章资格
+        for progress in user_progresses:
+            self._check_user_badge_eligibility(progress)
+    
+    def _check_user_badge_eligibility(self, progress):
+        """检查用户是否符合该徽章的条件"""
+        
+        # 检查是否已经拥有该徽章
+        if UserBadge.objects.filter(user=progress.user, badge=self).exists():
+            return False
+        
+        # 根据条件类型检查用户是否符合条件
+        if self.condition_type == "all_problems":
+            if progress.completed_problems_count == progress.total_problems_count:
+                UserBadge.objects.create(user=progress.user, badge=self)
+                return True
+        elif self.condition_type == "problem_count":
+            if progress.completed_problems_count >= self.condition_value:
+                UserBadge.objects.create(user=progress.user, badge=self)
+                return True
+        elif self.condition_type == "score":
+            if progress.total_score >= self.condition_value:
+                UserBadge.objects.create(user=progress.user, badge=self)
+                return True
+        
+        return False
 
 
 class ProblemSetProgress(models.Model):
@@ -162,6 +197,14 @@ class ProblemSetProgress(models.Model):
 
         self.save()
 
+    @classmethod
+    def sync_all_progress_for_problemset(cls, problemset):
+        """同步指定题单的所有用户进度"""
+        progresses = cls.objects.filter(problemset=problemset)
+        for progress in progresses:
+            progress.update_progress()
+        return progresses.count()
+
 
 class ProblemSetSubmission(models.Model):
     """题单提交记录模型"""
@@ -224,3 +267,5 @@ class UserBadge(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.badge.name}"
+
+

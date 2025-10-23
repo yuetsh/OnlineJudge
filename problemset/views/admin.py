@@ -177,6 +177,9 @@ class ProblemSetProblemAdminAPI(APIView):
             hint=data.get("hint", ""),
         )
 
+        # 同步所有用户的进度
+        ProblemSetProgress.sync_all_progress_for_problemset(problem_set)
+
         return self.success("题目已添加到题单")
 
     @super_admin_required
@@ -208,6 +211,10 @@ class ProblemSetProblemAdminAPI(APIView):
             problem_set_problem.hint = data["hint"]
 
         problem_set_problem.save()
+        
+        # 同步所有用户的进度
+        ProblemSetProgress.sync_all_progress_for_problemset(problem_set)
+        
         return self.success("题目已更新")
 
     @super_admin_required
@@ -224,6 +231,10 @@ class ProblemSetProblemAdminAPI(APIView):
                 id=problem_set_problem_id, problemset=problem_set
             )
             problem_set_problem.delete()
+            
+            # 同步所有用户的进度
+            ProblemSetProgress.sync_all_progress_for_problemset(problem_set)
+            
             return self.success("题目已从题单中移除")
         except ProblemSetProblem.DoesNotExist:
             return self.error("题目不在该题单中")
@@ -277,6 +288,10 @@ class ProblemSetBadgeAdminAPI(APIView):
             return self.error("奖章不存在")
 
         data = request.data
+        
+        # 记录是否修改了条件相关的字段
+        condition_changed = False
+        
         # 更新奖章属性
         if "name" in data:
             badge.name = data["name"]
@@ -286,12 +301,23 @@ class ProblemSetBadgeAdminAPI(APIView):
             badge.icon = data["icon"]
         if "condition_type" in data:
             badge.condition_type = data["condition_type"]
+            condition_changed = True
         if "condition_value" in data:
             badge.condition_value = data["condition_value"]
+            condition_changed = True
         if "level" in data:
             badge.level = data["level"]
 
         badge.save()
+        
+        # 如果修改了条件，重新计算所有用户的徽章资格
+        if condition_changed:
+            try:
+                badge.recalculate_user_badges()
+                return self.success("奖章已更新，并重新计算了所有用户的徽章资格")
+            except Exception as e:
+                return self.error(f"奖章已更新，但重新计算徽章资格时出错: {str(e)}")
+        
         return self.success("奖章已更新")
 
     @super_admin_required
@@ -346,6 +372,24 @@ class ProblemSetProgressAdminAPI(APIView):
             return self.success("用户已从题单中移除")
         except ProblemSetProgress.DoesNotExist:
             return self.error("用户未加入该题单")
+
+
+class ProblemSetSyncAPI(APIView):
+    """题单同步管理API"""
+    
+    @super_admin_required
+    def post(self, request, problem_set_id):
+        """手动同步题单的所有用户进度（管理员）"""
+        try:
+            problem_set = ProblemSet.objects.get(id=problem_set_id)
+            ensure_created_by(problem_set, request.user)
+        except ProblemSet.DoesNotExist:
+            return self.error("题单不存在")
+        
+        # 同步所有用户的进度
+        synced_count = ProblemSetProgress.sync_all_progress_for_problemset(problem_set)
+        
+        return self.success(f"已同步 {synced_count} 个用户的进度")
 
 
 class ProblemSetVisibleAPI(APIView):

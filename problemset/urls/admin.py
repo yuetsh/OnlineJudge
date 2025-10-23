@@ -7,6 +7,7 @@ from problemset.views.admin import (
     ProblemSetProblemAdminAPI,
     ProblemSetProgressAdminAPI,
     ProblemSetStatusAPI,
+    ProblemSetSyncAPI,
     ProblemSetVisibleAPI,
 )
 
@@ -49,6 +50,12 @@ urlpatterns = [
         "problemset/<int:problem_set_id>/progress/<int:user_id>",
         ProblemSetProgressAdminAPI.as_view(),
         name="admin_problemset_progress_detail_api",
+    ),
+    # 题单同步管理API
+    path(
+        "problemset/<int:problem_set_id>/sync",
+        ProblemSetSyncAPI.as_view(),
+        name="admin_problemset_sync_api",
     ),
     # 题单状态管理API
     path(
