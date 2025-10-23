@@ -42,15 +42,12 @@ class ProblemAPI(APIView):
         if request.user.is_authenticated:
             profile = request.user.userprofile
             acm_problems_status = profile.acm_problems_status.get("problems", {})
-            oi_problems_status = profile.oi_problems_status.get("problems", {})
             # paginate data
             results = queryset_values.get("results")
             if results is not None:
                 problems = results
             else:
-                problems = [
-                    queryset_values,
-                ]
+                problems = [queryset_values]
             for problem in problems:
                 problem["my_status"] = acm_problems_status.get(
                     str(problem["id"]), {}
