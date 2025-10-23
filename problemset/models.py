@@ -215,8 +215,6 @@ class UserBadge(models.Model):
     )
     # 获得时间
     earned_time = models.DateTimeField(auto_now_add=True, verbose_name="获得时间")
-    # 是否已展示给用户
-    is_displayed = models.BooleanField(default=False, verbose_name="是否已展示")
 
     class Meta:
         db_table = "user_badge"

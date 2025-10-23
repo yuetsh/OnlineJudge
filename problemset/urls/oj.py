@@ -42,11 +42,6 @@ urlpatterns = [
     # 奖章相关API
     path("user/badges", UserBadgeAPI.as_view(), name="user_badges_api"),
     path(
-        "user/badges/<int:badge_id>",
-        UserBadgeAPI.as_view(),
-        name="user_badge_detail_api",
-    ),
-    path(
         "problemset/<int:problem_set_id>/badges",
         ProblemSetBadgeAPI.as_view(),
         name="problemset_badges_api",

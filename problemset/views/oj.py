@@ -1,3 +1,4 @@
+from ssl import HAS_SNI
 from django.db.models import Q
 from django.utils import timezone
 
@@ -8,6 +9,7 @@ from problemset.models import (
     ProblemSetProblem,
     ProblemSetBadge,
     ProblemSetProgress,
+    ProblemSetSubmission,
     UserBadge,
 )
 from problemset.serializers import (
@@ -20,6 +22,9 @@ from problemset.serializers import (
     JoinProblemSetSerializer,
     UpdateProgressSerializer,
 )
+
+from submission.models import Submission
+from problem.models import Problem
 
 
 class ProblemSetAPI(APIView):
@@ -168,7 +173,7 @@ class ProblemSetProgressAPI(APIView):
 
         # 更新详细进度
         problem_id = str(data["problem_id"])
-        
+
         # 获取该题目在题单中的分值
         try:
             problemset_problem = ProblemSetProblem.objects.get(
@@ -177,7 +182,7 @@ class ProblemSetProgressAPI(APIView):
             problem_score = problemset_problem.score
         except ProblemSetProblem.DoesNotExist:
             problem_score = 0
-        
+
         progress.progress_detail[problem_id] = {
             "score": problem_score,
             "submit_time": data.get("submit_time", timezone.now().isoformat()),
@@ -185,6 +190,22 @@ class ProblemSetProgressAPI(APIView):
 
         # 更新进度
         progress.update_progress()
+
+        submission = Submission.objects.get(id=data["submission_id"])
+        problem = Problem.objects.get(id=problem_id)
+
+        has_accepted = ProblemSetSubmission.objects.filter(
+            problemset=problem_set,
+            user=request.user,
+            problem=problem,
+        ).exists()
+        if not has_accepted:
+            ProblemSetSubmission.objects.create(
+                problemset=problem_set,
+                user=request.user,
+                submission=submission,
+                problem=problem,
+            )
 
         # 检查是否获得奖章
         self._check_badges(progress)
@@ -194,22 +215,38 @@ class ProblemSetProgressAPI(APIView):
     def _check_badges(self, progress):
         """检查是否获得奖章"""
         badges = ProblemSetBadge.objects.filter(problemset=progress.problemset)
+        print(f"[BadgeCheck] 检查用户 {progress.user.username} 的徽章，题单 {progress.problemset.title}")
+        print(f"[BadgeCheck] 已完成题目数: {progress.completed_problems_count}, 总题目数: {progress.total_problems_count}")
+        print(f"[BadgeCheck] 总分数: {progress.total_score}")
+        print(f"[BadgeCheck] 找到 {badges.count()} 个徽章")
 
         for badge in badges:
+            print(f"[BadgeCheck] 检查徽章: {badge.name} (条件: {badge.condition_type}, 值: {badge.condition_value})")
+            
             # 检查是否已经获得该奖章
             if UserBadge.objects.filter(user=progress.user, badge=badge).exists():
+                print(f"[BadgeCheck] 用户已获得徽章: {badge.name}")
                 continue
 
             # 检查是否满足获得条件
             if badge.condition_type == "all_problems":
                 if progress.completed_problems_count == progress.total_problems_count:
+                    print(f"[BadgeCheck] 满足条件，创建徽章: {badge.name}")
                     UserBadge.objects.create(user=progress.user, badge=badge)
+                else:
+                    print(f"[BadgeCheck] 不满足条件: 已完成 {progress.completed_problems_count}/{progress.total_problems_count}")
             elif badge.condition_type == "problem_count":
                 if progress.completed_problems_count >= badge.condition_value:
+                    print(f"[BadgeCheck] 满足条件，创建徽章: {badge.name}")
                     UserBadge.objects.create(user=progress.user, badge=badge)
+                else:
+                    print(f"[BadgeCheck] 不满足条件: 已完成 {progress.completed_problems_count} < {badge.condition_value}")
             elif badge.condition_type == "score":
                 if progress.total_score >= badge.condition_value:
+                    print(f"[BadgeCheck] 满足条件，创建徽章: {badge.name}")
                     UserBadge.objects.create(user=progress.user, badge=badge)
+                else:
+                    print(f"[BadgeCheck] 不满足条件: 总分数 {progress.total_score} < {badge.condition_value}")
 
 
 class UserProgressAPI(APIView):
@@ -233,15 +270,6 @@ class UserBadgeAPI(APIView):
         serializer = UserBadgeSerializer(badges, many=True)
         return self.success(serializer.data)
 
-    def put(self, request, badge_id):
-        """标记奖章为已展示"""
-        try:
-            user_badge = UserBadge.objects.get(id=badge_id, user=request.user)
-            user_badge.is_displayed = True
-            user_badge.save()
-            return self.success("奖章已标记为已展示")
-        except UserBadge.DoesNotExist:
-            return self.error("奖章不存在")
 
 
 class ProblemSetBadgeAPI(APIView):
@@ -261,7 +289,3 @@ class ProblemSetBadgeAPI(APIView):
         badges = ProblemSetBadge.objects.filter(problemset=problem_set)
         serializer = ProblemSetBadgeSerializer(badges, many=True)
         return self.success(serializer.data)
-
-
-
-

@@ -93,15 +93,6 @@ class SubmissionAPI(APIView):
             contest_id=data.get("contest_id"),
         )
 
-        # 如果有problemset_id，创建ProblemSetSubmission记录
-        if data.get("problemset_id"):
-            ProblemSetSubmission.objects.create(
-                problemset_id=data["problemset_id"],
-                user=request.user,
-                submission=submission,
-                problem=problem,
-            )
-
         # use this for debug
         # JudgeDispatcher(submission.id, problem.id).judge()
         judge_task.send(submission.id, problem.id)

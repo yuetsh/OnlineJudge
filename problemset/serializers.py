@@ -137,6 +137,7 @@ class ProblemSetProblemSerializer(serializers.ModelSerializer):
     """题单题目序列化器"""
 
     problem = serializers.SerializerMethodField()
+    is_completed = serializers.SerializerMethodField()
 
     class Meta:
         model = ProblemSetProblem
@@ -147,6 +148,20 @@ class ProblemSetProblemSerializer(serializers.ModelSerializer):
         from problem.serializers import ProblemListSerializer
 
         return ProblemListSerializer(obj.problem, context=self.context).data
+
+    def get_is_completed(self, obj):
+        """获取当前用户是否已完成该题目"""
+        request = self.context.get("request")
+        if request and request.user.is_authenticated:
+            try:
+                progress = ProblemSetProgress.objects.get(
+                    problemset=obj.problemset, user=request.user
+                )
+                problem_id = str(obj.problem.id)
+                return problem_id in progress.progress_detail
+            except ProblemSetProgress.DoesNotExist:
+                return False
+        return False
 
 
 class AddProblemToSetSerializer(serializers.Serializer):
@@ -226,5 +241,6 @@ class UpdateProgressSerializer(serializers.Serializer):
 
     problemset_id = serializers.IntegerField()
     problem_id = serializers.IntegerField()
+    submission_id = serializers.CharField(required=False)
 
 
