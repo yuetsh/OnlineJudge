@@ -19,6 +19,7 @@ from ..serializers import (
     ShareSubmissionSerializer,
 )
 from ..serializers import SubmissionSafeModelSerializer, SubmissionListSerializer
+from problemset.models import ProblemSetSubmission
 
 
 class SubmissionAPI(APIView):
@@ -91,6 +92,16 @@ class SubmissionAPI(APIView):
             ip=request.session["ip"],
             contest_id=data.get("contest_id"),
         )
+
+        # 如果有problemset_id，创建ProblemSetSubmission记录
+        if data.get("problemset_id"):
+            ProblemSetSubmission.objects.create(
+                problemset_id=data["problemset_id"],
+                user=request.user,
+                submission=submission,
+                problem=problem,
+            )
+
         # use this for debug
         # JudgeDispatcher(submission.id, problem.id).judge()
         judge_task.send(submission.id, problem.id)
@@ -174,10 +185,7 @@ class SubmissionListAPI(APIView):
                 return self.error("Problem doesn't exist")
             submissions = submissions.filter(problem=problem)
 
-        if (
-            not SysOptions.submission_list_show_all
-            and request.user.is_regular_user()
-        ):
+        if not SysOptions.submission_list_show_all and request.user.is_regular_user():
             return self.success({"results": [], "total": 0})
 
         if myself and myself == "1":

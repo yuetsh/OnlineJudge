@@ -113,7 +113,7 @@ class ProblemSetProgress(models.Model):
     # 获得的总分
     total_score = models.IntegerField(default=0, verbose_name="总分")
     # 用户在该题单中的详细进度信息
-    # {"problem_id": {"status": "completed", "score": 100, "submit_time": "2024-01-01T00:00:00Z"}}
+    # {"problem_id": {"score": 20, "submit_time": "2024-01-01T00:00:00Z"}}
     progress_detail = JSONField(default=dict, verbose_name="详细进度")
 
     class Meta:
@@ -141,9 +141,8 @@ class ProblemSetProgress(models.Model):
             problem_id = str(psp.problem.id)
             if problem_id in self.progress_detail:
                 problem_progress = self.progress_detail[problem_id]
-                if problem_progress.get("status") == "completed":
-                    completed_count += 1
-                    total_score += problem_progress.get("score", 0)
+                completed_count += 1
+                total_score += problem_progress.get("score", 0)
 
         self.completed_problems_count = completed_count
         self.total_score = total_score
@@ -177,35 +176,35 @@ class ProblemSetSubmission(models.Model):
     problem = models.ForeignKey(
         "problem.Problem", on_delete=models.CASCADE, verbose_name="题目"
     )
-    # 提交时间
-    submit_time = models.DateTimeField(auto_now_add=True, verbose_name="提交时间")
-    # 提交结果
-    result = models.IntegerField(verbose_name="提交结果")
-    # 得分
-    score = models.IntegerField(default=0, verbose_name="得分")
-    # 语言
-    language = models.CharField(max_length=20, verbose_name="编程语言")
-    # 代码长度
-    code_length = models.IntegerField(default=0, verbose_name="代码长度")
-    # 执行时间（毫秒）
-    execution_time = models.IntegerField(default=0, verbose_name="执行时间")
-    # 内存使用（KB）
-    memory_usage = models.IntegerField(default=0, verbose_name="内存使用")
-    
+
     class Meta:
         db_table = "problemset_submission"
-        ordering = ("-submit_time",)
+        ordering = ("-submission__create_time",)
         verbose_name = "题单提交记录"
         verbose_name_plural = "题单提交记录"
         indexes = [
             models.Index(fields=["problemset", "user"]),
             models.Index(fields=["problemset", "problem"]),
-            models.Index(fields=["user", "submit_time"]),
+            models.Index(fields=["user"]),
         ]
 
     def __str__(self):
         return f"{self.user.username} - {self.problemset.title} - {self.problem.title}"
 
+    @property
+    def submit_time(self):
+        """提交时间"""
+        return self.submission.create_time
+    
+    @property
+    def result(self):
+        """提交结果"""
+        return self.submission.result
+    
+    @property
+    def language(self):
+        """编程语言"""
+        return self.submission.language
 
 class UserBadge(models.Model):
     """用户奖章模型"""

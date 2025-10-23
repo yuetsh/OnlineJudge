@@ -1,4 +1,3 @@
-
 from django.db.models import Q
 from django.db import models
 from django.utils import timezone
@@ -65,7 +64,11 @@ class ProblemSetDetailAPI(APIView):
     def get(self, request, problem_set_id):
         """获取题单详情"""
         try:
-            problem_set = ProblemSet.objects.filter(id=problem_set_id, visible=True).exclude(status="draft").get()
+            problem_set = (
+                ProblemSet.objects.filter(id=problem_set_id, visible=True)
+                .exclude(status="draft")
+                .get()
+            )
         except ProblemSet.DoesNotExist:
             return self.error("题单不存在")
 
@@ -79,7 +82,11 @@ class ProblemSetProblemAPI(APIView):
     def get(self, request, problem_set_id):
         """获取题单中的题目列表"""
         try:
-            problem_set = ProblemSet.objects.filter(id=problem_set_id, visible=True).exclude(status="draft").get()
+            problem_set = (
+                ProblemSet.objects.filter(id=problem_set_id, visible=True)
+                .exclude(status="draft")
+                .get()
+            )
         except ProblemSet.DoesNotExist:
             return self.error("题单不存在")
 
@@ -100,7 +107,11 @@ class ProblemSetProgressAPI(APIView):
         """加入题单"""
         data = request.data
         try:
-            problem_set = ProblemSet.objects.filter(id=data["problemset_id"], visible=True).exclude(status="draft").get()
+            problem_set = (
+                ProblemSet.objects.filter(id=data["problemset_id"], visible=True)
+                .exclude(status="draft")
+                .get()
+            )
         except ProblemSet.DoesNotExist:
             return self.error("题单不存在")
 
@@ -120,7 +131,11 @@ class ProblemSetProgressAPI(APIView):
     def get(self, request, problem_set_id):
         """获取题单进度"""
         try:
-            problem_set = ProblemSet.objects.filter(id=problem_set_id, visible=True).exclude(status="draft").get()
+            problem_set = (
+                ProblemSet.objects.filter(id=problem_set_id, visible=True)
+                .exclude(status="draft")
+                .get()
+            )
         except ProblemSet.DoesNotExist:
             return self.error("题单不存在")
 
@@ -139,7 +154,11 @@ class ProblemSetProgressAPI(APIView):
         """更新进度"""
         data = request.data
         try:
-            problem_set = ProblemSet.objects.filter(id=data["problemset_id"], visible=True).exclude(status="draft").get()
+            problem_set = (
+                ProblemSet.objects.filter(id=data["problemset_id"], visible=True)
+                .exclude(status="draft")
+                .get()
+            )
         except ProblemSet.DoesNotExist:
             return self.error("题单不存在")
 
@@ -152,9 +171,18 @@ class ProblemSetProgressAPI(APIView):
 
         # 更新详细进度
         problem_id = str(data["problem_id"])
+        
+        # 获取该题目在题单中的分值
+        try:
+            problemset_problem = ProblemSetProblem.objects.get(
+                problemset=problem_set, problem_id=problem_id
+            )
+            problem_score = problemset_problem.score
+        except ProblemSetProblem.DoesNotExist:
+            problem_score = 0
+        
         progress.progress_detail[problem_id] = {
-            "status": data["status"],
-            "score": data.get("score", 0),
+            "score": problem_score,
             "submit_time": data.get("submit_time", timezone.now().isoformat()),
         }
 
@@ -225,7 +253,11 @@ class ProblemSetBadgeAPI(APIView):
     def get(self, request, problem_set_id):
         """获取题单的奖章列表"""
         try:
-            problem_set = ProblemSet.objects.filter(id=problem_set_id, visible=True).exclude(status="draft").get()
+            problem_set = (
+                ProblemSet.objects.filter(id=problem_set_id, visible=True)
+                .exclude(status="draft")
+                .get()
+            )
         except ProblemSet.DoesNotExist:
             return self.error("题单不存在")
 
@@ -240,7 +272,11 @@ class ProblemSetSubmissionAPI(APIView):
     def get(self, request, problem_set_id):
         """获取用户在题单中的提交记录"""
         try:
-            problem_set = ProblemSet.objects.filter(id=problem_set_id, visible=True).exclude(status="draft").get()
+            problem_set = (
+                ProblemSet.objects.filter(id=problem_set_id, visible=True)
+                .exclude(status="draft")
+                .get()
+            )
         except ProblemSet.DoesNotExist:
             return self.error("题单不存在")
 
@@ -254,22 +290,21 @@ class ProblemSetSubmissionAPI(APIView):
         problem_id = request.GET.get("problem_id")
         result = request.GET.get("result")
         language = request.GET.get("language")
-        
+
         # 构建查询条件
-        query_filter = {
-            "problemset": problem_set,
-            "user": request.user
-        }
-        
+        query_filter = {"problemset": problem_set, "user": request.user}
+
         if problem_id:
             query_filter["problem_id"] = problem_id
         if result:
-            query_filter["result"] = result
+            query_filter["submission__result"] = result
         if language:
-            query_filter["language"] = language
+            query_filter["submission__language"] = language
 
         # 获取提交记录
-        submissions = ProblemSetSubmission.objects.filter(**query_filter).order_by("-submit_time")
+        submissions = ProblemSetSubmission.objects.filter(**query_filter).order_by(
+            "-submission__create_time"
+        )
 
         # 分页
         data = self.paginate_data(request, submissions, ProblemSetSubmissionSerializer)
@@ -282,13 +317,19 @@ class ProblemSetStatisticsAPI(APIView):
     def get(self, request, problem_set_id):
         """获取题单统计信息"""
         try:
-            problem_set = ProblemSet.objects.filter(id=problem_set_id, visible=True).exclude(status="draft").get()
+            problem_set = (
+                ProblemSet.objects.filter(id=problem_set_id, visible=True)
+                .exclude(status="draft")
+                .get()
+            )
         except ProblemSet.DoesNotExist:
             return self.error("题单不存在")
 
         # 检查用户是否已加入该题单
         try:
-            progress = ProblemSetProgress.objects.get(problemset=problem_set, user=request.user)
+            progress = ProblemSetProgress.objects.get(
+                problemset=problem_set, user=request.user
+            )
         except ProblemSetProgress.DoesNotExist:
             return self.error("您还未加入该题单")
 
@@ -296,53 +337,60 @@ class ProblemSetStatisticsAPI(APIView):
         total_submissions = ProblemSetSubmission.objects.filter(
             problemset=problem_set, user=request.user
         ).count()
-        
+
         accepted_submissions = ProblemSetSubmission.objects.filter(
-            problemset=problem_set, user=request.user, result=0
+            problemset=problem_set, user=request.user, submission__result=0
         ).count()
-        
+
         # 按题目统计
         problem_stats = {}
         problemset_problems = ProblemSetProblem.objects.filter(problemset=problem_set)
-        
+
         for psp in problemset_problems:
             problem_id = psp.problem.id
             problem_submissions = ProblemSetSubmission.objects.filter(
-                problemset=problem_set, 
-                user=request.user, 
-                problem=psp.problem
+                problemset=problem_set, user=request.user, problem=psp.problem
             )
-            
+
             problem_stats[str(problem_id)] = {
                 "problem_title": psp.problem.title,
                 "total_submissions": problem_submissions.count(),
-                "accepted_submissions": problem_submissions.filter(result=0).count(),
-                "is_completed": str(problem_id) in progress.progress_detail and 
-                               progress.progress_detail[str(problem_id)].get("status") == "completed"
+                "accepted_submissions": problem_submissions.filter(submission__result=0).count(),
+                "is_completed": str(problem_id) in progress.progress_detail,
             }
 
         # 按语言统计
         language_stats = {}
-        language_submissions = ProblemSetSubmission.objects.filter(
-            problemset=problem_set, user=request.user
-        ).values('language').annotate(count=models.Count('id'))
-        
+        language_submissions = (
+            ProblemSetSubmission.objects.filter(
+                problemset=problem_set, user=request.user
+            )
+            .values("submission__language")
+            .annotate(count=models.Count("id"))
+        )
+
         for item in language_submissions:
-            language_stats[item['language']] = item['count']
+            language_stats[item["submission__language"]] = item["count"]
 
         # 按结果统计
         result_stats = {}
-        result_submissions = ProblemSetSubmission.objects.filter(
-            problemset=problem_set, user=request.user
-        ).values('result').annotate(count=models.Count('id'))
-        
+        result_submissions = (
+            ProblemSetSubmission.objects.filter(
+                problemset=problem_set, user=request.user
+            )
+            .values("submission__result")
+            .annotate(count=models.Count("id"))
+        )
+
         for item in result_submissions:
-            result_stats[item['result']] = item['count']
+            result_stats[item["submission__result"]] = item["count"]
 
         data = {
             "total_submissions": total_submissions,
             "accepted_submissions": accepted_submissions,
-            "acceptance_rate": round(accepted_submissions / total_submissions * 100, 2) if total_submissions > 0 else 0,
+            "acceptance_rate": round(accepted_submissions / total_submissions * 100, 2)
+            if total_submissions > 0
+            else 0,
             "problem_stats": problem_stats,
             "language_stats": language_stats,
             "result_stats": result_stats,
@@ -350,8 +398,8 @@ class ProblemSetStatisticsAPI(APIView):
                 "completed_problems_count": progress.completed_problems_count,
                 "total_problems_count": progress.total_problems_count,
                 "progress_percentage": progress.progress_percentage,
-                "total_score": progress.total_score
-            }
+                "total_score": progress.total_score,
+            },
         }
-        
+
         return self.success(data)

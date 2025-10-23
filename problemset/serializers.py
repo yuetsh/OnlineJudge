@@ -227,10 +227,6 @@ class UpdateProgressSerializer(serializers.Serializer):
 
     problemset_id = serializers.IntegerField()
     problem_id = serializers.IntegerField()
-    status = serializers.CharField()  # completed, attempted, not_started
-    score = serializers.IntegerField(default=0)
-    submit_time = serializers.DateTimeField(required=False)
-
 
 class ProblemSetSubmissionSerializer(serializers.ModelSerializer):
     """题单提交记录序列化器"""
@@ -238,6 +234,7 @@ class ProblemSetSubmissionSerializer(serializers.ModelSerializer):
     problem_title = serializers.CharField(source="problem.title", read_only=True)
     problem_id = serializers.IntegerField(source="problem.id", read_only=True)
     result_text = serializers.SerializerMethodField()
+    submit_time = serializers.DateTimeField(source="submission.create_time", read_only=True)
     
     class Meta:
         model = ProblemSetSubmission
@@ -248,28 +245,7 @@ class ProblemSetSubmissionSerializer(serializers.ModelSerializer):
             "problem_title",
             "submission",
             "result",
-            "result_text",
-            "score",
             "language",
-            "code_length",
-            "execution_time",
-            "memory_usage",
             "submit_time",
         ]
-    
-    def get_result_text(self, obj):
-        """获取结果文本"""
-        result_map = {
-            -2: "编译错误",
-            -1: "答案错误", 
-            0: "通过",
-            1: "时间超限",
-            2: "时间超限",
-            3: "内存超限",
-            4: "运行时错误",
-            5: "系统错误",
-            6: "等待中",
-            7: "评测中",
-            8: "部分通过",
-        }
-        return result_map.get(obj.result, "未知")
+
