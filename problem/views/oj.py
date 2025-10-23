@@ -52,14 +52,9 @@ class ProblemAPI(APIView):
                     queryset_values,
                 ]
             for problem in problems:
-                if problem["rule_type"] == ProblemRuleType.ACM:
-                    problem["my_status"] = acm_problems_status.get(
-                        str(problem["id"]), {}
-                    ).get("status")
-                else:
-                    problem["my_status"] = oi_problems_status.get(
-                        str(problem["id"]), {}
-                    ).get("status")
+                problem["my_status"] = acm_problems_status.get(
+                    str(problem["id"]), {}
+                ).get("status")
 
     def get(self, request):
         # 问题详情页
