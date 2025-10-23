@@ -214,10 +214,30 @@ class ProblemSetProgressSerializer(serializers.ModelSerializer):
 
     problemset = ProblemSetListSerializer()
     user = UsernameSerializer()
+    completed_problems = serializers.SerializerMethodField()
 
     class Meta:
         model = ProblemSetProgress
         fields = "__all__"
+    
+    def get_completed_problems(self, obj):
+        """获取已完成的题目列表"""
+        from problem.models import Problem
+        
+        completed_problems = []
+        if obj.progress_detail:
+            for problem_id in obj.progress_detail.keys():
+                try:
+                    problem = Problem.objects.get(id=problem_id)
+                    completed_problems.append({
+                        'id': problem.id,
+                        '_id': problem._id,
+                        'title': problem.title
+                    })
+                except Problem.DoesNotExist:
+                    continue
+        
+        return completed_problems
 
 
 class UserBadgeSerializer(serializers.ModelSerializer):

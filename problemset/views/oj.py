@@ -183,7 +183,7 @@ class ProblemSetProgressAPI(APIView):
             problem_score = 0
 
         progress.progress_detail[problem_id] = {
-            "score": problem_score,
+            "score": problem_score,  # 题单中设置的分值
             "submit_time": data.get("submit_time", timezone.now().isoformat()),
         }
 
@@ -275,3 +275,29 @@ class ProblemSetBadgeAPI(APIView):
         badges = ProblemSetBadge.objects.filter(problemset=problem_set)
         serializer = ProblemSetBadgeSerializer(badges, many=True)
         return self.success(serializer.data)
+
+
+class ProblemSetUserProgressAPI(APIView):
+    """题单用户进度列表API"""
+
+    def get(self, request, problem_set_id: int):
+        """获取题单的用户进度列表"""
+        try:
+            problem_set = (
+                ProblemSet.objects.filter(id=problem_set_id, visible=True)
+                .exclude(status="draft")
+                .get()
+            )
+        except ProblemSet.DoesNotExist:
+            return self.error("题单不存在")
+
+        # 获取所有参与该题单的用户进度
+        progresses = ProblemSetProgress.objects.filter(problemset=problem_set).order_by(
+            "-is_completed", "-progress_percentage", "join_time"
+        )
+        
+        try:
+            serializer = ProblemSetProgressSerializer(progresses, many=True)
+            return self.success(serializer.data)
+        except Exception as e:
+            return self.error(f"序列化错误: {str(e)}")

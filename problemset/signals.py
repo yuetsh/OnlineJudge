@@ -21,8 +21,13 @@ def sync_progress_on_problem_change(sender, instance, created, **kwargs):
             # 批量更新所有用户的进度
             for progress in progresses:
                 progress.update_progress()
+            
+            # 重新计算该题单的所有徽章资格
+            badges = ProblemSetBadge.objects.filter(problemset=instance.problemset)
+            for badge in badges:
+                badge.recalculate_user_badges()
                 
-            logger.info(f"已同步题单 {instance.problemset.id} 的所有用户进度")
+            logger.info(f"已同步题单 {instance.problemset.id} 的所有用户进度和徽章资格")
             
     except Exception as e:
         logger.error(f"同步题单进度时出错: {e}")
@@ -48,8 +53,13 @@ def sync_progress_on_problem_delete(sender, instance, **kwargs):
             # 批量更新所有用户的进度
             for progress in progresses:
                 progress.update_progress()
+            
+            # 重新计算该题单的所有徽章资格
+            badges = ProblemSetBadge.objects.filter(problemset=instance.problemset)
+            for badge in badges:
+                badge.recalculate_user_badges()
                 
-            logger.info(f"已同步题单 {instance.problemset.id} 的所有用户进度（删除题目后）")
+            logger.info(f"已同步题单 {instance.problemset.id} 的所有用户进度和徽章资格（删除题目后）")
             
     except Exception as e:
         logger.error(f"同步题单进度时出错: {e}")

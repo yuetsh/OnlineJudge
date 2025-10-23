@@ -7,6 +7,7 @@ from problemset.views.oj import (
     UserBadgeAPI,
     UserProgressAPI,
     ProblemSetBadgeAPI,
+    ProblemSetUserProgressAPI,
 )
 
 urlpatterns = [
@@ -45,5 +46,10 @@ urlpatterns = [
         "problemset/<int:problem_set_id>/badges",
         ProblemSetBadgeAPI.as_view(),
         name="problemset_badges_api",
+    ),
+    path(
+        "problemset/<int:problem_set_id>/users_progress",
+        ProblemSetUserProgressAPI.as_view(),
+        name="problemset_user_progress_api",
     ),
 ]
