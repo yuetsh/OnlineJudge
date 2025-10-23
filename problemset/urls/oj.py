@@ -7,8 +7,6 @@ from problemset.views.oj import (
     UserBadgeAPI,
     UserProgressAPI,
     ProblemSetBadgeAPI,
-    ProblemSetSubmissionAPI,
-    ProblemSetStatisticsAPI,
 )
 
 urlpatterns = [
@@ -52,17 +50,5 @@ urlpatterns = [
         "problemset/<int:problem_set_id>/badges",
         ProblemSetBadgeAPI.as_view(),
         name="problemset_badges_api",
-    ),
-    # 提交记录相关API
-    path(
-        "problemset/<int:problem_set_id>/submissions",
-        ProblemSetSubmissionAPI.as_view(),
-        name="problemset_submissions_api",
-    ),
-    # 统计相关API
-    path(
-        "problemset/<int:problem_set_id>/statistics",
-        ProblemSetStatisticsAPI.as_view(),
-        name="problemset_statistics_api",
     ),
 ]

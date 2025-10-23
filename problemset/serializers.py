@@ -5,7 +5,6 @@ from .models import (
     ProblemSetBadge,
     ProblemSetProgress,
     UserBadge,
-    ProblemSetSubmission,
 )
 
 
@@ -228,24 +227,4 @@ class UpdateProgressSerializer(serializers.Serializer):
     problemset_id = serializers.IntegerField()
     problem_id = serializers.IntegerField()
 
-class ProblemSetSubmissionSerializer(serializers.ModelSerializer):
-    """题单提交记录序列化器"""
-    
-    problem_title = serializers.CharField(source="problem.title", read_only=True)
-    problem_id = serializers.IntegerField(source="problem.id", read_only=True)
-    result_text = serializers.SerializerMethodField()
-    submit_time = serializers.DateTimeField(source="submission.create_time", read_only=True)
-    
-    class Meta:
-        model = ProblemSetSubmission
-        fields = [
-            "id",
-            "problem",
-            "problem_id", 
-            "problem_title",
-            "submission",
-            "result",
-            "language",
-            "submit_time",
-        ]
 

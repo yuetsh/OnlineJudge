@@ -1,5 +1,4 @@
 from django.db.models import Q
-from django.db import models
 from django.utils import timezone
 
 from utils.api import APIView, validate_serializer
@@ -10,7 +9,6 @@ from problemset.models import (
     ProblemSetBadge,
     ProblemSetProgress,
     UserBadge,
-    ProblemSetSubmission,
 )
 from problemset.serializers import (
     ProblemSetSerializer,
@@ -21,7 +19,6 @@ from problemset.serializers import (
     UserBadgeSerializer,
     JoinProblemSetSerializer,
     UpdateProgressSerializer,
-    ProblemSetSubmissionSerializer,
 )
 
 
@@ -266,140 +263,5 @@ class ProblemSetBadgeAPI(APIView):
         return self.success(serializer.data)
 
 
-class ProblemSetSubmissionAPI(APIView):
-    """题单提交记录API - 用户端"""
-
-    def get(self, request, problem_set_id):
-        """获取用户在题单中的提交记录"""
-        try:
-            problem_set = (
-                ProblemSet.objects.filter(id=problem_set_id, visible=True)
-                .exclude(status="draft")
-                .get()
-            )
-        except ProblemSet.DoesNotExist:
-            return self.error("题单不存在")
-
-        # 检查用户是否已加入该题单
-        try:
-            ProblemSetProgress.objects.get(problemset=problem_set, user=request.user)
-        except ProblemSetProgress.DoesNotExist:
-            return self.error("您还未加入该题单")
-
-        # 获取查询参数
-        problem_id = request.GET.get("problem_id")
-        result = request.GET.get("result")
-        language = request.GET.get("language")
-
-        # 构建查询条件
-        query_filter = {"problemset": problem_set, "user": request.user}
-
-        if problem_id:
-            query_filter["problem_id"] = problem_id
-        if result:
-            query_filter["submission__result"] = result
-        if language:
-            query_filter["submission__language"] = language
-
-        # 获取提交记录
-        submissions = ProblemSetSubmission.objects.filter(**query_filter).order_by(
-            "-submission__create_time"
-        )
-
-        # 分页
-        data = self.paginate_data(request, submissions, ProblemSetSubmissionSerializer)
-        return self.success(data)
 
 
-class ProblemSetStatisticsAPI(APIView):
-    """题单统计API - 用户端"""
-
-    def get(self, request, problem_set_id):
-        """获取题单统计信息"""
-        try:
-            problem_set = (
-                ProblemSet.objects.filter(id=problem_set_id, visible=True)
-                .exclude(status="draft")
-                .get()
-            )
-        except ProblemSet.DoesNotExist:
-            return self.error("题单不存在")
-
-        # 检查用户是否已加入该题单
-        try:
-            progress = ProblemSetProgress.objects.get(
-                problemset=problem_set, user=request.user
-            )
-        except ProblemSetProgress.DoesNotExist:
-            return self.error("您还未加入该题单")
-
-        # 获取统计信息
-        total_submissions = ProblemSetSubmission.objects.filter(
-            problemset=problem_set, user=request.user
-        ).count()
-
-        accepted_submissions = ProblemSetSubmission.objects.filter(
-            problemset=problem_set, user=request.user, submission__result=0
-        ).count()
-
-        # 按题目统计
-        problem_stats = {}
-        problemset_problems = ProblemSetProblem.objects.filter(problemset=problem_set)
-
-        for psp in problemset_problems:
-            problem_id = psp.problem.id
-            problem_submissions = ProblemSetSubmission.objects.filter(
-                problemset=problem_set, user=request.user, problem=psp.problem
-            )
-
-            problem_stats[str(problem_id)] = {
-                "problem_title": psp.problem.title,
-                "total_submissions": problem_submissions.count(),
-                "accepted_submissions": problem_submissions.filter(submission__result=0).count(),
-                "is_completed": str(problem_id) in progress.progress_detail,
-            }
-
-        # 按语言统计
-        language_stats = {}
-        language_submissions = (
-            ProblemSetSubmission.objects.filter(
-                problemset=problem_set, user=request.user
-            )
-            .values("submission__language")
-            .annotate(count=models.Count("id"))
-        )
-
-        for item in language_submissions:
-            language_stats[item["submission__language"]] = item["count"]
-
-        # 按结果统计
-        result_stats = {}
-        result_submissions = (
-            ProblemSetSubmission.objects.filter(
-                problemset=problem_set, user=request.user
-            )
-            .values("submission__result")
-            .annotate(count=models.Count("id"))
-        )
-
-        for item in result_submissions:
-            result_stats[item["submission__result"]] = item["count"]
-
-        data = {
-            "total_submissions": total_submissions,
-            "accepted_submissions": accepted_submissions,
-            "acceptance_rate": round(accepted_submissions / total_submissions * 100, 2)
-            if total_submissions > 0
-            else 0,
-            "problem_stats": problem_stats,
-            "language_stats": language_stats,
-            "result_stats": result_stats,
-            "progress": {
-                "completed_problems_count": progress.completed_problems_count,
-                "total_problems_count": progress.total_problems_count,
-                "progress_percentage": progress.progress_percentage,
-                "total_score": progress.total_score,
-            },
-        }
-
-        return self.success(data)
