@@ -296,8 +296,6 @@ class ProblemSetUserProgressAPI(APIView):
             "-is_completed", "-progress_percentage", "join_time"
         )
         
-        try:
-            serializer = ProblemSetProgressSerializer(progresses, many=True)
-            return self.success(serializer.data)
-        except Exception as e:
-            return self.error(f"序列化错误: {str(e)}")
+        # 使用分页
+        data = self.paginate_data(request, progresses, ProblemSetProgressSerializer)
+        return self.success(data)
