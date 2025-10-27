@@ -3,6 +3,8 @@ from django.utils import timezone
 
 from utils.api import APIView, validate_serializer
 
+from account.models import User
+
 from problemset.models import (
     ProblemSet,
     ProblemSetProblem,
@@ -253,7 +255,20 @@ class UserBadgeAPI(APIView):
 
     def get(self, request):
         """获取用户的奖章列表"""
-        badges = UserBadge.objects.filter(user=request.user).order_by("-earned_time")
+        # 支持通过username参数获取指定用户的徽章
+        username = request.GET.get("username")
+        
+        if username:
+            # 获取指定用户的徽章
+            try:
+                target_user = User.objects.get(username=username, is_disabled=False)
+                badges = UserBadge.objects.filter(user=target_user).order_by("-earned_time")
+            except User.DoesNotExist:
+                return self.error("用户不存在")
+        else:
+            # 获取当前用户的徽章
+            badges = UserBadge.objects.filter(user=request.user).order_by("-earned_time")
+        
         serializer = UserBadgeSerializer(badges, many=True)
         return self.success(serializer.data)
 
