@@ -108,9 +108,29 @@ class ProblemSetListSerializer(serializers.ModelSerializer):
         return get_user_progress_data(obj, request)
 
     def get_badges(self, obj):
-        """获取题单的奖章列表"""
+        """获取题单的奖章列表，并标记用户已获得的徽章"""
+        request = self.context.get("request")
         badges = ProblemSetBadge.objects.filter(problemset=obj)
-        return ProblemSetBadgeSerializer(badges, many=True).data
+        badge_data = ProblemSetBadgeSerializer(badges, many=True).data
+        
+        # 如果用户已登录，检查哪些徽章已被获得
+        if request and request.user.is_authenticated:
+            earned_badge_ids = set(
+                UserBadge.objects.filter(
+                    user=request.user,
+                    badge__problemset=obj
+                ).values_list('badge_id', flat=True)
+            )
+            
+            # 为每个徽章添加是否已获得的标记
+            for badge in badge_data:
+                badge['is_earned'] = badge['id'] in earned_badge_ids
+        else:
+            # 未登录用户，所有徽章都标记为未获得
+            for badge in badge_data:
+                badge['is_earned'] = False
+                
+        return badge_data
 
 
 class CreateProblemSetSerializer(serializers.Serializer):
