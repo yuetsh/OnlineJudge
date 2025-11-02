@@ -44,13 +44,9 @@ class ProblemSetAdminAPI(APIView):
         if difficulty:
             problem_sets = problem_sets.filter(difficulty=difficulty)
 
-        status_filter = request.GET.get("status")
-        if status_filter:
-            problem_sets = problem_sets.filter(status=status_filter)
-
-        # 权限过滤：如果不是超级管理员，只能看到自己创建的题单
-        if not request.user.is_admin():
-            problem_sets = problem_sets.filter(created_by=request.user)
+        status = request.GET.get("status")
+        if status:
+            problem_sets = problem_sets.filter(status=status)
 
         # 使用统一的分页方法
         data = self.paginate_data(request, problem_sets, ProblemSetListSerializer)
