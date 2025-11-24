@@ -1,4 +1,4 @@
-from django.db.models import Q
+from django.db.models import Q, Avg
 from django.utils import timezone
 
 from utils.api import APIView, validate_serializer
@@ -311,6 +311,19 @@ class ProblemSetUserProgressAPI(APIView):
             "-is_completed", "-progress_percentage", "join_time"
         )
         
+        # 计算统计数据（基于所有数据，而非分页数据）
+        total_count = progresses.count()
+        completed_count = progresses.filter(is_completed=True).count()
+        avg_progress = progresses.aggregate(avg=Avg("progress_percentage"))["avg"] or 0
+        
         # 使用分页
         data = self.paginate_data(request, progresses, ProblemSetProgressSerializer)
+        
+        # 添加统计数据
+        data["statistics"] = {
+            "total": total_count,
+            "completed": completed_count,
+            "avg_progress": round(avg_progress, 2)
+        }
+        
         return self.success(data)
