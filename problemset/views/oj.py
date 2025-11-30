@@ -307,7 +307,15 @@ class ProblemSetUserProgressAPI(APIView):
             return self.error("题单不存在")
 
         # 获取所有参与该题单的用户进度
-        progresses = ProblemSetProgress.objects.filter(problemset=problem_set).order_by(
+        progresses = ProblemSetProgress.objects.filter(problemset=problem_set)
+        
+        # 班级过滤
+        class_name = request.GET.get("class_name", "").strip()
+        if class_name:
+            progresses = progresses.filter(user__class_name=class_name)
+        
+        # 排序
+        progresses = progresses.order_by(
             "-is_completed", "-progress_percentage", "join_time"
         )
         
