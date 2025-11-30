@@ -232,7 +232,6 @@ class EditProblemSetBadgeSerializer(serializers.Serializer):
 class ProblemSetProgressSerializer(serializers.ModelSerializer):
     """题单进度序列化器"""
 
-    problemset = ProblemSetListSerializer()
     user = UsernameSerializer()
     completed_problems = serializers.SerializerMethodField()
 
