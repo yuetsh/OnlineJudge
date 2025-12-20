@@ -312,7 +312,7 @@ class ProblemSetUserProgressAPI(APIView):
         # 班级过滤
         class_name = request.GET.get("class_name", "").strip()
         if class_name:
-            progresses = progresses.filter(user__class_name=class_name)
+            progresses = progresses.filter(user_username__icontains=class_name)
         
         # 排序
         progresses = progresses.order_by(
