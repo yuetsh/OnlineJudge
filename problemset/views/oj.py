@@ -257,18 +257,22 @@ class UserBadgeAPI(APIView):
         """获取用户的奖章列表"""
         # 支持通过username参数获取指定用户的徽章
         username = request.GET.get("username")
-        
+
         if username:
             # 获取指定用户的徽章
             try:
                 target_user = User.objects.get(username=username, is_disabled=False)
-                badges = UserBadge.objects.filter(user=target_user).order_by("-earned_time")
+                badges = UserBadge.objects.filter(user=target_user).order_by(
+                    "-earned_time"
+                )
             except User.DoesNotExist:
                 return self.error("用户不存在")
         else:
             # 获取当前用户的徽章
-            badges = UserBadge.objects.filter(user=request.user).order_by("-earned_time")
-        
+            badges = UserBadge.objects.filter(user=request.user).order_by(
+                "-earned_time"
+            )
+
         serializer = UserBadgeSerializer(badges, many=True)
         return self.success(serializer.data)
 
@@ -307,29 +311,31 @@ class ProblemSetUserProgressAPI(APIView):
             return self.error("题单不存在")
 
         # 获取所有参与该题单的用户进度，使用 select_related 预加载用户信息
-        progresses = ProblemSetProgress.objects.filter(problemset=problem_set).select_related('user')
-        
+        progresses = ProblemSetProgress.objects.filter(
+            problemset=problem_set
+        ).select_related("user")
+
         # 班级过滤
         class_name = request.GET.get("class_name", "").strip()
         if class_name:
             progresses = progresses.filter(user__username__icontains=class_name)
-        
+
         # 排序
         progresses = progresses.order_by(
             "-is_completed", "-progress_percentage", "join_time"
         )
-        
+
         # 计算统计数据（基于所有数据，而非分页数据）
         # 使用一次查询获取所有统计数据
         stats = progresses.aggregate(
-            total=Count('id'),
-            completed=Count('id', filter=Q(is_completed=True)),
-            avg_progress=Avg("progress_percentage")
+            total=Count("id"),
+            completed=Count("id", filter=Q(is_completed=True)),
+            avg_progress=Avg("progress_percentage"),
         )
-        total_count = stats['total']
-        completed_count = stats['completed']
-        avg_progress = stats['avg_progress'] or 0
-        
+        total_count = stats["total"]
+        completed_count = stats["completed"]
+        avg_progress = stats["avg_progress"] or 0
+
         # 获取分页参数，用于预先收集当前页需要的问题ID
         try:
             limit = int(request.GET.get("limit", "10"))
@@ -341,34 +347,43 @@ class ProblemSetUserProgressAPI(APIView):
             offset = 0
         if offset < 0:
             offset = 0
-        
+
         # 只从当前页的数据中收集问题ID，避免遍历所有记录
-        paginated_progresses = list(progresses[offset:offset + limit])
+        paginated_progresses = list(progresses[offset : offset + limit])
         all_problem_ids = set()
         for progress in paginated_progresses:
             if progress.progress_detail:
                 all_problem_ids.update(progress.progress_detail.keys())
-        
+
         # 批量加载当前页所需的问题
         problems_dict = {}
         if all_problem_ids:
-            problems = Problem.objects.filter(id__in=all_problem_ids).only('id', '_id', 'title')
+            problems = Problem.objects.filter(id__in=all_problem_ids).only(
+                "id", "_id", "title"
+            )
             problems_dict = {str(problem.id): problem for problem in problems}
-        
+
         # 将预加载的问题字典存储到 request 中，供序列化器使用
         request._problems_dict_cache = problems_dict
-        
+
         # 使用分页
         data = self.paginate_data(request, progresses, ProblemSetProgressSerializer)
-        
+
         # 添加统计数据
         data["statistics"] = {
             "total": total_count,
             "completed": completed_count,
-            "avg_progress": round(avg_progress, 2)
+            "avg_progress": round(avg_progress, 2),
         }
 
         # 返回问题 ID 列表
-        data["problems"] = [problem.id for problem in problems_dict.values()]
-        
+        data["problems"] = [
+            {
+                "id": problem.id,
+                "_id": problem._id,
+                "title": problem.title,
+            }
+            for problem in problems_dict.values()
+        ]
+
         return self.success(data)
