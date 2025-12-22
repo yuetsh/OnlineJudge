@@ -367,5 +367,7 @@ class ProblemSetUserProgressAPI(APIView):
             "completed": completed_count,
             "avg_progress": round(avg_progress, 2)
         }
+
+        data["problems"] = list(problems_dict.keys())
         
         return self.success(data)
