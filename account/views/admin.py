@@ -161,9 +161,6 @@ class UserAdminAPI(APIView):
         if order_by == "-last_login":
             # 最近登录，将 None 值放在最后
             user = User.objects.all().order_by(F("last_login").desc(nulls_last=True))
-        elif order_by == "last_login":
-            # 最早登录，将 None 值放在最后
-            user = User.objects.all().order_by(F("last_login").asc(nulls_last=True))
         else:
             # 默认按创建时间倒序
             user = User.objects.all().order_by("-create_time")
