@@ -241,11 +241,29 @@ class ProblemSetProgressSerializer(serializers.ModelSerializer):
     
     def get_completed_problems(self, obj):
         """获取已完成的题目列表"""
-        from problem.models import Problem
-        
         completed_problems = []
+        
+        # 尝试从 request 中获取预加载的问题字典（用于批量查询优化）
+        problems_dict = {}
+        request = self.context.get('request')
+        if request and hasattr(request, '_problems_dict_cache'):
+            problems_dict = request._problems_dict_cache
+        
         if obj.progress_detail:
             for problem_id in obj.progress_detail.keys():
+                # 优先使用预加载的问题字典
+                if problems_dict:
+                    problem = problems_dict.get(problem_id)
+                    if problem:
+                        completed_problems.append({
+                            'id': problem.id,
+                            '_id': problem._id,
+                            'title': problem.title
+                        })
+                    continue
+                
+                # 如果没有预加载字典，则回退到单独查询（向后兼容）
+                from problem.models import Problem
                 try:
                     problem = Problem.objects.get(id=problem_id)
                     completed_problems.append({
