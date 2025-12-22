@@ -368,6 +368,7 @@ class ProblemSetUserProgressAPI(APIView):
             "avg_progress": round(avg_progress, 2)
         }
 
-        data["problems"] = list(problems_dict.keys())
+        # 返回问题 ID 列表
+        data["problems"] = [problem.id for problem in problems_dict.values()]
         
         return self.success(data)
