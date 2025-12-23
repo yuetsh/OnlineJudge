@@ -320,6 +320,18 @@ class ProblemSetUserProgressAPI(APIView):
         if class_name:
             progresses = progresses.filter(user__username__icontains=class_name)
 
+        # 完成度筛选
+        completion_status = request.GET.get("completion_status", "").strip()
+        if completion_status == "completed":
+            # 已完成：所有题目都已完成
+            progresses = progresses.filter(is_completed=True)
+        elif completion_status == "in_progress":
+            # 进行中：未完成且已开始（至少完成了一道题，排除未开始的用户）
+            progresses = progresses.filter(is_completed=False, completed_problems_count__gt=0)
+        elif completion_status == "not_started":
+            # 未开始：还没有完成任何题目
+            progresses = progresses.filter(completed_problems_count=0)
+
         # 排序
         progresses = progresses.order_by(
             "-is_completed", "-progress_percentage", "join_time"
