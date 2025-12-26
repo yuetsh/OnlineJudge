@@ -1,4 +1,4 @@
-from django.db.models import Q, Avg, Count
+from django.db.models import Q, Avg, Count, Prefetch
 from django.utils import timezone
 
 from utils.api import APIView, validate_serializer
@@ -33,7 +33,13 @@ class ProblemSetAPI(APIView):
 
     def get(self, request):
         """获取题单列表"""
-        problem_sets = ProblemSet.objects.filter(visible=True).exclude(status="draft")
+        # 预加载创建者信息
+        problem_sets = ProblemSet.objects.filter(visible=True).exclude(status="draft").select_related("created_by")
+        
+        # 使用annotate在查询时计算题目数量，避免N+1查询
+        problem_sets = problem_sets.annotate(
+            problems_count=Count("problemsetproblem", distinct=True)
+        )
 
         # 过滤条件
         keyword = request.GET.get("keyword", "").strip()
@@ -56,6 +62,44 @@ class ProblemSetAPI(APIView):
             problem_sets = problem_sets.order_by(sort)
         else:
             problem_sets = problem_sets.order_by("-create_time")
+
+        # 批量查询用户进度和已获得的奖章（如果用户已登录）
+        # 注意：需要在应用prefetch_related之前获取ID列表，避免不必要的预加载
+        user_progress_map = {}
+        user_earned_badge_ids = set()
+        if request.user.is_authenticated:
+            # 先获取所有题单ID（不应用prefetch_related，只获取ID）
+            problem_set_ids = list(problem_sets.values_list("id", flat=True))
+            
+            if problem_set_ids:
+                # 批量查询用户在这些题单中的进度
+                user_progresses = ProblemSetProgress.objects.filter(
+                    problemset_id__in=problem_set_ids,
+                    user=request.user
+                ).select_related("problemset")
+                # 构建映射：题单ID -> 进度对象
+                user_progress_map = {progress.problemset_id: progress for progress in user_progresses}
+                
+                # 批量查询用户已获得的奖章ID（这些题单相关的）
+                user_earned_badge_ids = set(
+                    UserBadge.objects.filter(
+                        user=request.user,
+                        badge__problemset_id__in=problem_set_ids
+                    ).values_list('badge_id', flat=True)
+                )
+        
+        # 预加载奖章信息（在获取ID之后应用，避免在获取ID时也预加载）
+        problem_sets = problem_sets.prefetch_related(
+            Prefetch(
+                "problemsetbadge_set",
+                queryset=ProblemSetBadge.objects.all(),
+                to_attr="badges"
+            )
+        )
+        
+        # 将用户进度映射和已获得的奖章ID集合存储到request中，供序列化器使用
+        request._user_progress_map = user_progress_map
+        request._user_earned_badge_ids = user_earned_badge_ids
 
         data = self.paginate_data(request, problem_sets, ProblemSetListSerializer)
         return self.success(data)

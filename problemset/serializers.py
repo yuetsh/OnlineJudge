@@ -78,7 +78,7 @@ class ProblemSetListSerializer(serializers.ModelSerializer):
     """题单列表序列化器"""
 
     created_by = UsernameSerializer()
-    problems_count = serializers.SerializerMethodField()
+    problems_count = serializers.IntegerField(read_only=True)
     user_progress = serializers.SerializerMethodField()
     badges = serializers.SerializerMethodField()
 
@@ -98,35 +98,43 @@ class ProblemSetListSerializer(serializers.ModelSerializer):
             "visible",
         ]
 
-    def get_problems_count(self, obj):
-        """获取题单中的题目数量"""
-        return ProblemSetProblem.objects.filter(problemset=obj).count()
-
     def get_user_progress(self, obj):
         """获取当前用户在该题单中的进度"""
         request = self.context.get("request")
-        return get_user_progress_data(obj, request)
+        if request and hasattr(request, "_user_progress_map"):
+            progress = request._user_progress_map.get(obj.id)
+            if progress:
+                return {
+                    "is_joined": True,
+                    "progress_percentage": progress.progress_percentage,
+                    "completed_count": progress.completed_problems_count,
+                    "total_count": progress.total_problems_count,
+                    "is_completed": progress.is_completed,
+                }
+        return {
+            "is_joined": False,
+            "progress_percentage": 0,
+            "completed_count": 0,
+            "total_count": 0,
+            "is_completed": False,
+        }
 
     def get_badges(self, obj):
         """获取题单的奖章列表，并标记用户已获得的徽章"""
         request = self.context.get("request")
-        badges = ProblemSetBadge.objects.filter(problemset=obj)
+        
+        # 使用预加载的奖章数据
+        badges = getattr(obj, "badges", [])
         badge_data = ProblemSetBadgeSerializer(badges, many=True).data
         
         # 如果用户已登录，检查哪些徽章已被获得
-        if request and request.user.is_authenticated:
-            earned_badge_ids = set(
-                UserBadge.objects.filter(
-                    user=request.user,
-                    badge__problemset=obj
-                ).values_list('badge_id', flat=True)
-            )
-            
+        if request and request.user.is_authenticated and hasattr(request, "_user_earned_badge_ids"):
+            earned_badge_ids = request._user_earned_badge_ids
             # 为每个徽章添加是否已获得的标记
             for badge in badge_data:
                 badge['is_earned'] = badge['id'] in earned_badge_ids
         else:
-            # 未登录用户，所有徽章都标记为未获得
+            # 未登录用户或未预加载，所有徽章都标记为未获得
             for badge in badge_data:
                 badge['is_earned'] = False
                 
