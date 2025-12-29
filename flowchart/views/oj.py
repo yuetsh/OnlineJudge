@@ -140,10 +140,10 @@ class FlowchartSubmissionRetryAPI(APIView):
         )
 
 
-class FlowchartSubmissionCurrentAPI(APIView):
+class FlowchartSubmissionDetailAPI(APIView):
     @login_required
     def get(self, request):
-        """获取当前用户对指定题目的最新流程图提交"""
+        """获取当前用户对指定题目的流程图提交详情"""
         problem_id = request.GET.get("problem_id")
         if not problem_id:
             return self.error("problem_id is required")
@@ -152,12 +152,48 @@ class FlowchartSubmissionCurrentAPI(APIView):
         except Problem.DoesNotExist:
             return self.error("Problem doesn't exist")
 
+        page = int(request.GET.get("page", 0))
         submissions = FlowchartSubmission.objects.filter(
-            user=request.user, problem=problem
+            user=request.user,
+            problem=problem,
+            status=FlowchartSubmissionStatus.COMPLETED,
         ).order_by("-create_time")
+        if page > 0:
+            submission = submissions[page - 1]
+        else:
+            submission = submissions[0]
+        serializer = FlowchartSubmissionSerializer(submission)
+        return self.success({"submission": serializer.data})
+
+
+class FlowchartSubmissionCurrentAPI(APIView):
+    @login_required
+    def get(self, request):
+        """获取当前用户对指定题目的最新流程图提交，只返回次数和分数"""
+        problem_id = request.GET.get("problem_id")
+        if not problem_id:
+            return self.error("problem_id is required")
+        try:
+            problem = Problem.objects.get(id=problem_id)
+        except Problem.DoesNotExist:
+            return self.error("Problem doesn't exist")
+        submissions = (
+            FlowchartSubmission.objects.filter(
+                user=request.user,
+                problem=problem,
+                status=FlowchartSubmissionStatus.COMPLETED,
+            )
+            .values("ai_score", "ai_grade")
+            .order_by("-create_time")
+        )
         count = submissions.count()
         if count == 0:
-            return self.success({"submission": None, "count": 0})
-        first_submission = submissions[0]
-        serializer = FlowchartSubmissionSerializer(first_submission)
-        return self.success({"submission": serializer.data, "count": count})
+            return self.success({"count": 0, "score": 0, "grade": ""})
+        submission = submissions[0]
+        return self.success(
+            {
+                "count": count,
+                "score": submission["ai_score"],
+                "grade": submission["ai_grade"],
+            }
+        )
