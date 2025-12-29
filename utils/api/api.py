@@ -129,12 +129,11 @@ class APIView(View):
             offset = 0
         if offset < 0:
             offset = 0
+        # 只调用一次 count()，避免重复查询
+        count = query_set.count()
         results = query_set[offset:offset + limit]
         if object_serializer:
-            count = query_set.count()
             results = object_serializer(results, many=True, context={"request": request}).data
-        else:
-            count = query_set.count()
         data = {"results": results,
                 "total": count}
         return data

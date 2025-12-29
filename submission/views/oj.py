@@ -19,7 +19,6 @@ from ..serializers import (
     ShareSubmissionSerializer,
 )
 from ..serializers import SubmissionSafeModelSerializer, SubmissionListSerializer
-from problemset.models import ProblemSetSubmission
 
 
 class SubmissionAPI(APIView):
@@ -160,8 +159,8 @@ class SubmissionListAPI(APIView):
             return self.error("Parameter error")
 
         submissions = Submission.objects.filter(contest_id__isnull=True).select_related(
-            "problem__created_by"
-        )
+            "problem", "problem__created_by"
+        ).order_by("-create_time")
         problem_id = request.GET.get("problem_id")
         myself = request.GET.get("myself")
         result = request.GET.get("result")
@@ -203,8 +202,8 @@ class ContestSubmissionListAPI(APIView):
 
         contest = self.contest
         submissions = Submission.objects.filter(contest_id=contest.id).select_related(
-            "problem__created_by"
-        )
+            "problem", "problem__created_by"
+        ).order_by("-create_time")
         problem_id = request.GET.get("problem_id")
         myself = request.GET.get("myself")
         result = request.GET.get("result")
