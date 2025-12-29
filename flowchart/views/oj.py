@@ -159,7 +159,7 @@ class FlowchartSubmissionDetailAPI(APIView):
             status=FlowchartSubmissionStatus.COMPLETED,
         ).order_by("-create_time")
         if page > 0:
-            submission = submissions[page - 1]
+            submission = submissions[len(submissions) - page]
         else:
             submission = submissions[0]
         serializer = FlowchartSubmissionSerializer(submission)
