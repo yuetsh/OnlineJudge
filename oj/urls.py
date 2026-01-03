@@ -23,4 +23,5 @@ urlpatterns = [
     path("api/", include("flowchart.urls.oj")),
     path("api/", include("problemset.urls.oj")),
     path("api/admin/", include("problemset.urls.admin")),
+    path("api/", include("class_pk.urls.oj")),
 ]

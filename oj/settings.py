@@ -60,6 +60,7 @@ LOCAL_APPS = [
     "ai",
     "flowchart",
     "problemset",
+    "class_pk",
 ]
 
 INSTALLED_APPS = VENDOR_APPS + LOCAL_APPS
