@@ -218,8 +218,9 @@ class ClassPKAPI(APIView):
             top_25_avg = statistics.mean(ac_list[:top_25_count]) if top_25_count > 0 else 0
             bottom_25_avg = statistics.mean(ac_list[-bottom_25_count:]) if bottom_25_count > 0 else 0
             
-            # 优秀率（AC数 >= 平均值的1.5倍）
-            excellent_threshold = avg_ac * 1.5
+            # 优秀率（AC数 >= 中位数 + 标准差）
+            # 使用中位数+标准差方法，既不受极端值影响，又能反映班级差异
+            excellent_threshold = median_ac + std_dev if std_dev > 0 else median_ac * 1.5
             excellent_count = sum(1 for ac in ac_list if ac >= excellent_threshold)
             excellent_rate = (excellent_count / user_count * 100) if user_count > 0 else 0
             
