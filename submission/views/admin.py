@@ -10,7 +10,7 @@ from django.db.models import Count, Q
 
 def get_real_name(username, class_name):
     if class_name and username.startswith("ks"):
-        return username[len(f"ks{class_name}"):]
+        return username[len(f"ks{class_name}") :]
     return username
 
 
@@ -104,6 +104,20 @@ class SubmissionStatisticsAPI(APIView):
         else:
             submitted_users_dict = {}
 
+        # 预先收集每个用户的提交ID和结果，按时间倒序
+        submission_items_by_user = {}
+        for submission in submissions.values("username", "id", "result").order_by(
+            "-create_time"
+        ):
+            username_key = submission["username"]
+            submission_id = str(submission["id"])
+            submission_items_by_user.setdefault(username_key, []).append(
+                {
+                    "id": submission_id,
+                    "result": submission["result"],
+                }
+            )
+
         # 处理有提交记录的用户
         accepted = []
 
@@ -119,6 +133,9 @@ class SubmissionStatisticsAPI(APIView):
                         "submission_count": item["submission_count"],
                         "accepted_count": item["accepted_count"],
                         "correct_rate": f"{rate}%",
+                        "submission_items": submission_items_by_user.get(
+                            username_key, []
+                        ),
                     }
                 )
 
