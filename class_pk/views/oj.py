@@ -135,8 +135,7 @@ class UserClassRankAPI(APIView):
         return self.success({
             'class_name': user.class_name,
             'my_rank': my_rank,
-            'total_users': len(user_ranks),
-            'ranks': self.paginate_data(request, user_ranks, None)
+            'ranks': user_ranks,
         })
 
 
