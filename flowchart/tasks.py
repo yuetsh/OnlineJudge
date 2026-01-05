@@ -1,10 +1,10 @@
 import dramatiq
 import json
 import time
-from openai import OpenAI
 from django.db import transaction
 from django.utils import timezone
-from utils.shortcuts import get_env, DRAMATIQ_WORKER_ARGS
+from utils.openai import get_ai_client
+from utils.shortcuts import DRAMATIQ_WORKER_ARGS
 from .models import FlowchartSubmission, FlowchartSubmissionStatus
 
 @dramatiq.actor(**DRAMATIQ_WORKER_ARGS(max_retries=3))
@@ -49,11 +49,7 @@ def evaluate_flowchart_task(submission_id):
         """
         
         # 调用AI进行评分
-        api_key = get_env("AI_KEY")
-        if not api_key:
-            raise Exception("AI_KEY is not set")
-            
-        client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
+        client = get_ai_client()
         
         response = client.chat.completions.create(
             model="deepseek-chat",

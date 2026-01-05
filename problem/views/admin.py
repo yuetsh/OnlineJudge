@@ -15,6 +15,7 @@ from contest.models import Contest, ContestStatus
 from submission.models import Submission
 from utils.api import APIView, CSRFExemptAPIView, validate_serializer, APIError
 from utils.shortcuts import rand_str, natural_sort_key
+from utils.openai import get_ai_client
 from ..models import Problem, ProblemRuleType, ProblemTag
 from ..serializers import (
     CreateContestProblemSerializer,
@@ -484,3 +485,27 @@ class ProblemVisibleAPI(APIView):
         problem.visible = not problem.visible
         problem.save()
         return self.success()
+
+
+class ProblemFlowchartAIGen(APIView):
+    @problem_permission_required
+    def post(self, request):
+        python_code = request.data.get("python", "")
+        client = get_ai_client()
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[
+                {
+                    "role": "system",
+                    "content": """你是一个可以将Python代码转换为mermaid的助手。
+                    请将用户提供的Python代码转换为 Mermaid 纯文本。
+                    注意括号内的内容用引号包裹，如果本身就有引号，请注意双引号和单引号的问题。
+                    请只返回 mermaid 代码，连 ``` 都不需要。""",
+                },
+                {"role": "user", "content": python_code},
+            ],
+            temperature=1.0,
+        )
+
+        mermaid_code = response.choices[0].message.content
+        return self.success({"flowchart": mermaid_code})
