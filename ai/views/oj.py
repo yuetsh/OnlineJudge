@@ -531,18 +531,6 @@ class AILoginSummaryAPI(APIView):
         end_time = timezone.now()
         start_time = self._resolve_start_time(request, user, end_time)
 
-        if end_time - start_time < timedelta(days=1):
-            summary = {
-                "start": datetime2str(start_time),
-                "end": datetime2str(end_time),
-                "new_problem_count": 0,
-                "submission_count": 0,
-                "accepted_count": 0,
-                "solved_count": 0,
-                "flowchart_submission_count": 0,
-            }
-            return self.success({"summary": summary, "analysis": ""})
-
         problems_qs = Problem.objects.filter(
             create_time__gte=start_time,
             create_time__lte=end_time,
