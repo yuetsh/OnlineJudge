@@ -209,7 +209,11 @@ class UserLoginAPI(APIView):
             if user.is_disabled:
                 return self.error("Your account has been disabled")
             if not user.two_factor_auth:
+                prev_login = user.last_login
                 auth.login(request, user)
+                request.session["prev_login"] = (
+                    datetime2str(prev_login) if prev_login else ""
+                )
                 return self.success("Succeeded")
 
             # `tfa_code` not in post data
@@ -217,7 +221,11 @@ class UserLoginAPI(APIView):
                 return self.error("tfa_required")
 
             if OtpAuth(user.tfa_token).valid_totp(data["tfa_code"]):
+                prev_login = user.last_login
                 auth.login(request, user)
+                request.session["prev_login"] = (
+                    datetime2str(prev_login) if prev_login else ""
+                )
                 return self.success("Succeeded")
             else:
                 return self.error("Invalid two factor verification code")

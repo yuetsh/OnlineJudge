@@ -9,9 +9,11 @@ from django.db.models import Min, Count
 from django.db.models.functions import TruncDate
 from django.http import StreamingHttpResponse
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 
 from utils.api import APIView
 from utils.openai import get_ai_client
+from utils.shortcuts import datetime2str
 
 from account.models import User
 from problem.models import Problem
@@ -520,6 +522,128 @@ class AIDurationDataAPI(APIView):
         else:
             return "C"
 
+
+
+class AILoginSummaryAPI(APIView):
+    @login_required
+    def get(self, request):
+        user = request.user
+        end_time = timezone.now()
+        start_time = self._resolve_start_time(request, user, end_time)
+
+        if end_time - start_time < timedelta(days=1):
+            summary = {
+                "start": datetime2str(start_time),
+                "end": datetime2str(end_time),
+                "new_problem_count": 0,
+                "submission_count": 0,
+                "accepted_count": 0,
+                "solved_count": 0,
+                "flowchart_submission_count": 0,
+            }
+            return self.success({"summary": summary, "analysis": ""})
+
+        problems_qs = Problem.objects.filter(
+            create_time__gte=start_time,
+            create_time__lte=end_time,
+            contest_id__isnull=True,
+            visible=True,
+        )
+        new_problem_count = problems_qs.count()
+
+        submissions_qs = Submission.objects.filter(
+            user_id=user.id, create_time__gte=start_time, create_time__lte=end_time
+        )
+        submission_count = submissions_qs.count()
+        accepted_count = submissions_qs.filter(result=JudgeStatus.ACCEPTED).count()
+        solved_count = (
+            submissions_qs.filter(result=JudgeStatus.ACCEPTED)
+            .values("problem_id")
+            .distinct()
+            .count()
+        )
+        flowchart_submission_count = FlowchartSubmission.objects.filter(
+            user_id=user.id, create_time__gte=start_time, create_time__lte=end_time
+        ).count()
+
+        summary = {
+            "start": datetime2str(start_time),
+            "end": datetime2str(end_time),
+            "new_problem_count": new_problem_count,
+            "submission_count": submission_count,
+            "accepted_count": accepted_count,
+            "solved_count": solved_count,
+            "flowchart_submission_count": flowchart_submission_count,
+        }
+
+        analysis = ""
+        analysis_error = ""
+        if submission_count >= 3:
+            analysis, analysis_error = self._get_ai_analysis(summary)
+
+        data = {"summary": summary, "analysis": analysis}
+        if analysis_error:
+            data["analysis_error"] = analysis_error
+        return self.success(data)
+
+    def _resolve_start_time(self, request, user, end_time):
+        start_raw = request.session.get("prev_login") or request.GET.get("start")
+        start_time = parse_datetime(start_raw) if start_raw else None
+
+        if start_time and timezone.is_naive(start_time):
+            start_time = timezone.make_aware(
+                start_time, timezone.get_current_timezone()
+            )
+
+        if not start_time:
+            if user.last_login and user.last_login < end_time:
+                start_time = user.last_login
+            elif user.create_time:
+                start_time = user.create_time
+            else:
+                start_time = end_time - timedelta(days=7)
+
+        if start_time >= end_time:
+            start_time = end_time - timedelta(days=1)
+
+        return start_time
+
+    def _get_ai_analysis(self, summary):
+        try:
+            client = get_ai_client()
+        except Exception as exc:
+            return "", str(exc)
+
+        system_prompt = (
+            "你是 OnlineJudge 的学习助教。"
+            "请根据统计数据给出简短分析(1-2句)，再给出一行结论，"
+            "结论用“结论：”开头。"
+        )
+        user_prompt = (
+            f"时间范围：{summary['start']} 到 {summary['end']}\n"
+            f"新题目数：{summary['new_problem_count']}\n"
+            f"提交次数：{summary['submission_count']}\n"
+            f"AC 次数：{summary['accepted_count']}\n"
+            f"AC 题目数：{summary['solved_count']}\n"
+            f"流程图提交数：{summary['flowchart_submission_count']}\n"
+        )
+
+        try:
+            completion = client.chat.completions.create(
+                model="deepseek-chat",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+            )
+        except Exception as exc:
+            return "", str(exc)
+
+        if not completion.choices:
+            return "", ""
+
+        content = completion.choices[0].message.content or ""
+        return content.strip(), ""
 
 class AIAnalysisAPI(APIView):
     @login_required
