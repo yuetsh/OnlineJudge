@@ -121,10 +121,10 @@ class WebsiteConfigAPI(APIView):
                 with XSSHtml() as parser:
                     v = parser.clean(v)
             setattr(SysOptions, k, v)
-            
+
             # 推送配置更新到所有连接的客户端
             push_config_update(k, v)
-            
+
         return self.success()
 
 
@@ -316,10 +316,31 @@ class RandomUsernameAPI(APIView):
 class HitokotoAPI(APIView):
     def get(self, request):
         try:
-            categories = JsonDataLoader.load_data(settings.HITOKOTO_DIR, "categories.json")
+            categories = JsonDataLoader.load_data(
+                settings.HITOKOTO_DIR, "categories.json"
+            )
             path = random.choice(categories).get("path")
             sentences = JsonDataLoader.load_data(settings.HITOKOTO_DIR, path)
             sentence = random.choice(sentences)
             return self.success(sentence)
         except Exception:
             return self.error("获取一言失败，请稍后再试")
+
+
+class ClassUsernamesAPI(APIView):
+    def get(self, request):
+        classroom = request.GET.get("classroom", "")
+        if not classroom:
+            return self.error("需要班级号")
+        users = User.objects.filter(class_name=classroom).order_by("-create_time")
+        names = []
+        for user in users:
+            prefix = f"ks{classroom}"
+            result = (
+                user.username[len(prefix) :]
+                if user.username.startswith(prefix)
+                else user.username
+            )
+            names.append(result)
+
+        return self.success(names)
