@@ -186,6 +186,11 @@ class SubmissionListAPI(APIView):
             submissions = submissions.filter(result=result)
         if language:
             submissions = submissions.filter(language=language)
+        if request.GET.get("today") == "1":
+            today = datetime.today()
+            submissions = submissions.filter(
+                create_time__gte=datetime(today.year, today.month, today.day, 0, 0)
+            )
 
         data = self.paginate_data(request, submissions)
         data["results"] = SubmissionListSerializer(
