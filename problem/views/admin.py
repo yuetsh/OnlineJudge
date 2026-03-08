@@ -532,7 +532,7 @@ class StuckProblemsAPI(APIView):
                 failed_users=Count("user_id", filter=failed_q, distinct=True),
             )
             .filter(failed_users__gt=0)
-            .order_by("-failed_users")
+            .order_by("-failed_users")[:40]
         )
         result = [
             {
