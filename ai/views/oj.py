@@ -715,6 +715,86 @@ class AIAnalysisAPI(APIView):
         return response
 
 
+class AIHintAPI(APIView):
+    @login_required
+    def post(self, request):
+        submission_id = request.data.get("submission_id")
+        if not submission_id:
+            return self.error("submission_id is required")
+
+        try:
+            submission = Submission.objects.get(id=submission_id, user_id=request.user.id)
+        except Submission.DoesNotExist:
+            return self.error("Submission not found")
+
+        problem = submission.problem
+        client = get_ai_client()
+
+        # 获取参考答案（同语言优先，否则取第一个）
+        answers = problem.answers or []
+        ref_answer = next(
+            (a["code"] for a in answers if a["language"] == submission.language),
+            answers[0]["code"] if answers else "",
+        )
+
+        system_prompt = (
+            "你是编程助教。你知道题目的参考答案，但【绝对禁止】把参考答案或其中任何代码"
+            "直接告诉学生，也不能以任何形式暗示完整解法。"
+            "你的任务是：对照参考答案，找出学生代码中的问题，"
+            "给出方向性提示（例如：指出哪类边界情况需要考虑、"
+            "哪个算法思路更合适、哪行代码逻辑可能有问题等）。"
+            "语气鼓励，回复简洁（3-5句话），使用 Markdown 格式。"
+        )
+        user_prompt = (
+            f"题目：{problem.title}\n"
+            f"题目描述：{problem.description[:500]}\n"
+            f"参考答案（仅供你分析，不可透露给学生）：\n```\n{ref_answer[:2000]}\n```\n"
+            f"学生提交语言：{submission.language}\n"
+            f"判题结果：{submission.result}\n"
+            f"错误信息：{submission.statistic_info.get('err_info', '无')}\n"
+            f"学生代码：\n```\n{submission.code[:2000]}\n```"
+        )
+
+        def stream_generator():
+            try:
+                stream = client.chat.completions.create(
+                    model="deepseek-chat",
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    stream=True,
+                )
+            except Exception as exc:
+                yield f"data: {json.dumps({'type': 'error', 'message': str(exc)})}\n\n"
+                yield "event: end\n\n"
+                return
+
+            yield "event: start\n\n"
+            try:
+                for chunk in stream:
+                    if not chunk.choices:
+                        continue
+                    choice = chunk.choices[0]
+                    if choice.finish_reason:
+                        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                        break
+                    content = choice.delta.content
+                    if content:
+                        yield f"data: {json.dumps({'type': 'delta', 'content': content})}\n\n"
+            except Exception as exc:
+                yield f"data: {json.dumps({'type': 'error', 'message': str(exc)})}\n\n"
+            finally:
+                yield "event: end\n\n"
+
+        response = StreamingHttpResponse(
+            streaming_content=stream_generator(),
+            content_type="text/event-stream",
+        )
+        response["Cache-Control"] = "no-cache"
+        return response
+
+
 class AIHeatmapDataAPI(APIView):
     @login_required
     def get(self, request):

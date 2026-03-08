@@ -10,7 +10,9 @@ from django.conf import settings
 from django.db.models import Q
 from django.http import StreamingHttpResponse
 
-from account.decorators import problem_permission_required, ensure_created_by
+from django.db.models import Count
+
+from account.decorators import problem_permission_required, ensure_created_by, super_admin_required
 from contest.models import Contest, ContestStatus
 from submission.models import Submission
 from utils.api import APIView, CSRFExemptAPIView, validate_serializer, APIError
@@ -509,3 +511,33 @@ class ProblemFlowchartAIGen(APIView):
 
         mermaid_code = response.choices[0].message.content
         return self.success({"flowchart": mermaid_code})
+
+
+class StuckProblemsAPI(APIView):
+    @super_admin_required
+    def get(self, request):
+        rows = (
+            Submission.objects.values("problem_id", "problem___id", "problem__title")
+            .annotate(
+                total=Count("id"),
+                accepted=Count("id", filter=Q(result=0)),
+                failed=Count("id", filter=Q(result__lt=0)),
+                failed_users=Count("user_id", filter=Q(result__lt=0), distinct=True),
+            )
+            .filter(failed_users__gt=0)
+            .order_by("-failed_users")[:30]
+        )
+        result = [
+            {
+                "problem_id": r["problem___id"],
+                "problem_title": r["problem__title"],
+                "total": r["total"],
+                "failed": r["failed"],
+                "failed_users": r["failed_users"],
+                "ac_rate": round(r["accepted"] / r["total"] * 100, 1)
+                if r["total"]
+                else 0,
+            }
+            for r in rows
+        ]
+        return self.success(result)

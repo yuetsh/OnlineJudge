@@ -7,12 +7,14 @@ from ..views.oj import (
     ContestProblemAPI,
     PickOneAPI,
     ProblemAuthorAPI,
+    SimilarProblemAPI,
 )
 
 urlpatterns = [
     path("problem/tags", ProblemTagAPI.as_view()),
     path("problem", ProblemAPI.as_view()),
     path("problem/beat_count", ProblemSolvedPeopleCount.as_view()),
+    path("problem/similar", SimilarProblemAPI.as_view()),
     path("problem/author", ProblemAuthorAPI.as_view()),
     path("pickone", PickOneAPI.as_view()),
     path("contest/problem", ContestProblemAPI.as_view()),

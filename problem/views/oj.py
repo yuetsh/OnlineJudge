@@ -63,6 +63,22 @@ class ProblemAPI(APIView):
                 )
                 problem_data = ProblemSerializer(problem).data
                 self._add_problem_status(request, problem_data)
+                if request.user.is_authenticated:
+                    failed_statuses = [
+                        JudgeStatus.WRONG_ANSWER,
+                        JudgeStatus.CPU_TIME_LIMIT_EXCEEDED,
+                        JudgeStatus.REAL_TIME_LIMIT_EXCEEDED,
+                        JudgeStatus.MEMORY_LIMIT_EXCEEDED,
+                        JudgeStatus.RUNTIME_ERROR,
+                        JudgeStatus.COMPILE_ERROR,
+                    ]
+                    problem_data["my_failed_count"] = Submission.objects.filter(
+                        user_id=request.user.id,
+                        problem_id=problem.id,
+                        result__in=failed_statuses,
+                    ).count()
+                else:
+                    problem_data["my_failed_count"] = 0
                 return self.success(problem_data)
             except Problem.DoesNotExist:
                 return self.error("Problem does not exist")
@@ -185,6 +201,40 @@ class ProblemSolvedPeopleCount(APIView):
         else:
             rate = "0"
         return self.success(rate)
+
+
+class SimilarProblemAPI(APIView):
+    def get(self, request):
+        problem_display_id = request.GET.get("problem_id")
+        if not problem_display_id:
+            return self.error("problem_id is required")
+
+        try:
+            problem = Problem.objects.get(_id=problem_display_id, contest__isnull=True)
+        except Problem.DoesNotExist:
+            return self.error("Problem not found")
+
+        tag_ids = list(problem.tags.values_list("id", flat=True))
+        if not tag_ids:
+            return self.success([])
+
+        exclude_ids = [problem_display_id]
+        if request.user.is_authenticated:
+            profile = request.user.userprofile
+            ac_display_ids = [
+                v["_id"]
+                for v in profile.acm_problems_status.get("problems", {}).values()
+                if v.get("status") == JudgeStatus.ACCEPTED
+            ]
+            exclude_ids.extend(ac_display_ids)
+
+        similar = (
+            Problem.objects.filter(tags__in=tag_ids, visible=True, contest__isnull=True)
+            .exclude(_id__in=exclude_ids)
+            .distinct()
+            .order_by("difficulty")[:5]
+        )
+        return self.success(ProblemListSerializer(similar, many=True).data)
 
 
 class ProblemAuthorAPI(APIView):
