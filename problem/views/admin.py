@@ -516,16 +516,23 @@ class ProblemFlowchartAIGen(APIView):
 class StuckProblemsAPI(APIView):
     @super_admin_required
     def get(self, request):
+        from submission.models import JudgeStatus
+
+        failed_q = Q(result__in=[
+            JudgeStatus.WRONG_ANSWER,
+            JudgeStatus.COMPILE_ERROR,
+            JudgeStatus.RUNTIME_ERROR,
+        ])
         rows = (
             Submission.objects.values("problem_id", "problem___id", "problem__title")
             .annotate(
                 total=Count("id"),
-                accepted=Count("id", filter=Q(result=0)),
-                failed=Count("id", filter=Q(result__lt=0)),
-                failed_users=Count("user_id", filter=Q(result__lt=0), distinct=True),
+                accepted=Count("id", filter=Q(result=JudgeStatus.ACCEPTED)),
+                failed=Count("id", filter=failed_q),
+                failed_users=Count("user_id", filter=failed_q, distinct=True),
             )
             .filter(failed_users__gt=0)
-            .order_by("-failed_users")[:30]
+            .order_by("-failed_users")
         )
         result = [
             {
