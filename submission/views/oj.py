@@ -159,7 +159,7 @@ class SubmissionListAPI(APIView):
             return self.error("Parameter error")
 
         submissions = Submission.objects.filter(contest_id__isnull=True).select_related(
-            "problem", "problem__created_by"
+            "problem"
         ).order_by("-create_time")
         problem_id = request.GET.get("problem_id")
         myself = request.GET.get("myself")
@@ -207,7 +207,7 @@ class ContestSubmissionListAPI(APIView):
 
         contest = self.contest
         submissions = Submission.objects.filter(contest_id=contest.id).select_related(
-            "problem", "problem__created_by"
+            "problem", "contest"
         ).order_by("-create_time")
         problem_id = request.GET.get("problem_id")
         myself = request.GET.get("myself")

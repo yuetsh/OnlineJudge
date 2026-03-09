@@ -62,6 +62,9 @@ class Submission(models.Model):
             models.Index(
                 fields=["user_id", "create_time"], name="user_create_time_idx"
             ),
+            models.Index(
+                fields=["contest_id", "-create_time"], name="contest_create_time_idx"
+            ),
         ]
 
     def __str__(self):
