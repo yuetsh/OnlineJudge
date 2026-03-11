@@ -40,6 +40,12 @@ SMALL_SCALE_PENALTY = {
     "downgrade": {"S": "A", "A": "B"},
 }
 
+# 等级权重映射（用于加权平均计算）
+GRADE_WEIGHTS = {"S": 4, "A": 3, "B": 2, "C": 1}
+
+# 平均等级阈值：(最小权重, 等级)
+AVERAGE_GRADE_THRESHOLDS = [(3.5, "S"), (2.5, "A"), (1.5, "B")]
+
 
 def get_cache_key(prefix, *args):
     return hashlib.md5(f"{prefix}:{'_'.join(map(str, args))}".encode()).hexdigest()
@@ -61,33 +67,42 @@ def get_grade(rank, submission_count):
 
     特殊规则：
     - 参与人数少于10人时，S级降为A级，A级降为B级（避免因人少而评级虚高）
-
-    Args:
-        rank: 用户排名（1表示第一名）
-        submission_count: 总AC人数
-
-    Returns:
-        评级字符串 ("S", "A", "B", "C")
     """
-    # 边界检查
     if not rank or rank <= 0 or submission_count <= 0:
         return "C"
 
-    # 计算百分位（0-100），使用 (rank-1) 使第一名的百分位为0
     percentile = (rank - 1) / submission_count * 100
 
-    # 根据百分位确定基础评级
     base_grade = "C"
     for threshold, grade in GRADE_THRESHOLDS:
         if percentile < threshold:
             base_grade = grade
             break
 
-    # 小规模参与惩罚：人数太少时降低评级
     if submission_count < SMALL_SCALE_PENALTY["threshold"]:
         base_grade = SMALL_SCALE_PENALTY["downgrade"].get(base_grade, base_grade)
 
     return base_grade
+
+
+def calculate_average_grade(grades):
+    """根据等级列表计算加权平均等级"""
+    scores = [GRADE_WEIGHTS[g] for g in grades if g in GRADE_WEIGHTS]
+    if not scores:
+        return ""
+    avg = sum(scores) / len(scores)
+    for threshold, grade in AVERAGE_GRADE_THRESHOLDS:
+        if avg >= threshold:
+            return grade
+    return "C"
+
+
+def find_user_rank(ranking_list, user_id):
+    """在排名列表中找到用户的排名（1-based），未找到返回 None"""
+    return next(
+        (idx + 1 for idx, rec in enumerate(ranking_list) if rec["user_id"] == user_id),
+        None,
+    )
 
 
 def get_class_user_ids(user):
@@ -135,6 +150,54 @@ def get_user_first_ac_submissions(
         submissions.sort(key=lambda x: (x["first_ac_time"], x["user_id"]))
 
     return user_first_ac, by_problem, problem_ids
+
+
+def stream_ai_response(client, system_prompt, user_prompt, on_complete=None):
+    """SSE 流式响应生成器，on_complete(full_text) 在流结束时调用"""
+    try:
+        stream = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            stream=True,
+        )
+    except Exception as exc:
+        yield f"data: {json.dumps({'type': 'error', 'message': str(exc)})}\n\n"
+        yield "event: end\n\n"
+        return
+
+    yield "event: start\n\n"
+    chunks = []
+    try:
+        for chunk in stream:
+            if not chunk.choices:
+                continue
+            choice = chunk.choices[0]
+            if choice.finish_reason:
+                if on_complete:
+                    on_complete("".join(chunks).strip())
+                yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                break
+            content = choice.delta.content
+            if content:
+                chunks.append(content)
+                yield f"data: {json.dumps({'type': 'delta', 'content': content})}\n\n"
+    except Exception as exc:
+        yield f"data: {json.dumps({'type': 'error', 'message': str(exc)})}\n\n"
+    finally:
+        yield "event: end\n\n"
+
+
+def make_sse_response(generator):
+    """创建 SSE StreamingHttpResponse"""
+    response = StreamingHttpResponse(
+        streaming_content=generator,
+        content_type="text/event-stream",
+    )
+    response["Cache-Control"] = "no-cache"
+    return response
 
 
 class AIDetailDataAPI(APIView):
@@ -254,7 +317,7 @@ class AIDetailDataAPI(APIView):
                 {
                     "solved": solved,
                     "flowcharts": flowcharts_data,
-                    "grade": self._calculate_average_grade(solved),
+                    "grade": calculate_average_grade([s["grade"] for s in solved]),
                     "tags": self._calculate_top_tags(problems.values()),
                     "difficulty": self._calculate_difficulty_distribution(
                         problems.values()
@@ -275,14 +338,7 @@ class AIDetailDataAPI(APIView):
                 continue
 
             ranking_list = by_problem.get(pid, [])
-            rank = next(
-                (
-                    idx + 1
-                    for idx, rec in enumerate(ranking_list)
-                    if rec["user_id"] == user_id
-                ),
-                None,
-            )
+            rank = find_user_rank(ranking_list, user_id)
 
             if problem.contest_id:
                 contest_ids.append(problem.contest_id)
@@ -304,52 +360,6 @@ class AIDetailDataAPI(APIView):
             )
 
         return sorted(solved, key=lambda x: x["ac_time"]), contest_ids
-
-    def _calculate_average_grade(self, solved):
-        """
-        计算平均等级，使用加权平均方法
-
-        等级权重：S=4, A=3, B=2, C=1
-        计算加权平均后，根据阈值确定最终等级
-
-        Args:
-            solved: 已解决的题目列表，每个包含grade字段
-
-        Returns:
-            平均等级字符串 ("S", "A", "B", "C")
-        """
-        if not solved:
-            return ""
-
-        # 等级权重映射
-        grade_weights = {"S": 4, "A": 3, "B": 2, "C": 1}
-
-        # 计算加权总分
-        total_weight = 0
-        total_score = 0
-
-        for s in solved:
-            grade = s["grade"]
-            if grade in grade_weights:
-                total_score += grade_weights[grade]
-                total_weight += 1
-
-        if total_weight == 0:
-            return ""
-
-        # 计算平均权重
-        average_weight = total_score / total_weight
-
-        # 根据平均权重确定等级
-        # S级: 3.5-4.0, A级: 2.5-3.5, B级: 1.5-2.5, C级: 1.0-1.5
-        if average_weight >= 3.5:
-            return "S"
-        elif average_weight >= 2.5:
-            return "A"
-        elif average_weight >= 1.5:
-            return "B"
-        else:
-            return "C"
 
     def _calculate_top_tags(self, problems):
         tags_counter = defaultdict(int)
@@ -420,9 +430,14 @@ class AIDurationDataAPI(APIView):
                 )
                 if user_first_ac:
                     period_data["problem_count"] = len(problem_ids)
-                    period_data["grade"] = self._calculate_period_grade(
-                        user_first_ac, by_problem, user.id
-                    )
+                    grades = [
+                        get_grade(
+                            find_user_rank(by_problem.get(item["problem_id"], []), user.id),
+                            len(by_problem.get(item["problem_id"], [])),
+                        )
+                        for item in user_first_ac
+                    ]
+                    period_data["grade"] = calculate_average_grade(grades)
 
             duration_data.append(period_data)
 
@@ -463,64 +478,6 @@ class AIDurationDataAPI(APIView):
                 "delta": timedelta(weeks=1),
             },
         )
-
-    def _calculate_period_grade(self, user_first_ac, by_problem, user_id):
-        """
-        计算时间段内的平均等级，使用加权平均方法
-
-        等级权重：S=4, A=3, B=2, C=1
-        计算加权平均后，根据阈值确定最终等级
-
-        Args:
-            user_first_ac: 用户首次AC的提交记录
-            by_problem: 按题目分组的排名数据
-            user_id: 用户ID
-
-        Returns:
-            平均等级字符串 ("S", "A", "B", "C")
-        """
-        if not user_first_ac:
-            return ""
-
-        # 等级权重映射
-        grade_weights = {"S": 4, "A": 3, "B": 2, "C": 1}
-
-        # 计算加权总分
-        total_weight = 0
-        total_score = 0
-
-        for item in user_first_ac:
-            ranking_list = by_problem.get(item["problem_id"], [])
-            rank = next(
-                (
-                    idx + 1
-                    for idx, rec in enumerate(ranking_list)
-                    if rec["user_id"] == user_id
-                ),
-                None,
-            )
-            if rank:
-                grade = get_grade(rank, len(ranking_list))
-                if grade in grade_weights:
-                    total_score += grade_weights[grade]
-                    total_weight += 1
-
-        if total_weight == 0:
-            return ""
-
-        # 计算平均权重
-        average_weight = total_score / total_weight
-
-        # 根据平均权重确定等级
-        # S级: 3.5-4.0, A级: 2.5-3.5, B级: 1.5-2.5, C级: 1.0-1.5
-        if average_weight >= 3.5:
-            return "S"
-        elif average_weight >= 2.5:
-            return "A"
-        elif average_weight >= 1.5:
-            return "B"
-        else:
-            return "C"
 
 
 
@@ -644,75 +601,20 @@ class AIAnalysisAPI(APIView):
         system_prompt = "你是一个风趣的编程老师，学生使用判题狗平台进行编程练习。请根据学生提供的详细数据和每周数据，给出用户的学习建议，最后写一句鼓励学生的话。请使用 markdown 格式输出，不要在代码块中输出。"
         user_prompt = f"这段时间内的详细数据: {details}\n(其中部分字段含义是 flowcharts:流程图的提交,solved:代码的提交)\n每周或每月的数据: {duration}"
 
-        analysis_chunks = []
-        saved_instance = None
-        completed = False
+        def on_complete(full_text):
+            AIAnalysis.objects.create(
+                user=request.user,
+                provider="deepseek",
+                model="deepseek-chat",
+                data={"details": details, "duration": duration},
+                system_prompt=system_prompt,
+                user_prompt="这段时间内的详细数据，每周或每月的数据。",
+                analysis=full_text,
+            )
 
-        def save_analysis():
-            nonlocal saved_instance
-            if analysis_chunks and not saved_instance:
-                saved_instance = AIAnalysis.objects.create(
-                    user=request.user,
-                    provider="deepseek",
-                    model="deepseek-chat",
-                    data={"details": details, "duration": duration},
-                    system_prompt=system_prompt,
-                    user_prompt="这段时间内的详细数据，每周或每月的数据。",
-                    analysis="".join(analysis_chunks).strip(),
-                )
-
-        def stream_generator():
-            nonlocal completed
-            try:
-                stream = client.chat.completions.create(
-                    model="deepseek-chat",
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt},
-                    ],
-                    stream=True,
-                )
-            except Exception as exc:
-                yield f"data: {json.dumps({'type': 'error', 'message': str(exc)})}\n\n"
-                yield "event: end\n\n"
-                return
-
-            yield "event: start\n\n"
-
-            try:
-                for chunk in stream:
-                    if not chunk.choices:
-                        continue
-
-                    choice = chunk.choices[0]
-                    if choice.finish_reason:
-                        completed = True
-                        save_analysis()
-                        yield f"data: {json.dumps({'type': 'done'})}\n\n"
-                        break
-
-                    content = choice.delta.content
-                    if content:
-                        analysis_chunks.append(content)
-                        yield f"data: {json.dumps({'type': 'delta', 'content': content})}\n\n"
-
-            except Exception as exc:
-                yield f"data: {json.dumps({'type': 'error', 'message': str(exc)})}\n\n"
-            finally:
-                save_analysis()
-                if saved_instance and not completed:
-                    try:
-                        saved_instance.delete()
-                    except Exception:
-                        pass
-                yield "event: end\n\n"
-
-        response = StreamingHttpResponse(
-            streaming_content=stream_generator(),
-            content_type="text/event-stream",
+        return make_sse_response(
+            stream_ai_response(client, system_prompt, user_prompt, on_complete)
         )
-        response["Cache-Control"] = "no-cache"
-        return response
 
 
 class AIHintAPI(APIView):
@@ -755,44 +657,9 @@ class AIHintAPI(APIView):
             f"学生代码：\n```\n{submission.code[:2000]}\n```"
         )
 
-        def stream_generator():
-            try:
-                stream = client.chat.completions.create(
-                    model="deepseek-chat",
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt},
-                    ],
-                    stream=True,
-                )
-            except Exception as exc:
-                yield f"data: {json.dumps({'type': 'error', 'message': str(exc)})}\n\n"
-                yield "event: end\n\n"
-                return
-
-            yield "event: start\n\n"
-            try:
-                for chunk in stream:
-                    if not chunk.choices:
-                        continue
-                    choice = chunk.choices[0]
-                    if choice.finish_reason:
-                        yield f"data: {json.dumps({'type': 'done'})}\n\n"
-                        break
-                    content = choice.delta.content
-                    if content:
-                        yield f"data: {json.dumps({'type': 'delta', 'content': content})}\n\n"
-            except Exception as exc:
-                yield f"data: {json.dumps({'type': 'error', 'message': str(exc)})}\n\n"
-            finally:
-                yield "event: end\n\n"
-
-        response = StreamingHttpResponse(
-            streaming_content=stream_generator(),
-            content_type="text/event-stream",
+        return make_sse_response(
+            stream_ai_response(client, system_prompt, user_prompt)
         )
-        response["Cache-Control"] = "no-cache"
-        return response
 
 
 class AIHeatmapDataAPI(APIView):
