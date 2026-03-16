@@ -26,6 +26,8 @@ class ProblemSet(models.Model):
     status = models.TextField(
         default="draft", verbose_name="状态"
     )  # active, archived, draft
+    # 截止时间（到期后自动解除防作弊隐藏）
+    end_time = models.DateTimeField(null=True, blank=True, verbose_name="截止时间")
 
     class Meta:
         db_table = "problemset"

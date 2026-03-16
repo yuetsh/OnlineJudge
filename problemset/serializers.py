@@ -92,6 +92,7 @@ class ProblemSetListSerializer(serializers.ModelSerializer):
             "create_time",
             "difficulty",
             "status",
+            "end_time",
             "problems_count",
             "user_progress",
             "badges",
@@ -148,6 +149,7 @@ class CreateProblemSetSerializer(serializers.Serializer):
     description = serializers.CharField()
     difficulty = serializers.CharField(default="Easy")
     status = serializers.CharField(default="active")
+    end_time = serializers.DateTimeField(required=False)
 
 
 class EditProblemSetSerializer(serializers.Serializer):
@@ -159,6 +161,7 @@ class EditProblemSetSerializer(serializers.Serializer):
     difficulty = serializers.CharField(required=False)
     status = serializers.CharField(required=False)
     visible = serializers.BooleanField(required=False)
+    end_time = serializers.DateTimeField(required=False, allow_null=True)
 
 
 class ProblemSetProblemSerializer(serializers.ModelSerializer):
