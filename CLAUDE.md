@@ -23,7 +23,13 @@ uv add <package>                 # Add a dependency
 python manage.py test            # Run all tests
 python manage.py test account    # Run tests for a single app
 python manage.py test account.tests.TestClassName  # Run a single test class
-coverage run manage.py test && coverage report     # Run with coverage
+python run_test.py               # Run flake8 lint + coverage in one step
+python run_test.py -m account    # Run flake8 + tests for a single module
+python run_test.py -c            # Run flake8 + tests + open HTML coverage report
+
+# Initial setup
+python manage.py inituser --username admin --password <pw> --action create_super_admin
+python manage.py inituser --username admin --password <pw> --action reset
 ```
 
 ## Architecture
@@ -44,6 +50,8 @@ Each Django app follows the same structure:
 ```
 
 Apps: `account`, `problem`, `submission`, `contest`, `ai`, `flowchart`, `problemset`, `class_pk`, `announcement`, `tutorial`, `message`, `comment`, `conf`, `options`, `judge`
+
+`utils/` is itself a Django app (listed in `INSTALLED_APPS`) — not just a helpers package. It provides `RichTextField` (XSS-sanitized `TextField`), `APIError`, the base `APIView`, caching, WebSocket helpers, and the `inituser` management command. Import shared utilities from `utils.*`.
 
 ### URL Routing
 
@@ -128,4 +136,4 @@ Test cases and submission outputs are stored in a separate data directory (confi
 
 ## Related Repository
 
-The frontend is at `D:\Projects\ojnext` — a Vue 3 + Rsbuild project. See its CLAUDE.md for frontend details.
+The frontend is at `../ojnext` — a Vue 3 + Rsbuild project. See its CLAUDE.md for frontend details.
