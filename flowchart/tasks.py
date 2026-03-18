@@ -52,7 +52,7 @@ def evaluate_flowchart_task(submission_id):
         client = get_ai_client()
         
         response = client.chat.completions.create(
-            model="deepseek-chat",
+            model="deepseek-reasoner",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
@@ -73,7 +73,7 @@ def evaluate_flowchart_task(submission_id):
             submission.ai_suggestions = score_data.get('suggestions', '')
             submission.ai_criteria_details = score_data.get('criteria_details', {})
             submission.ai_provider = 'deepseek'
-            submission.ai_model = 'deepseek-chat'
+            submission.ai_model = 'deepseek-reasoner'
             submission.processing_time = processing_time
             submission.status = FlowchartSubmissionStatus.COMPLETED
             submission.evaluation_time = timezone.now()

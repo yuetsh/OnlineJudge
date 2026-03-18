@@ -495,7 +495,7 @@ class ProblemFlowchartAIGen(APIView):
         python_code = request.data.get("python", "")
         client = get_ai_client()
         response = client.chat.completions.create(
-            model="deepseek-chat",
+            model="deepseek-reasoner",
             messages=[
                 {
                     "role": "system",
