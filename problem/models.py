@@ -93,6 +93,9 @@ class Problem(models.Model):
         db_table = "problem"
         unique_together = (("_id", "contest"),)
         ordering = ("create_time",)
+        indexes = [
+            models.Index(fields=["contest", "visible"], name="problem_contest_visible_idx"),
+        ]
 
     def add_submission_number(self):
         self.submission_number = models.F("submission_number") + 1

@@ -137,11 +137,23 @@ class ProblemSetProblemAPI(APIView):
         except ProblemSet.DoesNotExist:
             return self.error("题单不存在")
 
-        problems = ProblemSetProblem.objects.filter(problemset=problem_set).order_by(
-            "order"
+        problems = (
+            ProblemSetProblem.objects.filter(problemset=problem_set)
+            .select_related("problem__created_by")
+            .prefetch_related("problem__tags")
+            .order_by("order")
         )
+        # 预取当前用户的题单进度，供 get_is_completed 使用，避免 N+1
+        user_progress = None
+        if request.user.is_authenticated:
+            try:
+                user_progress = ProblemSetProgress.objects.get(
+                    problemset=problem_set, user=request.user
+                )
+            except ProblemSetProgress.DoesNotExist:
+                pass
         serializer = ProblemSetProblemSerializer(
-            problems, many=True, context={"request": request}
+            problems, many=True, context={"request": request, "user_progress": user_progress}
         )
         return self.success(serializer.data)
 

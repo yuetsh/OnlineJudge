@@ -170,15 +170,15 @@ class ProblemSetProgress(models.Model):
         )
         self.total_problems_count = problemset_problems.count()
 
-        # 获取当前题单中所有题目的ID集合
-        current_problem_ids = {str(psp.problem.id) for psp in problemset_problems}
-        
+        # 获取当前题单中所有题目的ID集合（直接用 problem_id FK 字段，无需额外查询）
+        current_problem_ids = {str(psp.problem_id) for psp in problemset_problems}
+
         # 清理已删除题目的进度记录
         progress_detail_to_remove = []
         for problem_id in self.progress_detail.keys():
             if problem_id not in current_problem_ids:
                 progress_detail_to_remove.append(problem_id)
-        
+
         for problem_id in progress_detail_to_remove:
             del self.progress_detail[problem_id]
 
@@ -187,7 +187,7 @@ class ProblemSetProgress(models.Model):
         total_score = 0
 
         for psp in problemset_problems:
-            problem_id = str(psp.problem.id)
+            problem_id = str(psp.problem_id)
             if problem_id in self.progress_detail:
                 problem_progress = self.progress_detail[problem_id]
                 completed_count += 1

@@ -14,7 +14,7 @@ class AnnouncementAPI(APIView):
             except Announcement.DoesNotExist:
                 return self.error("Announcement does not exist")
 
-        announcements = Announcement.objects.filter(visible=True)
+        announcements = Announcement.objects.select_related("created_by").filter(visible=True)
         return self.success(
             self.paginate_data(request, announcements, AnnouncementListSerializer)
         )

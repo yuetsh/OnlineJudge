@@ -1,10 +1,38 @@
 from django.db import models
+from django.db.models import F
 from django.utils import timezone
 
 from .models import Submission
 from utils.api import serializers
 from utils.serializers import LanguageNameChoiceField
 from problemset.models import ProblemSetProgress
+
+
+def bulk_fetch_problemset_progress(user, problem_ids):
+    """一次 IN 查询获取该用户对多个题目的题单进度，返回 {problem_id: ProblemSetProgress|None}"""
+    if not problem_ids:
+        return {}
+    rows = (
+        ProblemSetProgress.objects.filter(
+            user=user,
+            problemset__status="active",
+            problemset__problemsetproblem__problem_id__in=problem_ids,
+        )
+        .filter(
+            models.Q(problemset__end_time__isnull=True)
+            | models.Q(problemset__end_time__gt=timezone.now())
+        )
+        .annotate(matched_problem_id=F("problemset__problemsetproblem__problem_id"))
+        .only("join_time", "progress_detail")
+    )
+    cache = {}
+    for row in rows:
+        pid = row.matched_problem_id
+        if pid not in cache:
+            cache[pid] = row
+    for pid in problem_ids:
+        cache.setdefault(pid, None)
+    return cache
 
 
 class CreateSubmissionSerializer(serializers.Serializer):
@@ -44,7 +72,10 @@ class SubmissionListSerializer(serializers.ModelSerializer):
 
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop("user", None)
+        preloaded = kwargs.pop("problemset_progress_cache", None)
         super().__init__(*args, **kwargs)
+        if preloaded is not None:
+            self._problemset_progress_cache = preloaded
 
     class Meta:
         model = Submission

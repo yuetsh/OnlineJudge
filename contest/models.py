@@ -79,6 +79,10 @@ class ACMContestRank(AbstractContestRank):
     class Meta:
         db_table = "acm_contest_rank"
         unique_together = (("user", "contest"),)
+        indexes = [
+            models.Index(fields=["contest", "accepted_number", "total_time"],
+                         name="acm_rank_order_idx"),
+        ]
 
 
 class OIContestRank(AbstractContestRank):
@@ -90,6 +94,9 @@ class OIContestRank(AbstractContestRank):
     class Meta:
         db_table = "oi_contest_rank"
         unique_together = (("user", "contest"),)
+        indexes = [
+            models.Index(fields=["contest", "total_score"], name="oi_rank_order_idx"),
+        ]
 
 
 class ContestAnnouncement(models.Model):

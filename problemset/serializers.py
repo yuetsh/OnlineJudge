@@ -183,16 +183,18 @@ class ProblemSetProblemSerializer(serializers.ModelSerializer):
     def get_is_completed(self, obj):
         """获取当前用户是否已完成该题目"""
         request = self.context.get("request")
-        if request and request.user.is_authenticated:
+        if not (request and request.user.is_authenticated):
+            return False
+        # 优先使用 view 层预取的进度对象，避免 N+1
+        progress = self.context.get("user_progress")
+        if progress is None:
             try:
                 progress = ProblemSetProgress.objects.get(
                     problemset=obj.problemset, user=request.user
                 )
-                problem_id = str(obj.problem.id)
-                return problem_id in progress.progress_detail
             except ProblemSetProgress.DoesNotExist:
                 return False
-        return False
+        return str(obj.problem.id) in progress.progress_detail
 
 
 class AddProblemToSetSerializer(serializers.Serializer):

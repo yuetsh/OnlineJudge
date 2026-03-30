@@ -13,7 +13,7 @@ class MessageAPI(APIView):
     @login_required
     def get(self, request):
         messages = Message.objects.select_related(
-            "recipient", "sender", "submission"
+            "recipient", "sender", "submission", "submission__problem"
         ).filter(recipient=request.user)
         return self.success(self.paginate_data(request, messages, MessageSerializer))
 

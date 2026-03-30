@@ -89,6 +89,7 @@ class ProblemAPI(APIView):
 
         problems = (
             Problem.objects.select_related("created_by")
+            .prefetch_related("tags")
             .filter(contest_id__isnull=True, visible=True)
             .order_by("-create_time")
         )
@@ -162,7 +163,7 @@ class ContestProblemAPI(APIView):
                 problem_data = ProblemSafeSerializer(problem).data
             return self.success(problem_data)
 
-        contest_problems = Problem.objects.select_related("created_by").filter(
+        contest_problems = Problem.objects.select_related("created_by").prefetch_related("tags").filter(
             contest=self.contest, visible=True
         )
         if self.contest.problem_details_permission(request.user):
@@ -229,7 +230,9 @@ class SimilarProblemAPI(APIView):
             exclude_ids.extend(ac_display_ids)
 
         similar = (
-            Problem.objects.filter(tags__in=tag_ids, visible=True, contest__isnull=True)
+            Problem.objects.select_related("created_by")
+            .prefetch_related("tags")
+            .filter(tags__in=tag_ids, visible=True, contest__isnull=True)
             .exclude(_id__in=exclude_ids)
             .distinct()
             .order_by("difficulty")[:5]
@@ -240,9 +243,8 @@ class SimilarProblemAPI(APIView):
 class ProblemAuthorAPI(APIView):
     def get(self, request):
         show_all = request.GET.get("all", "0") == "1"
-        cached_data = cache.get(
-            f"{CacheKey.problem_authors}{'_all' if show_all else '_only_visible'}"
-        )
+        cache_key = f"{CacheKey.problem_authors}{'_all' if show_all else '_only_visible'}"
+        cached_data = cache.get(cache_key)
         if cached_data:
             return self.success(cached_data)
 
@@ -264,5 +266,5 @@ class ProblemAuthorAPI(APIView):
             for author in authors
         ]
 
-        cache.set(CacheKey.problem_authors, result, 7200)
+        cache.set(cache_key, result, 7200)
         return self.success(result)

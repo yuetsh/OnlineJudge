@@ -169,15 +169,16 @@ class ContestRankAPI(APIView):
             cache_key = f"{CacheKey.contest_rank_cache}:{self.contest.id}"
             qs = cache.get(cache_key)
             if not qs:
-                qs = self.get_rank()
+                qs = list(self.get_rank())
                 cache.set(cache_key, qs)
 
         if download_csv:
             data = serializer(qs, many=True, is_contest_admin=is_contest_admin).data
-            contest_problems = Problem.objects.filter(
+            contest_problems = list(Problem.objects.filter(
                 contest=self.contest, visible=True
-            ).order_by("_id")
-            problem_ids = [item.id for item in contest_problems]
+            ).order_by("_id"))
+            # 预建 problem_id → 列索引 的字典，避免循环中 O(n) list.index()
+            problem_id_to_col = {p.id: i for i, p in enumerate(contest_problems)}
 
             f = io.BytesIO()
             workbook = xlsxwriter.Workbook(f)
@@ -187,11 +188,8 @@ class ContestRankAPI(APIView):
             worksheet.write("C1", "Real Name")
             if self.contest.rule_type == ContestRuleType.OI:
                 worksheet.write("D1", "Total Score")
-                for item in range(contest_problems.count()):
-                    worksheet.write(
-                        self.column_string(5 + item) + "1",
-                        f"{contest_problems[item].title}",
-                    )
+                for i, p in enumerate(contest_problems):
+                    worksheet.write(self.column_string(5 + i) + "1", p.title)
                 for index, item in enumerate(data):
                     worksheet.write_string(index + 1, 0, str(item["user"]["id"]))
                     worksheet.write_string(index + 1, 1, item["user"]["username"])
@@ -201,17 +199,14 @@ class ContestRankAPI(APIView):
                     worksheet.write_string(index + 1, 3, str(item["total_score"]))
                     for k, v in item["submission_info"].items():
                         worksheet.write_string(
-                            index + 1, 4 + problem_ids.index(int(k)), str(v)
+                            index + 1, 4 + problem_id_to_col[int(k)], str(v)
                         )
             else:
                 worksheet.write("D1", "AC")
                 worksheet.write("E1", "Total Submission")
                 worksheet.write("F1", "Total Time")
-                for item in range(contest_problems.count()):
-                    worksheet.write(
-                        self.column_string(7 + item) + "1",
-                        f"{contest_problems[item].title}",
-                    )
+                for i, p in enumerate(contest_problems):
+                    worksheet.write(self.column_string(7 + i) + "1", p.title)
 
                 for index, item in enumerate(data):
                     worksheet.write_string(index + 1, 0, str(item["user"]["id"]))
@@ -224,7 +219,7 @@ class ContestRankAPI(APIView):
                     worksheet.write_string(index + 1, 5, str(item["total_time"]))
                     for k, v in item["submission_info"].items():
                         worksheet.write_string(
-                            index + 1, 6 + problem_ids.index(int(k)), str(v["is_ac"])
+                            index + 1, 6 + problem_id_to_col[int(k)], str(v["is_ac"])
                         )
 
             workbook.close()

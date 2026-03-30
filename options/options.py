@@ -217,7 +217,7 @@ class _SysOptionsMeta(type):
     def website_footer(cls, value):
         cls._set_option(OptionKeys.website_footer, value)
 
-    @my_property
+    @my_property(ttl=DEFAULT_SHORT_TTL)
     def allow_register(cls):
         return cls._get_option(OptionKeys.allow_register)
 
@@ -249,7 +249,7 @@ class _SysOptionsMeta(type):
     def smtp_config(cls, value):
         cls._set_option(OptionKeys.smtp_config, value)
 
-    @my_property
+    @my_property(ttl=DEFAULT_SHORT_TTL)
     def judge_server_token(cls):
         return cls._get_option(OptionKeys.judge_server_token)
 
@@ -257,7 +257,7 @@ class _SysOptionsMeta(type):
     def judge_server_token(cls, value):
         cls._set_option(OptionKeys.judge_server_token, value)
 
-    @my_property
+    @my_property(ttl=DEFAULT_SHORT_TTL)
     def throttling(cls):
         return cls._get_option(OptionKeys.throttling)
 

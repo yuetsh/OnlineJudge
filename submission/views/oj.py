@@ -18,7 +18,7 @@ from ..serializers import (
     SubmissionModelSerializer,
     ShareSubmissionSerializer,
 )
-from ..serializers import SubmissionSafeModelSerializer, SubmissionListSerializer
+from ..serializers import SubmissionSafeModelSerializer, SubmissionListSerializer, bulk_fetch_problemset_progress
 
 
 class SubmissionAPI(APIView):
@@ -193,8 +193,14 @@ class SubmissionListAPI(APIView):
             )
 
         data = self.paginate_data(request, submissions)
+        results = data["results"]
+        if request.user.is_authenticated and request.user.is_regular_user():
+            problem_ids = list({s.problem_id for s in results})
+            progress_cache = bulk_fetch_problemset_progress(request.user, problem_ids)
+        else:
+            progress_cache = {}
         data["results"] = SubmissionListSerializer(
-            data["results"], many=True, user=request.user
+            results, many=True, user=request.user, problemset_progress_cache=progress_cache
         ).data
         return self.success(data)
 
@@ -241,8 +247,14 @@ class ContestSubmissionListAPI(APIView):
                 submissions = submissions.filter(user_id=request.user.id)
 
         data = self.paginate_data(request, submissions)
+        results = data["results"]
+        if request.user.is_authenticated and request.user.is_regular_user():
+            problem_ids = list({s.problem_id for s in results})
+            progress_cache = bulk_fetch_problemset_progress(request.user, problem_ids)
+        else:
+            progress_cache = {}
         data["results"] = SubmissionListSerializer(
-            data["results"], many=True, user=request.user
+            results, many=True, user=request.user, problemset_progress_cache=progress_cache
         ).data
         return self.success(data)
 
