@@ -19,12 +19,19 @@ from contest.models import ContestRuleType
 
 class ProblemTagAPI(APIView):
     def get(self, request):
+        keyword = request.GET.get("keyword", "")
+        cache_key = f"{CacheKey.problem_tags}:{keyword}"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return self.success(cached)
+
         qs = ProblemTag.objects
-        keyword = request.GET.get("keyword")
         if keyword:
             qs = ProblemTag.objects.filter(name__icontains=keyword)
         tags = qs.annotate(problem_count=Count("problem")).filter(problem_count__gt=0)
-        return self.success(TagSerializer(tags, many=True).data)
+        data = TagSerializer(tags, many=True).data
+        cache.set(cache_key, data, 3600)
+        return self.success(data)
 
 
 class PickOneAPI(APIView):

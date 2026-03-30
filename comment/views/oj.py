@@ -1,8 +1,10 @@
-from django.db.models import Avg
+from django.core.cache import cache
+from django.db.models import Avg, Count
 from django.db.models.functions import Round
 from comment.models import Comment
 from problem.models import Problem
 from utils.api import APIView
+from utils.constants import CacheKey
 from account.decorators import login_required
 from utils.api.api import validate_serializer
 from comment.serializers import CreateCommentSerializer, CommentSerializer
@@ -46,6 +48,7 @@ class CommentAPI(APIView):
             comprehensive_rating=data["comprehensive_rating"],
             content=data["content"],
         )
+        cache.delete(f"{CacheKey.comment_stats}:{problem.id}")
         return self.success()
 
     @login_required
@@ -65,16 +68,24 @@ class CommentAPI(APIView):
 class CommentStatisticsAPI(APIView):
     def get(self, request):
         problem_id = request.GET.get("problem_id")
-        comments = Comment.objects.select_related("problem").filter(
-            problem_id=problem_id
-        )
-        if comments.count() == 0:
-            return self.success()
+        cache_key = f"{CacheKey.comment_stats}:{problem_id}"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return self.success(cached)
 
-        count = comments.count()
-        rating = comments.aggregate(
+        agg = Comment.objects.filter(problem_id=problem_id).aggregate(
+            count=Count("id"),
             description=Round(Avg("description_rating"), 2),
             difficulty=Round(Avg("difficulty_rating"), 2),
             comprehensive=Round(Avg("comprehensive_rating"), 2),
         )
-        return self.success({"count": count, "rating": rating})
+        if not agg["count"]:
+            return self.success()
+
+        data = {"count": agg["count"], "rating": {
+            "description": agg["description"],
+            "difficulty": agg["difficulty"],
+            "comprehensive": agg["comprehensive"],
+        }}
+        cache.set(cache_key, data, 3600)
+        return self.success(data)

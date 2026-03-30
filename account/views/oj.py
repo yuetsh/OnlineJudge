@@ -16,7 +16,8 @@ from otpauth import OtpAuth
 
 from problem.models import Problem
 from submission.models import Submission, JudgeStatus
-from utils.constants import ContestRuleType
+from django.core.cache import cache
+from utils.constants import ContestRuleType, CacheKey
 from options.options import SysOptions
 from utils.api import APIView, validate_serializer, CSRFExemptAPIView
 from utils.captcha import Captcha
@@ -464,6 +465,11 @@ class UserActivityRankAPI(APIView):
         start = request.GET.get("start")
         if not start:
             return self.error("start time is required")
+        cache_key = f"{CacheKey.user_activity_rank}:{start}"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return self.success(cached)
+
         hidden_names = User.objects.filter(
             Q(admin_type=AdminType.SUPER_ADMIN) | Q(is_disabled=True)
         ).values_list("username", flat=True)
@@ -477,6 +483,7 @@ class UserActivityRankAPI(APIView):
             .annotate(count=Count("problem_id", distinct=True))
             .order_by("-count")[:10]
         )
+        cache.set(cache_key, data, 600)
         return self.success(data)
 
 

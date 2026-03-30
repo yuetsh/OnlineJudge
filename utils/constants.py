@@ -26,6 +26,9 @@ class CacheKey:
     contest_rank_cache = "contest_rank_cache"
     website_config = "website_config"
     problem_authors = "problem_authors"
+    problem_tags = "problem_tags"
+    comment_stats = "comment_stats"
+    user_activity_rank = "user_activity_rank"
 
 
 class Difficulty(Choices):
