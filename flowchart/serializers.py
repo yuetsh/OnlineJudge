@@ -4,12 +4,18 @@ from .models import FlowchartSubmission
 
 class CreateFlowchartSubmissionSerializer(serializers.Serializer):
     problem_id = serializers.IntegerField()
-    mermaid_code = serializers.CharField()
+    mermaid_code = serializers.CharField(max_length=50000)
     flowchart_data = serializers.JSONField(required=False, default=dict)
 
     def validate_mermaid_code(self, value):
         if not value.strip():
             raise serializers.ValidationError("Mermaid代码不能为空")
+        return value
+
+    def validate_flowchart_data(self, value):
+        import json
+        if len(json.dumps(value)) > 500 * 1024:
+            raise serializers.ValidationError("流程图数据过大")
         return value
 
 

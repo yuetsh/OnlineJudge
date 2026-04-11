@@ -24,29 +24,27 @@ def evaluate_flowchart_task(submission_id):
         
         # 构建用户提示词，包含标准答案对比
         user_prompt = f"""
-        请对以下Mermaid流程图进行评分：
-        
-        学生提交的流程图：
-        ```mermaid
-        {submission.mermaid_code}
-        ```
+请对以下Mermaid流程图进行评分：
 
-        标准答案参考：
-        ```mermaid
-        {submission.problem.mermaid_code}
-        ```
-        """
-        # 如果有流程图提示，添加到提示词中
-        if submission.problem.flowchart_hint:
+学生提交的流程图：
+```mermaid
+{submission.mermaid_code}
+```
+"""
+        if submission.problem.mermaid_code:
             user_prompt += f"""
-        
-        设计提示：{submission.problem.flowchart_hint}
-        """
-        
-        user_prompt += """
-        
-        请按照评分标准进行详细评估，并给出0-100的分数。
-        """
+标准答案参考：
+```mermaid
+{submission.problem.mermaid_code}
+```
+"""
+        else:
+            user_prompt += "\n注意：此题没有标准答案，请根据题目描述和流程图的逻辑合理性进行评分。\n"
+
+        if submission.problem.flowchart_hint:
+            user_prompt += f"\n设计提示：{submission.problem.flowchart_hint}\n"
+
+        user_prompt += "\n请按照评分标准进行详细评估，并给出0-100的分数。\n"
         
         # 调用AI进行评分
         client = get_ai_client()
@@ -155,26 +153,15 @@ def build_evaluation_prompt(problem):
 """
 
 def parse_ai_evaluation_response(ai_response):
-    """解析AI评分响应"""
-    try:
-        import re
-        json_match = re.search(r'\{.*\}', ai_response, re.DOTALL)
-        if json_match:
-            data = json.loads(json_match.group())
-        else:
-            data = {
-                "score": 60,
-                "grade": "C",
-                "feedback": "AI评分解析失败，请重新提交",
-                "suggestions": "",
-                "criteria_details": {}
-            }
-        return data
-    except Exception:
-        return {
-            "score": 60,
-            "grade": "C", 
-            "feedback": "AI评分解析失败，请重新提交",
-            "suggestions": "",
-            "criteria_details": {}
-        }
+    """解析AI评分响应，解析失败时抛出异常由调用方处理"""
+    import re
+    json_match = re.search(r'\{.*\}', ai_response, re.DOTALL)
+    if not json_match:
+        raise ValueError("AI响应中未找到JSON数据")
+
+    data = json.loads(json_match.group())
+
+    if "score" not in data or "grade" not in data:
+        raise ValueError("AI响应缺少必要字段: score 或 grade")
+
+    return data

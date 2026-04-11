@@ -22,8 +22,6 @@ class FlowchartSubmissionAPI(APIView):
 
         # 验证题目存在
         try:
-            from problem.models import Problem
-
             problem = Problem.objects.get(id=data["problem_id"])
         except Problem.DoesNotExist:
             return self.error("Problem doesn't exist")
@@ -65,6 +63,7 @@ class FlowchartSubmissionAPI(APIView):
 
 
 class FlowchartSubmissionListAPI(APIView):
+    @login_required
     def get(self, request):
         """获取流程图提交列表"""
         username = request.GET.get("username")
@@ -158,12 +157,18 @@ class FlowchartSubmissionDetailAPI(APIView):
             problem=problem,
             status=FlowchartSubmissionStatus.COMPLETED,
         ).order_by("create_time")
+        count = submissions.count()
+        if count == 0:
+            return self.success({"submission": None, "count": 0})
+        # page=0 means latest; page=N means the Nth submission (1-indexed, chronological)
         if page == 0:
             submission = submissions.last()
         else:
+            if page < 0 or page > count:
+                return self.error("Page out of range")
             submission = submissions[page - 1]
         serializer = FlowchartSubmissionSerializer(submission)
-        return self.success({"submission": serializer.data})
+        return self.success({"submission": serializer.data, "count": count})
 
 
 class FlowchartSubmissionCurrentAPI(APIView):
