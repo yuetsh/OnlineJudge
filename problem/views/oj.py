@@ -7,7 +7,7 @@ from submission.models import Submission, JudgeStatus
 from utils.api import APIView
 from account.decorators import check_contest_permission
 from utils.constants import CacheKey
-from ..models import ProblemTag, Problem, ProblemRuleType
+from ..models import ProblemTag, Problem
 from ..serializers import (
     ProblemSerializer,
     TagSerializer,
@@ -124,8 +124,10 @@ class ProblemAPI(APIView):
 
         # 排序
         sort = request.GET.get("sort")
-        if sort:
+        if sort and sort != "flowchart":
             problems = problems.order_by(sort)
+        if sort and sort == "flowchart":
+            problems = problems.order_by("-allow_flowchart", "-show_flowchart", "-create_time")
 
         # 根据profile 为做过的题目添加标记
         data = self.paginate_data(request, problems, ProblemListSerializer)
