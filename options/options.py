@@ -3,10 +3,11 @@ import os
 import threading
 import time
 
-from django.db import transaction, IntegrityError
+from django.db import IntegrityError, transaction
 
-from utils.shortcuts import rand_str
 from judge.languages import languages
+from utils.shortcuts import rand_str
+
 from .models import SysOptions as SysOptionsModel
 
 

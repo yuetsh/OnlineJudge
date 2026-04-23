@@ -1,6 +1,6 @@
 from django.urls import path
 
-from .views import SimditorImageUploadAPIView, SimditorFileUploadAPIView
+from .views import SimditorFileUploadAPIView, SimditorImageUploadAPIView
 
 urlpatterns = [
     path("upload_image", SimditorImageUploadAPIView.as_view()),

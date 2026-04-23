@@ -1,7 +1,7 @@
 from submission.serializers import SubmissionSafeModelSerializer
 from utils.api import UsernameSerializer, serializers
-from .models import Message
 
+from .models import Message
 
 
 class MessageSerializer(serializers.ModelSerializer):

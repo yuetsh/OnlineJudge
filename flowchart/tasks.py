@@ -1,11 +1,15 @@
-import dramatiq
 import json
 import time
+
+import dramatiq
 from django.db import transaction
 from django.utils import timezone
+
 from utils.openai import get_ai_client
 from utils.shortcuts import DRAMATIQ_WORKER_ARGS
+
 from .models import FlowchartSubmission, FlowchartSubmissionStatus
+
 
 @dramatiq.actor(**DRAMATIQ_WORKER_ARGS(max_retries=3))
 def evaluate_flowchart_task(submission_id):

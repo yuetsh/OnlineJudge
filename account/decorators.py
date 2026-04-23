@@ -2,10 +2,11 @@ import functools
 import hashlib
 import time
 
+from contest.models import Contest, ContestRuleType, ContestStatus, ContestType
 from problem.models import Problem
-from contest.models import Contest, ContestType, ContestStatus, ContestRuleType
-from utils.api import JSONResponse, APIError
+from utils.api import APIError, JSONResponse
 from utils.constants import CONTEST_PASSWORD_SESSION_KEY
+
 from .models import ProblemPermission
 
 

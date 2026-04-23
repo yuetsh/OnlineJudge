@@ -1,6 +1,8 @@
 from rest_framework import serializers
-from .models import Tutorial, Exercise
+
 from account.serializers import UserSerializer
+
+from .models import Exercise, Tutorial
 
 
 class TutorialListSerializer(serializers.ModelSerializer):

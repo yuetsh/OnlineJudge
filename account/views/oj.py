@@ -2,44 +2,42 @@ import os
 from datetime import timedelta
 from importlib import import_module
 
+import qrcode
 from django.conf import settings
 from django.contrib import auth
+from django.core.cache import cache
+from django.db.models import Count, Q
 from django.template.loader import render_to_string
+from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.utils.timezone import now
-from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
-from django.db.models import Count, Q
-from django.utils import timezone
-
-import qrcode
+from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from otpauth import OtpAuth
 
-from problem.models import Problem
-from submission.models import Submission, JudgeStatus
-from django.core.cache import cache
-from utils.constants import ContestRuleType, CacheKey
 from options.options import SysOptions
-from utils.api import APIView, validate_serializer, CSRFExemptAPIView
+from problem.models import Problem
+from submission.models import JudgeStatus, Submission
+from utils.api import APIView, CSRFExemptAPIView, validate_serializer
 from utils.captcha import Captcha
-from utils.shortcuts import rand_str, img2base64, datetime2str
+from utils.constants import CacheKey, ContestRuleType
+from utils.shortcuts import datetime2str, img2base64, rand_str
+
 from ..decorators import login_required
-from ..models import User, UserProfile, AdminType
+from ..models import AdminType, User, UserProfile
 from ..serializers import (
     ApplyResetPasswordSerializer,
-    ResetPasswordSerializer,
-    UserChangePasswordSerializer,
-    UserLoginSerializer,
-    UserRegisterSerializer,
-    UsernameOrEmailCheckSerializer,
-    RankInfoSerializer,
-    UserChangeEmailSerializer,
-    SSOSerializer,
-)
-from ..serializers import (
-    TwoFactorAuthCodeSerializer,
-    UserProfileSerializer,
     EditUserProfileSerializer,
     ImageUploadForm,
+    RankInfoSerializer,
+    ResetPasswordSerializer,
+    SSOSerializer,
+    TwoFactorAuthCodeSerializer,
+    UserChangeEmailSerializer,
+    UserChangePasswordSerializer,
+    UserLoginSerializer,
+    UsernameOrEmailCheckSerializer,
+    UserProfileSerializer,
+    UserRegisterSerializer,
 )
 from ..tasks import send_email_async
 

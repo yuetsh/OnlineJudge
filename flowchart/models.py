@@ -1,7 +1,8 @@
-from django.db import models
 from django.contrib.auth import get_user_model
-from utils.shortcuts import rand_str
+from django.db import models
+
 from problem.models import Problem
+from utils.shortcuts import rand_str
 
 User = get_user_model()
 

@@ -1,7 +1,6 @@
+from tutorial.models import Exercise, Tutorial
+from tutorial.serializers import ExerciseSerializer, TutorialSerializer
 from utils.api import APIView
-
-from tutorial.models import Tutorial, Exercise
-from tutorial.serializers import TutorialSerializer, ExerciseSerializer
 
 
 class TutorialAPI(APIView):

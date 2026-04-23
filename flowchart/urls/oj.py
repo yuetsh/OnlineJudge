@@ -1,10 +1,11 @@
 from django.urls import path
+
 from ..views.oj import (
     FlowchartSubmissionAPI,
-    FlowchartSubmissionListAPI,
-    FlowchartSubmissionRetryAPI,
     FlowchartSubmissionCurrentAPI,
     FlowchartSubmissionDetailAPI,
+    FlowchartSubmissionListAPI,
+    FlowchartSubmissionRetryAPI,
 )
 
 urlpatterns = [

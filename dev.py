@@ -6,13 +6,13 @@ WebSocket 开发服务器启动脚本
 """
 
 import os
-import sys
-import subprocess
 import platform
 import signal
+import subprocess
+import sys
+import time
 from pathlib import Path
 from threading import Thread
-import time
 
 
 def main():

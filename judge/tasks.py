@@ -1,8 +1,8 @@
 import dramatiq
 
 from account.models import User
-from submission.models import Submission
 from judge.dispatcher import JudgeDispatcher
+from submission.models import Submission
 from utils.shortcuts import DRAMATIQ_WORKER_ARGS
 
 

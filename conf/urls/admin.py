@@ -2,13 +2,13 @@ from django.urls import path
 
 from ..views import (
     SMTPAPI,
-    JudgeServerAPI,
-    WebsiteConfigAPI,
-    TestCasePruneAPI,
-    SMTPTestAPI,
-    ReleaseNotesAPI,
     DashboardInfoAPI,
+    JudgeServerAPI,
     RandomUsernameAPI,
+    ReleaseNotesAPI,
+    SMTPTestAPI,
+    TestCasePruneAPI,
+    WebsiteConfigAPI,
 )
 
 urlpatterns = [

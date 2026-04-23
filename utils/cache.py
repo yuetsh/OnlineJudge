@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
-from django.core.cache import cache
 
+from django.core.cache import cache
 from django_redis.cache import RedisCache
 from django_redis.client.default import DefaultClient
 

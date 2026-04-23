@@ -1,6 +1,6 @@
 from django.urls import path
 
-from ..views.oj import ClassRankAPI, UserClassRankAPI, ClassPKAPI
+from ..views.oj import ClassPKAPI, ClassRankAPI, UserClassRankAPI
 
 urlpatterns = [
     path("class_rank", ClassRankAPI.as_view()),

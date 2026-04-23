@@ -1,11 +1,9 @@
-from account.decorators import super_admin_required, login_required
+from account.decorators import login_required, super_admin_required
 from account.models import User
+from message.models import Message
 from message.serializers import CreateMessageSerializer, MessageSerializer
 from submission.models import Submission
 from utils.api import APIView
-
-from message.models import Message
-
 from utils.api.api import validate_serializer
 
 

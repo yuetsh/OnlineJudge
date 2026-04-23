@@ -1,29 +1,29 @@
 from django.urls import path
 
+from utils.captcha.views import CaptchaAPIView
+
 from ..views.oj import (
+    SSOAPI,
     ApplyResetPasswordAPI,
-    ResetPasswordAPI,
-    UserChangePasswordAPI,
+    AvatarUploadAPI,
+    CheckTFARequiredAPI,
     Metrics,
-    UserRegisterAPI,
+    OpenAPIAppkeyAPI,
+    ProfileProblemDisplayIDRefreshAPI,
+    ResetPasswordAPI,
+    SessionManagementAPI,
+    TwoFactorAuthAPI,
+    UserActivityRankAPI,
     UserChangeEmailAPI,
+    UserChangePasswordAPI,
     UserLoginAPI,
     UserLogoutAPI,
     UsernameOrEmailCheck,
-    AvatarUploadAPI,
-    TwoFactorAuthAPI,
+    UserProblemRankAPI,
     UserProfileAPI,
     UserRankAPI,
-    UserActivityRankAPI,
-    UserProblemRankAPI,
-    CheckTFARequiredAPI,
-    SessionManagementAPI,
-    ProfileProblemDisplayIDRefreshAPI,
-    OpenAPIAppkeyAPI,
-    SSOAPI,
+    UserRegisterAPI,
 )
-
-from utils.captcha.views import CaptchaAPIView
 
 urlpatterns = [
     path("login", UserLoginAPI.as_view()),

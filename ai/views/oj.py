@@ -1,26 +1,25 @@
-from collections import defaultdict
-from datetime import datetime, timedelta
 import hashlib
 import json
+from collections import defaultdict
+from datetime import datetime, timedelta
 
 from dateutil.relativedelta import relativedelta
 from django.core.cache import cache
-from django.db.models import Min, Count
+from django.db.models import Count, Min
 from django.db.models.functions import TruncDate
 from django.http import StreamingHttpResponse
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
+from account.decorators import login_required
+from account.models import User
+from ai.models import AIAnalysis
+from flowchart.models import FlowchartSubmission, FlowchartSubmissionStatus
+from problem.models import Problem
+from submission.models import JudgeStatus, Submission
 from utils.api import APIView
 from utils.openai import get_ai_client
 from utils.shortcuts import datetime2str
-
-from account.models import User
-from problem.models import Problem
-from submission.models import Submission, JudgeStatus
-from flowchart.models import FlowchartSubmission, FlowchartSubmissionStatus
-from account.decorators import login_required
-from ai.models import AIAnalysis
 
 CACHE_TIMEOUT = 300
 DIFFICULTY_MAP = {"Low": "简单", "Mid": "中等", "High": "困难"}
@@ -598,7 +597,11 @@ class AIAnalysisAPI(APIView):
 
         client = get_ai_client()
 
-        system_prompt = "你是一个风趣的编程老师，学生使用判题狗平台进行编程练习。请根据学生提供的详细数据和每周数据，给出用户的学习建议，最后写一句鼓励学生的话。请使用 markdown 格式输出，不要在代码块中输出。"
+        system_prompt = (
+            "你是一个风趣的编程老师，学生使用判题狗平台进行编程练习。"
+            "请根据学生提供的详细数据和每周数据，给出用户的学习建议，最后写一句鼓励学生的话。"
+            "请使用 markdown 格式输出，不要在代码块中输出。"
+        )
         user_prompt = f"这段时间内的详细数据: {details}\n(其中部分字段含义是 flowcharts:流程图的提交,solved:代码的提交)\n每周或每月的数据: {duration}"
 
         def on_complete(full_text):

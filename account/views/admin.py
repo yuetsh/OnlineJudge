@@ -1,11 +1,11 @@
 import os
 import re
-import xlsxwriter
 
-from django.db import transaction, IntegrityError
-from django.db.models import Q, F
-from django.http import HttpResponse
+import xlsxwriter
 from django.contrib.auth.hashers import make_password
+from django.db import IntegrityError, transaction
+from django.db.models import F, Q
+from django.http import HttpResponse
 from django.utils.crypto import get_random_string
 
 from submission.models import Submission
@@ -16,10 +16,10 @@ from ..decorators import super_admin_required
 from ..models import AdminType, ProblemPermission, User, UserProfile
 from ..serializers import (
     EditUserSerializer,
-    UserAdminSerializer,
     GenerateUserSerializer,
+    ImportUserSerializer,
+    UserAdminSerializer,
 )
-from ..serializers import ImportUserSerializer
 
 
 # ks251XXX 或者 ks2510XX 返回 251 或者 2510

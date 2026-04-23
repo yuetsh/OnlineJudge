@@ -12,8 +12,8 @@ limitations under the License.
 """
 
 import os
-import time
 import random
+import time
 
 from PIL import Image, ImageDraw, ImageFont
 

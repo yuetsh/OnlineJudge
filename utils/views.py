@@ -1,9 +1,11 @@
-import os
-from django.conf import settings
-from account.serializers import ImageUploadForm, FileUploadForm
-from utils.shortcuts import rand_str
-from utils.api import CSRFExemptAPIView
 import logging
+import os
+
+from django.conf import settings
+
+from account.serializers import FileUploadForm, ImageUploadForm
+from utils.api import CSRFExemptAPIView
+from utils.shortcuts import rand_str
 
 logger = logging.getLogger(__name__)
 

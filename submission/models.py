@@ -1,10 +1,9 @@
 from django.db import models
 
+from contest.models import Contest
+from problem.models import Problem
 from utils.constants import ContestStatus
 from utils.models import JSONField
-from problem.models import Problem
-from contest.models import Contest
-
 from utils.shortcuts import rand_str
 
 

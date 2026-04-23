@@ -1,8 +1,8 @@
 from account.decorators import super_admin_required
+from comment.models import Comment
 from comment.serializers import CommentListSerializer
 from problem.models import Problem
 from utils.api import APIView
-from comment.models import Comment
 
 
 class CommentAPI(APIView):

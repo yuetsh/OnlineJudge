@@ -1,11 +1,11 @@
 from django.urls import path
 
 from ..views import (
+    ClassUsernamesAPI,
     HitokotoAPI,
     JudgeServerHeartbeatAPI,
     LanguagesAPI,
     WebsiteConfigAPI,
-    ClassUsernamesAPI,
 )
 
 urlpatterns = [

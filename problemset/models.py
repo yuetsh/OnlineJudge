@@ -1,8 +1,9 @@
 from django.db import models
 from django.utils.timezone import now
+
 from account.models import User
 from problem.models import Problem
-from utils.models import RichTextField, JSONField
+from utils.models import JSONField, RichTextField
 
 
 class ProblemSet(models.Model):

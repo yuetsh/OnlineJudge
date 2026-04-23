@@ -1,6 +1,6 @@
-from . import Captcha
 from ..api import APIView
 from ..shortcuts import img2base64
+from . import Captcha
 
 
 class CaptchaAPIView(APIView):

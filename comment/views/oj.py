@@ -1,14 +1,15 @@
 from django.core.cache import cache
 from django.db.models import Avg, Count
 from django.db.models.functions import Round
-from comment.models import Comment
-from problem.models import Problem
-from utils.api import APIView
-from utils.constants import CacheKey
+
 from account.decorators import login_required
+from comment.models import Comment
+from comment.serializers import CommentSerializer, CreateCommentSerializer
+from problem.models import Problem
+from submission.models import JudgeStatus, Submission
+from utils.api import APIView
 from utils.api.api import validate_serializer
-from comment.serializers import CreateCommentSerializer, CommentSerializer
-from submission.models import Submission, JudgeStatus
+from utils.constants import CacheKey
 
 
 class CommentAPI(APIView):

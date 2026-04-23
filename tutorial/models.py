@@ -1,5 +1,7 @@
 from django.db import models
+
 from account.models import User
+
 
 class Tutorial(models.Model):
     TYPE_CHOICES = [

@@ -1,5 +1,6 @@
 from django.urls import path
-from ..views.oj import TutorialAPI, TutorialTitlesAPI, ExerciseAPI
+
+from ..views.oj import ExerciseAPI, TutorialAPI, TutorialTitlesAPI
 
 urlpatterns = [
     path("tutorial", TutorialAPI.as_view()),

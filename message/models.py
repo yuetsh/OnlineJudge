@@ -1,4 +1,5 @@
 from django.db import models
+
 from account.models import User
 from submission.models import Submission
 from utils.models import RichTextField

@@ -1,8 +1,8 @@
-from datetime import datetime
 import ipaddress
+from datetime import datetime
 
-from account.decorators import login_required, check_contest_permission
-from contest.models import ContestStatus, ContestRuleType
+from account.decorators import check_contest_permission, login_required
+from contest.models import ContestRuleType, ContestStatus
 from judge.tasks import judge_task
 from options.options import SysOptions
 
@@ -12,13 +12,16 @@ from utils.api import APIView, validate_serializer
 from utils.cache import cache
 from utils.captcha import Captcha
 from utils.throttling import TokenBucket
+
 from ..models import Submission
 from ..serializers import (
     CreateSubmissionSerializer,
-    SubmissionModelSerializer,
     ShareSubmissionSerializer,
+    SubmissionListSerializer,
+    SubmissionModelSerializer,
+    SubmissionSafeModelSerializer,
+    bulk_fetch_problemset_progress,
 )
-from ..serializers import SubmissionSafeModelSerializer, SubmissionListSerializer, bulk_fetch_problemset_progress
 
 
 class SubmissionAPI(APIView):

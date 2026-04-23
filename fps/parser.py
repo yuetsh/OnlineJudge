@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 import base64
 import copy
-import random
-import string
 import hashlib
 import json
 import os
+import random
+import string
 import xml.etree.ElementTree as ET
 
 

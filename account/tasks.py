@@ -1,8 +1,9 @@
 import logging
+
 import dramatiq
 
 from options.options import SysOptions
-from utils.shortcuts import send_email, DRAMATIQ_WORKER_ARGS
+from utils.shortcuts import DRAMATIQ_WORKER_ARGS, send_email
 
 logger = logging.getLogger(__name__)
 

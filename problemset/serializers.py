@@ -1,8 +1,9 @@
 from utils.api import UsernameSerializer, serializers
+
 from .models import (
     ProblemSet,
-    ProblemSetProblem,
     ProblemSetBadge,
+    ProblemSetProblem,
     ProblemSetProgress,
     UserBadge,
 )

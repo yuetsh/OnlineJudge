@@ -1,6 +1,6 @@
 from django import forms
 
-from utils.api import serializers, UsernameSerializer
+from utils.api import UsernameSerializer, serializers
 
 from .models import AdminType, ProblemPermission, User, UserProfile
 

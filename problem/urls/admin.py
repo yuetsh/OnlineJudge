@@ -1,14 +1,14 @@
 from django.urls import path
 
 from ..views.admin import (
+    AddContestProblemAPI,
     ContestProblemAPI,
+    MakeContestProblemPublicAPIView,
     ProblemAPI,
     ProblemFlowchartAIGen,
+    ProblemVisibleAPI,
     StuckProblemsAPI,
     TestCaseAPI,
-    MakeContestProblemPublicAPIView,
-    AddContestProblemAPI,
-    ProblemVisibleAPI,
 )
 
 urlpatterns = [

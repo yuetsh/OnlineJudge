@@ -1,7 +1,6 @@
-from utils.api import APIView
-
 from announcement.models import Announcement
-from announcement.serializers import AnnouncementSerializer, AnnouncementListSerializer
+from announcement.serializers import AnnouncementListSerializer, AnnouncementSerializer
+from utils.api import APIView
 
 
 class AnnouncementAPI(APIView):

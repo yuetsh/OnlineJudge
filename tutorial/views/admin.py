@@ -1,16 +1,15 @@
 from account.decorators import super_admin_required
-from utils.api import APIView, validate_serializer
-
-from tutorial.models import Tutorial, Exercise
+from tutorial.models import Exercise, Tutorial
 from tutorial.serializers import (
-    TutorialSerializer,
-    TutorialListSerializer,
+    CreateExerciseSerializer,
     CreateTutorialSerializer,
+    EditExerciseSerializer,
     EditTutorialSerializer,
     ExerciseSerializer,
-    CreateExerciseSerializer,
-    EditExerciseSerializer,
+    TutorialListSerializer,
+    TutorialSerializer,
 )
+from utils.api import APIView, validate_serializer
 
 
 class TutorialAdminAPI(APIView):

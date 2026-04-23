@@ -1,12 +1,12 @@
 from django.urls import path
 
 from ..views.oj import (
-    ProblemSolvedPeopleCount,
-    ProblemTagAPI,
-    ProblemAPI,
     ContestProblemAPI,
     PickOneAPI,
+    ProblemAPI,
     ProblemAuthorAPI,
+    ProblemSolvedPeopleCount,
+    ProblemTagAPI,
     SimilarProblemAPI,
 )
 

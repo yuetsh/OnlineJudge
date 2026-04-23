@@ -1,7 +1,6 @@
 import re
 from functools import lru_cache
 
-
 TEMPLATE_BASE = """//PREPEND BEGIN
 {}
 //PREPEND END

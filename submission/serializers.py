@@ -2,10 +2,11 @@ from django.db import models
 from django.db.models import F
 from django.utils import timezone
 
-from .models import Submission
+from problemset.models import ProblemSetProgress
 from utils.api import serializers
 from utils.serializers import LanguageNameChoiceField
-from problemset.models import ProblemSetProgress
+
+from .models import Submission
 
 
 def bulk_fetch_problemset_progress(user, problem_ids):

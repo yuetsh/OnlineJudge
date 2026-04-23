@@ -1,11 +1,12 @@
-from account.decorators import super_admin_required
-from judge.tasks import judge_task
-
-from utils.api import APIView
-from ..models import Submission, JudgeStatus
-from account.models import User, AdminType
-from problem.models import Problem
 from django.db.models import Count, Q
+
+from account.decorators import super_admin_required
+from account.models import AdminType, User
+from judge.tasks import judge_task
+from problem.models import Problem
+from utils.api import APIView
+
+from ..models import JudgeStatus, Submission
 
 
 def get_real_name(username, class_name):

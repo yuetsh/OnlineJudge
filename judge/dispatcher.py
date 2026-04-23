@@ -4,12 +4,12 @@ import logging
 from urllib.parse import urljoin
 
 import requests
-from django.db import transaction, IntegrityError
+from django.db import IntegrityError, transaction
 from django.db.models import F
 
 from account.models import User
 from conf.models import JudgeServer
-from contest.models import ContestRuleType, ACMContestRank, OIContestRank, ContestStatus
+from contest.models import ACMContestRank, ContestRuleType, ContestStatus, OIContestRank
 from options.options import SysOptions
 from problem.models import Problem, ProblemRuleType
 from problem.utils import parse_problem_template

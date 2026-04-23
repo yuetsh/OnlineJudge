@@ -1,10 +1,10 @@
 from django.conf import settings
 from django.db import connection
-from django.utils.timezone import now
 from django.utils.deprecation import MiddlewareMixin
+from django.utils.timezone import now
 
-from utils.api import JSONResponse
 from account.models import User
+from utils.api import JSONResponse
 
 
 class APITokenAuthMiddleware(MiddlewareMixin):

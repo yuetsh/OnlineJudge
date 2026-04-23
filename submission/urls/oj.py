@@ -1,10 +1,10 @@
 from django.urls import path
 
 from ..views.oj import (
-    SubmissionAPI,
-    SubmissionListAPI,
     ContestSubmissionListAPI,
+    SubmissionAPI,
     SubmissionExistsAPI,
+    SubmissionListAPI,
     SubmissionsTodayCount,
 )
 

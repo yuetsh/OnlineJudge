@@ -5,11 +5,11 @@ from django import forms
 from utils.api import UsernameSerializer, serializers
 from utils.constants import Difficulty
 from utils.serializers import (
-    LanguageNameMultiChoiceField,
     LanguageNameChoiceField,
+    LanguageNameMultiChoiceField,
 )
 
-from .models import Problem, ProblemRuleType, ProblemTag, ProblemIOMode
+from .models import Problem, ProblemIOMode, ProblemRuleType, ProblemTag
 from .utils import parse_problem_template
 
 

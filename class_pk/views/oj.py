@@ -1,12 +1,13 @@
-import re
 import statistics
 from datetime import datetime
-from django.db.models import Sum, Avg
+
+from django.db.models import Avg, Sum
 from django.utils import timezone
-from utils.api import APIView
+
 from account.decorators import login_required
-from account.models import User, UserProfile, AdminType
-from submission.models import Submission, JudgeStatus
+from account.models import AdminType, User, UserProfile
+from submission.models import JudgeStatus, Submission
+from utils.api import APIView
 
 
 class ClassRankAPI(APIView):

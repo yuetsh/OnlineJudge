@@ -1,7 +1,6 @@
 from utils.api import UsernameSerializer, serializers
 
-from .models import Contest, ContestAnnouncement, ContestRuleType
-from .models import ACMContestRank, OIContestRank
+from .models import ACMContestRank, Contest, ContestAnnouncement, ContestRuleType, OIContestRank
 
 
 class CreateConetestSeriaizer(serializers.Serializer):

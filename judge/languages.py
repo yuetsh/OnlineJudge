@@ -1,6 +1,5 @@
 from problem.models import ProblemIOMode
 
-
 default_env = ["LANG=en_US.UTF-8", "LANGUAGE=en_US:en", "LC_ALL=en_US.UTF-8"]
 
 _c_lang_config = {
