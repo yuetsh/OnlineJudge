@@ -29,6 +29,7 @@ class Exercise(models.Model):
     TYPE_CHOICES = [
         ("mcq", "选择题"),
         ("sort", "代码排序"),
+        ("fill", "代码填空"),
     ]
 
     tutorial = models.ForeignKey(Tutorial, on_delete=models.CASCADE, related_name="exercises")

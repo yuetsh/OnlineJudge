@@ -27,6 +27,10 @@ python run_test.py               # Run flake8 lint + coverage in one step
 python run_test.py -m account    # Run flake8 + tests for a single module
 python run_test.py -c            # Run flake8 + tests + open HTML coverage report
 
+## Testing Policy
+
+Do not write tests
+
 # Initial setup
 python manage.py inituser --username admin --password <pw> --action create_super_admin
 python manage.py inituser --username admin --password <pw> --action reset

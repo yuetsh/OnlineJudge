@@ -63,13 +63,13 @@ class ExerciseSerializer(serializers.ModelSerializer):
 
 class CreateExerciseSerializer(serializers.Serializer):
     tutorial_id = serializers.IntegerField()
-    type = serializers.ChoiceField(choices=["mcq", "sort"])
+    type = serializers.ChoiceField(choices=["mcq", "sort", "fill"])
     data = serializers.JSONField()
     order = serializers.IntegerField(default=0)
 
 
 class EditExerciseSerializer(serializers.Serializer):
     id = serializers.IntegerField()
-    type = serializers.ChoiceField(choices=["mcq", "sort"])
+    type = serializers.ChoiceField(choices=["mcq", "sort", "fill"])
     data = serializers.JSONField()
     order = serializers.IntegerField(default=0)
