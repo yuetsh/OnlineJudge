@@ -22,4 +22,24 @@ class Tutorial(models.Model):
         ordering = ['order', '-created_at']
 
     def __str__(self):
-        return self.title 
+        return self.title
+
+
+class Exercise(models.Model):
+    TYPE_CHOICES = [
+        ("mcq", "选择题"),
+        ("sort", "代码排序"),
+    ]
+
+    tutorial = models.ForeignKey(Tutorial, on_delete=models.CASCADE, related_name="exercises")
+    type = models.CharField(max_length=16, choices=TYPE_CHOICES)
+    data = models.JSONField()
+    order = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "exercise"
+        ordering = ["order", "created_at"]
+
+    def __str__(self):
+        return f"{self.get_type_display()} (Order {self.order})"

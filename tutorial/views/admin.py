@@ -1,12 +1,15 @@
 from account.decorators import super_admin_required
 from utils.api import APIView, validate_serializer
 
-from tutorial.models import Tutorial
+from tutorial.models import Tutorial, Exercise
 from tutorial.serializers import (
     TutorialSerializer,
     TutorialListSerializer,
     CreateTutorialSerializer,
     EditTutorialSerializer,
+    ExerciseSerializer,
+    CreateExerciseSerializer,
+    EditExerciseSerializer,
 )
 
 
@@ -90,3 +93,51 @@ class TutorialVisibilityAPI(APIView):
         tutorial.is_public = is_public
         tutorial.save()
         return self.success(TutorialSerializer(tutorial).data)
+
+
+class ExerciseAdminAPI(APIView):
+    @validate_serializer(CreateExerciseSerializer)
+    @super_admin_required
+    def post(self, request):
+        data = request.data
+        try:
+            tutorial = Tutorial.objects.get(id=data["tutorial_id"])
+        except Tutorial.DoesNotExist:
+            return self.error("Tutorial does not exist")
+        exercise = Exercise.objects.create(
+            tutorial=tutorial,
+            type=data["type"],
+            data=data["data"],
+            order=data.get("order", 0),
+        )
+        return self.success(ExerciseSerializer(exercise).data)
+
+    @validate_serializer(EditExerciseSerializer)
+    @super_admin_required
+    def put(self, request):
+        data = request.data
+        try:
+            exercise = Exercise.objects.get(id=data["id"])
+        except Exercise.DoesNotExist:
+            return self.error("Exercise does not exist")
+        exercise.type = data["type"]
+        exercise.data = data["data"]
+        exercise.order = data.get("order", exercise.order)
+        exercise.save()
+        return self.success(ExerciseSerializer(exercise).data)
+
+    @super_admin_required
+    def get(self, request):
+        tutorial_id = request.GET.get("tutorial_id")
+        if not tutorial_id:
+            return self.error("tutorial_id is required")
+        exercises = Exercise.objects.filter(tutorial_id=tutorial_id)
+        return self.success(ExerciseSerializer(exercises, many=True).data)
+
+    @super_admin_required
+    def delete(self, request):
+        exercise_id = request.GET.get("id")
+        if not exercise_id:
+            return self.error("id is required")
+        Exercise.objects.filter(id=exercise_id).delete()
+        return self.success()

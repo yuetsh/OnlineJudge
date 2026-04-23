@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Tutorial
+from .models import Tutorial, Exercise
 from account.serializers import UserSerializer
 
 
@@ -53,3 +53,23 @@ class EditTutorialSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tutorial
         fields = ["id", "title", "content", "is_public", "order", "type", "code"]
+
+
+class ExerciseSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Exercise
+        fields = ["id", "type", "data", "order"]
+
+
+class CreateExerciseSerializer(serializers.Serializer):
+    tutorial_id = serializers.IntegerField()
+    type = serializers.ChoiceField(choices=["mcq", "sort"])
+    data = serializers.JSONField()
+    order = serializers.IntegerField(default=0)
+
+
+class EditExerciseSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    type = serializers.ChoiceField(choices=["mcq", "sort"])
+    data = serializers.JSONField()
+    order = serializers.IntegerField(default=0)
