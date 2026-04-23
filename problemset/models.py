@@ -93,37 +93,36 @@ class ProblemSetBadge(models.Model):
     
     def recalculate_user_badges(self):
         """重新计算所有用户的徽章资格"""
-        # 获取所有已加入该题单的用户进度
+        from django.db import transaction
+
         user_progresses = ProblemSetProgress.objects.filter(problemset=self.problemset)
-        
-        # 删除该徽章的所有现有用户徽章记录
-        UserBadge.objects.filter(badge=self).delete()
-        
-        # 重新评估每个用户的徽章资格
-        for progress in user_progresses:
-            self._check_user_badge_eligibility(progress)
-    
-    def _check_user_badge_eligibility(self, progress):
-        """检查用户是否符合该徽章的条件"""
-        
-        # 检查是否已经拥有该徽章
-        if UserBadge.objects.filter(user=progress.user, badge=self).exists():
-            return False
-        
-        # 根据条件类型检查用户是否符合条件
+        new_badges = [
+            UserBadge(user=progress.user, badge=self)
+            for progress in user_progresses
+            if self._is_eligible(progress)
+        ]
+        with transaction.atomic():
+            UserBadge.objects.filter(badge=self).delete()
+            if new_badges:
+                UserBadge.objects.bulk_create(new_badges)
+
+    def _is_eligible(self, progress):
+        """判断用户进度是否满足该徽章条件（纯逻辑，不查数据库）"""
         if self.condition_type == "all_problems":
-            if progress.completed_problems_count == progress.total_problems_count:
-                UserBadge.objects.create(user=progress.user, badge=self)
-                return True
-        elif self.condition_type == "problem_count":
-            if progress.completed_problems_count >= self.condition_value:
-                UserBadge.objects.create(user=progress.user, badge=self)
-                return True
-        elif self.condition_type == "score":
-            if progress.total_score >= self.condition_value:
-                UserBadge.objects.create(user=progress.user, badge=self)
-                return True
-        
+            return progress.completed_problems_count == progress.total_problems_count
+        if self.condition_type == "problem_count":
+            return progress.completed_problems_count >= self.condition_value
+        if self.condition_type == "score":
+            return progress.total_score >= self.condition_value
+        return False
+
+    def _check_user_badge_eligibility(self, progress):
+        """检查并授予单个用户的徽章（供外部单次调用）"""
+        if self._is_eligible(progress) and not UserBadge.objects.filter(
+            user=progress.user, badge=self
+        ).exists():
+            UserBadge.objects.create(user=progress.user, badge=self)
+            return True
         return False
 
 

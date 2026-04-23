@@ -17,3 +17,6 @@ class Message(models.Model):
     class Meta:
         db_table = "message"
         ordering = ("-create_time",)
+        indexes = [
+            models.Index(fields=["recipient", "create_time"], name="message_recipient_time_idx"),
+        ]

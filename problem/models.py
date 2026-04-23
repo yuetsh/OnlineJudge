@@ -95,6 +95,7 @@ class Problem(models.Model):
         ordering = ("create_time",)
         indexes = [
             models.Index(fields=["contest", "visible"], name="problem_contest_visible_idx"),
+            models.Index(fields=["visible"], name="problem_visible_idx"),
         ]
 
     def add_submission_number(self):

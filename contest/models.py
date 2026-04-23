@@ -82,6 +82,7 @@ class ACMContestRank(AbstractContestRank):
         indexes = [
             models.Index(fields=["contest", "accepted_number", "total_time"],
                          name="acm_rank_order_idx"),
+            models.Index(fields=["contest", "user"], name="acm_rank_contest_user_idx"),
         ]
 
 
@@ -96,6 +97,7 @@ class OIContestRank(AbstractContestRank):
         unique_together = (("user", "contest"),)
         indexes = [
             models.Index(fields=["contest", "total_score"], name="oi_rank_order_idx"),
+            models.Index(fields=["contest", "user"], name="oi_rank_contest_user_idx"),
         ]
 
 

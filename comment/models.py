@@ -40,5 +40,8 @@ class Comment(models.Model):
     class Meta:
         db_table = "comment"
         ordering = ("-create_time",)
+        indexes = [
+            models.Index(fields=["problem", "create_time"], name="comment_problem_time_idx"),
+        ]
 
 
