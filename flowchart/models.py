@@ -37,7 +37,7 @@ class FlowchartSubmission(models.Model):
     
     # 处理信息
     ai_provider = models.CharField(max_length=50, default='deepseek')
-    ai_model = models.CharField(max_length=50, default='deepseek-chat')
+    ai_model = models.CharField(max_length=50, default='deepseek-v4-flash')
     processing_time = models.FloatField(null=True, blank=True)  # AI处理耗时(秒)
     evaluation_time = models.DateTimeField(null=True, blank=True) # 评分完成时间
     

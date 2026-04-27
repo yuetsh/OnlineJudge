@@ -6,7 +6,7 @@ from account.models import User
 class AIAnalysis(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     provider = models.TextField(default="deepseek")
-    model = models.TextField(default="deepseek-chat")
+    model = models.TextField(default="deepseek-v4-flash")
     data = models.JSONField()
     system_prompt = models.TextField()
     user_prompt = models.TextField()
