@@ -12,7 +12,7 @@ from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.utils.timezone import now
 from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
-from otpauth import OtpAuth
+from otpauth import TOTP
 
 from options.options import SysOptions
 from problem.models import Problem
@@ -40,6 +40,22 @@ from ..serializers import (
     UserRegisterSerializer,
 )
 from ..tasks import send_email_async
+
+
+def _totp(token):
+    return TOTP(token.encode("utf-8"))
+
+
+def _totp_uri(token, label, issuer):
+    return _totp(token).to_uri(label, issuer)
+
+
+def _valid_totp(token, code):
+    try:
+        code = int(code)
+    except (TypeError, ValueError):
+        return False
+    return _totp(token).verify(code)
 
 
 class UserProfileAPI(APIView):
@@ -142,9 +158,7 @@ class TwoFactorAuthAPI(APIView):
 
         label = f"{SysOptions.website_name_shortcut}:{user.username}"
         image = qrcode.make(
-            OtpAuth(token).to_uri(
-                "totp", label, SysOptions.website_name.replace(" ", "")
-            )
+            _totp_uri(token, label, SysOptions.website_name.replace(" ", ""))
         )
         return self.success(img2base64(image))
 
@@ -156,7 +170,7 @@ class TwoFactorAuthAPI(APIView):
         """
         code = request.data["code"]
         user = request.user
-        if OtpAuth(user.tfa_token).valid_totp(code):
+        if _valid_totp(user.tfa_token, code):
             user.two_factor_auth = True
             user.save()
             return self.success("Succeeded")
@@ -170,7 +184,7 @@ class TwoFactorAuthAPI(APIView):
         user = request.user
         if not user.two_factor_auth:
             return self.error("2FA is already turned off")
-        if OtpAuth(user.tfa_token).valid_totp(code):
+        if _valid_totp(user.tfa_token, code):
             user.two_factor_auth = False
             user.save()
             return self.success("Succeeded")
@@ -219,7 +233,7 @@ class UserLoginAPI(APIView):
             if user.two_factor_auth and "tfa_code" not in data:
                 return self.error("tfa_required")
 
-            if OtpAuth(user.tfa_token).valid_totp(data["tfa_code"]):
+            if _valid_totp(user.tfa_token, data["tfa_code"]):
                 prev_login = user.last_login
                 auth.login(request, user)
                 request.session["prev_login"] = (
@@ -294,7 +308,7 @@ class UserChangeEmailAPI(APIView):
             if user.two_factor_auth:
                 if "tfa_code" not in data:
                     return self.error("tfa_required")
-                if not OtpAuth(user.tfa_token).valid_totp(data["tfa_code"]):
+                if not _valid_totp(user.tfa_token, data["tfa_code"]):
                     return self.error("Invalid two factor verification code")
             data["new_email"] = data["new_email"].lower()
             if User.objects.filter(email=data["new_email"]).exists():
@@ -320,7 +334,7 @@ class UserChangePasswordAPI(APIView):
             if user.two_factor_auth:
                 if "tfa_code" not in data:
                     return self.error("tfa_required")
-                if not OtpAuth(user.tfa_token).valid_totp(data["tfa_code"]):
+                if not _valid_totp(user.tfa_token, data["tfa_code"]):
                     return self.error("Invalid two factor verification code")
             user.set_password(data["new_password"])
             user.save()

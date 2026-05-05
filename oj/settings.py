@@ -10,9 +10,14 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/1.8/ref/settings/
 """
 
+import logging
 import os
-import raven
 from copy import deepcopy
+
+import sentry_sdk
+from sentry_sdk.integrations.django import DjangoIntegration
+from sentry_sdk.integrations.logging import LoggingIntegration
+
 from utils.shortcuts import get_env
 
 production_env = get_env("OJ_ENV", "dev") == "production"
@@ -39,9 +44,6 @@ VENDOR_APPS = [
     "django_dramatiq",
     "django_dbconn_retry",
 ]
-
-if production_env:
-    VENDOR_APPS.append("raven.contrib.django.raven_compat")
 
 
 LOCAL_APPS = [
@@ -148,7 +150,19 @@ HITOKOTO_DIR = os.path.join(DATA_DIR, "hitokoto")
 STATICFILES_DIRS = [os.path.join(DATA_DIR, "public")]
 
 
-LOGGING_HANDLERS = ["console", "sentry"] if production_env else ["console"]
+SENTRY_DSN = get_env("SENTRY_DSN")
+if production_env and SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[
+            DjangoIntegration(),
+            LoggingIntegration(level=logging.INFO, event_level=logging.ERROR),
+        ],
+        send_default_pii=False,
+    )
+
+
+LOGGING_HANDLERS = ["console"]
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
@@ -162,11 +176,6 @@ LOGGING = {
         "console": {
             "level": "DEBUG",
             "class": "logging.StreamHandler",
-            "formatter": "standard",
-        },
-        "sentry": {
-            "level": "ERROR",
-            "class": "raven.contrib.django.raven_compat.handlers.SentryHandler",
             "formatter": "standard",
         },
     },
@@ -254,10 +263,6 @@ DRAMATIQ_RESULT_BACKEND = {
         "url": f"{REDIS_URL}/4",
     },
     "MIDDLEWARE_OPTIONS": {"result_ttl": None},
-}
-
-RAVEN_CONFIG = {
-    "dsn": "https://b200023b8aed4d708fb593c5e0a6ad3d:1fddaba168f84fcf97e0d549faaeaff0@sentry.io/263057"
 }
 
 IP_HEADER = "HTTP_X_REAL_IP"
