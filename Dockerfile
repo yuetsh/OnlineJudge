@@ -2,7 +2,7 @@ FROM python:3.12.2-alpine
 ARG TARGETARCH
 ARG TARGETVARIANT
 
-RUN sed -i 's#https\?://dl-cdn.alpinelinux.org/alpine#https://mirrors.ustc.edu.cn/alpine#g' /etc/apk/repositories
+RUN sed -i 's|dl-cdn.alpinelinux.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apk/repositories
 
 ENV OJ_ENV production
 WORKDIR /app
