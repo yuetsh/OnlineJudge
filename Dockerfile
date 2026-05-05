@@ -13,7 +13,7 @@ RUN --mount=type=cache,target=/var/cache/apk,id=apk-cache-$TARGETARCH$TARGETVARI
     --mount=type=cache,target=/root/.cache/pip,id=pip-cache-$TARGETARCH$TARGETVARIANT-final \
     <<EOS
 set -ex
-pip config set global.index-url https://mirrors.ustc.edu.cn/pypi/web/simple
+pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
 apk update
 apk add --no-cache \
   gcc libc-dev python3-dev \
