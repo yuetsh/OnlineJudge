@@ -11,6 +11,9 @@ class CreateFlowchartSubmissionSerializer(serializers.Serializer):
     def validate_mermaid_code(self, value):
         if not value.strip():
             raise serializers.ValidationError("Mermaid代码不能为空")
+        lines = [line for line in value.split("\n") if line.strip()]
+        if len(lines) > 200:
+            raise serializers.ValidationError("流程图过于复杂，请简化后提交")
         return value
 
     def validate_flowchart_data(self, value):
@@ -21,11 +24,13 @@ class CreateFlowchartSubmissionSerializer(serializers.Serializer):
 
 
 class FlowchartSubmissionSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source="user.username", read_only=True)
+
     class Meta:
         model = FlowchartSubmission
         fields = [
             "id",
-            "user",
+            "username",
             "problem",
             "mermaid_code",
             "flowchart_data",

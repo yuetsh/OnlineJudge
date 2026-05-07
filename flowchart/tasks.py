@@ -14,6 +14,7 @@ from .models import FlowchartSubmission, FlowchartSubmissionStatus
 @dramatiq.actor(**DRAMATIQ_WORKER_ARGS(max_retries=3))
 def evaluate_flowchart_task(submission_id):
     """异步AI评分任务"""
+    submission = None
     try:
         submission = FlowchartSubmission.objects.get(id=submission_id)
         
@@ -54,19 +55,19 @@ def evaluate_flowchart_task(submission_id):
         client = get_ai_client()
         
         response = client.chat.completions.create(
-            model="deepseek-reasoner",
+            model="deepseek-v4-flash",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
             ],
             temperature=0.3,
         )
-        
+
         ai_response = response.choices[0].message.content
         score_data = parse_ai_evaluation_response(ai_response)
-        
+
         processing_time = time.time() - start_time
-        
+
         # 保存评分结果
         with transaction.atomic():
             submission.ai_score = score_data['score']
@@ -75,7 +76,7 @@ def evaluate_flowchart_task(submission_id):
             submission.ai_suggestions = score_data.get('suggestions', '')
             submission.ai_criteria_details = score_data.get('criteria_details', {})
             submission.ai_provider = 'deepseek'
-            submission.ai_model = 'deepseek-reasoner'
+            submission.ai_model = 'deepseek-v4-flash'
             submission.processing_time = processing_time
             submission.status = FlowchartSubmissionStatus.COMPLETED
             submission.evaluation_time = timezone.now()
@@ -94,21 +95,20 @@ def evaluate_flowchart_task(submission_id):
         )
         
     except Exception as e:
-        # 处理失败
-        submission.status = FlowchartSubmissionStatus.FAILED
-        submission.save()
-        
-        # 推送错误通知
-        from utils.websocket import push_flowchart_evaluation_update
-        push_flowchart_evaluation_update(
-            submission_id=str(submission.id),
-            user_id=submission.user_id,
-            data={
-                "type": "flowchart_evaluation_failed",
-                "submission_id": str(submission.id),
-                "error": str(e)
-            }
-        )
+        if submission is not None:
+            submission.status = FlowchartSubmissionStatus.FAILED
+            submission.save()
+
+            from utils.websocket import push_flowchart_evaluation_update
+            push_flowchart_evaluation_update(
+                submission_id=str(submission.id),
+                user_id=submission.user_id,
+                data={
+                    "type": "flowchart_evaluation_failed",
+                    "submission_id": str(submission.id),
+                    "error": str(e),
+                },
+            )
         raise e
 
 def build_evaluation_prompt(problem):
@@ -159,11 +159,17 @@ def build_evaluation_prompt(problem):
 def parse_ai_evaluation_response(ai_response):
     """解析AI评分响应，解析失败时抛出异常由调用方处理"""
     import re
-    json_match = re.search(r'\{.*\}', ai_response, re.DOTALL)
-    if not json_match:
-        raise ValueError("AI响应中未找到JSON数据")
+    # 优先匹配代码块中的 JSON，避免贪婪匹配误抓 reasoning 段落
+    code_block = re.search(r'```(?:json)?\s*(\{[\s\S]*?\})\s*```', ai_response, re.DOTALL)
+    if code_block:
+        json_str = code_block.group(1)
+    else:
+        json_match = re.search(r'\{.*\}', ai_response, re.DOTALL)
+        if not json_match:
+            raise ValueError("AI响应中未找到JSON数据")
+        json_str = json_match.group()
 
-    data = json.loads(json_match.group())
+    data = json.loads(json_str)
 
     if "score" not in data or "grade" not in data:
         raise ValueError("AI响应缺少必要字段: score 或 grade")

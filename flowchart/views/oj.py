@@ -80,10 +80,13 @@ class FlowchartSubmissionListAPI(APIView):
             except Problem.DoesNotExist:
                 return self.error("Problem doesn't exist")
             queryset = queryset.filter(problem=problem)
+
         if myself and myself == "1":
             queryset = queryset.filter(user=request.user)
-        if username:
+        elif username:
             queryset = queryset.filter(user__username__icontains=username)
+        elif request.user.is_regular_user():
+            queryset = queryset.filter(user=request.user)
 
         data = self.paginate_data(request, queryset)
         data["results"] = FlowchartSubmissionListSerializer(
@@ -151,7 +154,10 @@ class FlowchartSubmissionDetailAPI(APIView):
         except Problem.DoesNotExist:
             return self.error("Problem doesn't exist")
 
-        page = int(request.GET.get("page", 0))
+        try:
+            page = int(request.GET.get("page", 0))
+        except ValueError:
+            return self.error("page must be an integer")
         submissions = FlowchartSubmission.objects.filter(
             user=request.user,
             problem=problem,

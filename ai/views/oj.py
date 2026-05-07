@@ -155,7 +155,7 @@ def stream_ai_response(client, system_prompt, user_prompt, on_complete=None):
     """SSE 流式响应生成器，on_complete(full_text) 在流结束时调用"""
     try:
         stream = client.chat.completions.create(
-            model="deepseek-reasoner",
+            model="deepseek-v4-flash",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
@@ -574,7 +574,7 @@ class AILoginSummaryAPI(APIView):
 
         try:
             completion = client.chat.completions.create(
-                model="deepseek-reasoner",
+                model="deepseek-v4-flash",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
@@ -608,7 +608,7 @@ class AIAnalysisAPI(APIView):
             AIAnalysis.objects.create(
                 user=request.user,
                 provider="deepseek",
-                model="deepseek-reasoner",
+                model="deepseek-v4-flash",
                 data={"details": details, "duration": duration},
                 system_prompt=system_prompt,
                 user_prompt="这段时间内的详细数据，每周或每月的数据。",
