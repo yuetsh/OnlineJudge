@@ -16,10 +16,10 @@ jobs:
         include:
           - name: debian
             remote_port: 22
-            script: /root/OJ/backend.sh
+            script: /root/OJDeploy/backend.sh
           - name: school
             remote_port: 8822
-            script: /root/OJDeploy/backend.sh
+            script: /root/OJ/backend.sh
     steps:
       - name: Deploy to ${{ matrix.name }}
         uses: appleboy/ssh-action@v1
