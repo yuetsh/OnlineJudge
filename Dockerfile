@@ -4,7 +4,7 @@ ARG TARGETVARIANT
 
 RUN sed -i 's|dl-cdn.alpinelinux.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apk/repositories
 
-ENV OJ_ENV production
+ENV OJ_ENV=production
 WORKDIR /app
 
 COPY ./deploy/requirements.txt /app/deploy/
