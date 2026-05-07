@@ -204,8 +204,14 @@ class AIDetailDataAPI(APIView):
     def get(self, request):
         start = request.GET.get("start")
         end = request.GET.get("end")
+        username = request.GET.get("username")
 
         user = request.user
+        if username and request.user.is_super_admin():
+            try:
+                user = User.objects.get(username=username)
+            except User.DoesNotExist:
+                return self.error("User not found")
 
         cache_key = get_cache_key(
             "ai_detail", user.id, user.class_name or "", start, end
@@ -385,8 +391,14 @@ class AIDurationDataAPI(APIView):
     def get(self, request):
         end_iso = request.GET.get("end")
         duration = request.GET.get("duration")
+        username = request.GET.get("username")
 
         user = request.user
+        if username and request.user.is_super_admin():
+            try:
+                user = User.objects.get(username=username)
+            except User.DoesNotExist:
+                return self.error("User not found")
 
         cache_key = get_cache_key(
             "ai_duration", user.id, user.class_name or "", end_iso, duration
@@ -668,7 +680,13 @@ class AIHintAPI(APIView):
 class AIHeatmapDataAPI(APIView):
     @login_required
     def get(self, request):
+        username = request.GET.get("username")
         user = request.user
+        if username and request.user.is_super_admin():
+            try:
+                user = User.objects.get(username=username)
+            except User.DoesNotExist:
+                return self.error("User not found")
         cache_key = get_cache_key("ai_heatmap", user.id, user.class_name or "")
         cached_result = cache.get(cache_key)
         if cached_result:
