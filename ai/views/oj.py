@@ -387,7 +387,7 @@ class AIDetailDataAPI(APIView):
                     "ac_time": timezone.localtime(item["first_ac_time"]).isoformat(),
                     "rank": rank,
                     "ac_count": len(ranking_list),
-                    "grade": get_grade(rank, len(ranking_list)),
+                    "grade": get_grade(period_rank, len(period_ranking_list)),
                     "period_rank": period_rank,
                     "period_ac_count": len(period_ranking_list),
                     "difficulty": get_difficulty(problem.difficulty),
@@ -462,7 +462,7 @@ class AIDurationDataAPI(APIView):
             }
 
             if submission_count > 0:
-                user_first_ac, by_problem, problem_ids = get_user_first_ac_submissions(
+                user_first_ac, _, problem_ids = get_user_first_ac_submissions(
                     user.id,
                     start.isoformat(),
                     period_end.isoformat(),
@@ -471,10 +471,25 @@ class AIDurationDataAPI(APIView):
                 )
                 if user_first_ac:
                     period_data["problem_count"] = len(problem_ids)
+                    by_problem_period = defaultdict(list)
+                    period_qs = Submission.objects.filter(
+                        result=JudgeStatus.ACCEPTED,
+                        problem_id__in=problem_ids,
+                        create_time__gte=start,
+                        create_time__lte=period_end,
+                    )
+                    if use_class_scope and class_user_ids:
+                        period_qs = period_qs.filter(user_id__in=class_user_ids)
+                    for row in period_qs.values("user_id", "problem_id").annotate(
+                        first_ac_time=Min("create_time")
+                    ):
+                        by_problem_period[row["problem_id"]].append(row)
+                    for lst in by_problem_period.values():
+                        lst.sort(key=lambda x: (x["first_ac_time"], x["user_id"]))
                     grades = [
                         get_grade(
-                            find_user_rank(by_problem.get(item["problem_id"], []), user.id),
-                            len(by_problem.get(item["problem_id"], [])),
+                            find_user_rank(by_problem_period.get(item["problem_id"], []), user.id),
+                            len(by_problem_period.get(item["problem_id"], [])),
                         )
                         for item in user_first_ac
                     ]
