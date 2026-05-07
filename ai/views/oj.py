@@ -121,14 +121,14 @@ def get_class_user_ids(user):
 def get_user_first_ac_submissions(
     user_id, start, end, class_user_ids=None, use_class_scope=False
 ):
-    base_qs = Submission.objects.filter(
-        result=JudgeStatus.ACCEPTED, create_time__gte=start, create_time__lte=end
-    )
-    if use_class_scope and class_user_ids:
-        base_qs = base_qs.filter(user_id__in=class_user_ids)
-
+    # 用户自己的 AC 记录按时间范围过滤
     user_first_ac = list(
-        base_qs.filter(user_id=user_id)
+        Submission.objects.filter(
+            result=JudgeStatus.ACCEPTED,
+            user_id=user_id,
+            create_time__gte=start,
+            create_time__lte=end,
+        )
         .values("problem_id")
         .annotate(first_ac_time=Min("create_time"))
     )
@@ -136,10 +136,17 @@ def get_user_first_ac_submissions(
         return [], {}, []
 
     problem_ids = [item["problem_id"] for item in user_first_ac]
+
+    # 排名基于全局数据（不限时间），后注册的学生与所有人公平竞争
+    rank_qs = Submission.objects.filter(
+        result=JudgeStatus.ACCEPTED,
+        problem_id__in=problem_ids,
+    )
+    if use_class_scope and class_user_ids:
+        rank_qs = rank_qs.filter(user_id__in=class_user_ids)
+
     ranked_first_ac = list(
-        base_qs.filter(problem_id__in=problem_ids)
-        .values("user_id", "problem_id")
-        .annotate(first_ac_time=Min("create_time"))
+        rank_qs.values("user_id", "problem_id").annotate(first_ac_time=Min("create_time"))
     )
 
     by_problem = defaultdict(list)
@@ -226,6 +233,24 @@ class AIDetailDataAPI(APIView):
             user.id, start, end, class_user_ids, use_class_scope
         )
 
+        # 同期排名：只统计时间窗口内解题的人
+        by_problem_period = defaultdict(list)
+        if problem_ids:
+            period_qs = Submission.objects.filter(
+                result=JudgeStatus.ACCEPTED,
+                problem_id__in=problem_ids,
+                create_time__gte=start,
+                create_time__lte=end,
+            )
+            if use_class_scope and class_user_ids:
+                period_qs = period_qs.filter(user_id__in=class_user_ids)
+            for item in period_qs.values("user_id", "problem_id").annotate(
+                first_ac_time=Min("create_time")
+            ):
+                by_problem_period[item["problem_id"]].append(item)
+            for lst in by_problem_period.values():
+                lst.sort(key=lambda x: (x["first_ac_time"], x["user_id"]))
+
         result = {
             "user": user.username,
             "class_name": user.class_name,
@@ -247,7 +272,7 @@ class AIDetailDataAPI(APIView):
                 .prefetch_related("tags")
             }
             solved, contest_ids = self._build_solved_records(
-                user_first_ac, by_problem, problems, user.id
+                user_first_ac, by_problem, by_problem_period, problems, user.id
             )
             # 查找 flowchart submissions
             flowcharts_query = FlowchartSubmission.objects.filter(
@@ -334,7 +359,7 @@ class AIDetailDataAPI(APIView):
         cache.set(cache_key, result, CACHE_TIMEOUT)
         return self.success(result)
 
-    def _build_solved_records(self, user_first_ac, by_problem, problems, user_id):
+    def _build_solved_records(self, user_first_ac, by_problem, by_problem_period, problems, user_id):
         solved, contest_ids = [], []
         for item in user_first_ac:
             pid = item["problem_id"]
@@ -344,6 +369,9 @@ class AIDetailDataAPI(APIView):
 
             ranking_list = by_problem.get(pid, [])
             rank = find_user_rank(ranking_list, user_id)
+
+            period_ranking_list = by_problem_period.get(pid, [])
+            period_rank = find_user_rank(period_ranking_list, user_id)
 
             if problem.contest_id:
                 contest_ids.append(problem.contest_id)
@@ -360,6 +388,8 @@ class AIDetailDataAPI(APIView):
                     "rank": rank,
                     "ac_count": len(ranking_list),
                     "grade": get_grade(rank, len(ranking_list)),
+                    "period_rank": period_rank,
+                    "period_ac_count": len(period_ranking_list),
                     "difficulty": get_difficulty(problem.difficulty),
                 }
             )
