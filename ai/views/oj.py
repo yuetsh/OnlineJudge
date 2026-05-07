@@ -54,7 +54,7 @@ def get_difficulty(difficulty):
     return DIFFICULTY_MAP.get(difficulty, "中等")
 
 
-def get_grade(rank, submission_count):
+def get_grade(rank, submission_count, reference_count=None):
     """
     计算题目完成评级
 
@@ -65,7 +65,8 @@ def get_grade(rank, submission_count):
     - C级：75%之后，及格水平（25%的人）
 
     特殊规则：
-    - 参与人数少于10人时，S级降为A级，A级降为B级（避免因人少而评级虚高）
+    - 小规模惩罚用 reference_count（全时段人数）判断，避免同期窗口窄导致惩罚误触发
+    - reference_count 未传时退化为 submission_count
     """
     if not rank or rank <= 0 or submission_count <= 0:
         return "C"
@@ -78,7 +79,8 @@ def get_grade(rank, submission_count):
             base_grade = grade
             break
 
-    if submission_count < SMALL_SCALE_PENALTY["threshold"]:
+    penalty_count = reference_count if reference_count is not None else submission_count
+    if penalty_count < SMALL_SCALE_PENALTY["threshold"]:
         base_grade = SMALL_SCALE_PENALTY["downgrade"].get(base_grade, base_grade)
 
     return base_grade
@@ -119,7 +121,7 @@ def get_class_user_ids(user):
 
 
 def get_user_first_ac_submissions(
-    user_id, start, end, class_user_ids=None, use_class_scope=False
+    user_id, start, end, class_user_ids=None, use_class_scope=False, include_all_time=True
 ):
     # 用户自己的 AC 记录按时间范围过滤
     user_first_ac = list(
@@ -136,6 +138,9 @@ def get_user_first_ac_submissions(
         return [], {}, []
 
     problem_ids = [item["problem_id"] for item in user_first_ac]
+
+    if not include_all_time:
+        return user_first_ac, {}, problem_ids
 
     # 排名基于全局数据（不限时间），后注册的学生与所有人公平竞争
     rank_qs = Submission.objects.filter(
@@ -387,7 +392,7 @@ class AIDetailDataAPI(APIView):
                     "ac_time": timezone.localtime(item["first_ac_time"]).isoformat(),
                     "rank": rank,
                     "ac_count": len(ranking_list),
-                    "grade": get_grade(period_rank, len(period_ranking_list)),
+                    "grade": get_grade(period_rank, len(period_ranking_list), reference_count=len(ranking_list)),
                     "period_rank": period_rank,
                     "period_ac_count": len(period_ranking_list),
                     "difficulty": get_difficulty(problem.difficulty),
@@ -468,6 +473,7 @@ class AIDurationDataAPI(APIView):
                     period_end.isoformat(),
                     class_user_ids,
                     use_class_scope,
+                    include_all_time=False,
                 )
                 if user_first_ac:
                     period_data["problem_count"] = len(problem_ids)
@@ -732,12 +738,12 @@ class AIHeatmapDataAPI(APIView):
                 user = User.objects.get(username=username)
             except User.DoesNotExist:
                 return self.error("User not found")
-        cache_key = get_cache_key("ai_heatmap", user.id, user.class_name or "")
+        end = timezone.now()
+        today = end.date().isoformat()
+        cache_key = get_cache_key("ai_heatmap", user.id, user.class_name or "", today)
         cached_result = cache.get(cache_key)
         if cached_result:
             return self.success(cached_result)
-
-        end = datetime.now()
         start = end - timedelta(days=365)
 
         # 使用单次查询获取所有数据，按日期分组统计
