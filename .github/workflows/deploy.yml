@@ -1,0 +1,31 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - yuetsh
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - name: debian
+            remote_port: 22
+            script: /root/OJ/backend.sh
+          - name: school
+            remote_port: 8822
+            script: /root/OJDeploy/backend.sh
+    steps:
+      - name: Deploy to ${{ matrix.name }}
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.HOST }}
+          port: ${{ matrix.remote_port }}
+          username: root
+          key: ${{ secrets.KEY }}
+          script: sh ${{ matrix.script }}
