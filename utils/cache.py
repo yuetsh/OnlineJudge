@@ -11,6 +11,15 @@ class MyRedisClient(DefaultClient):
         client = self.get_client(write=True)
         return getattr(client, item)
 
+    def hget(self, name, key, version=None, client=None):
+        if client is None:
+            client = self.get_client(write=True)
+        nkey = self.make_key(key, version=version)
+        value = client.hget(name, nkey)
+        if value is None:
+            return None
+        return self.decode(value)
+
     def redis_incr(self, key, count=1):
         """
         django 默认的 incr 在 key 不存在时候会抛异常
