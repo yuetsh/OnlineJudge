@@ -173,7 +173,7 @@ def stream_ai_response(client, system_prompt, user_prompt, on_complete=None):
                 {"role": "user", "content": user_prompt},
             ],
             stream=True,
-            extra_body={"thinking": False},
+            extra_body={"thinking": {"type": "disabled"}},
         )
     except Exception as exc:
         yield f"data: {json.dumps({'type': 'error', 'message': str(exc)})}\n\n"
@@ -643,7 +643,7 @@ class AILoginSummaryAPI(APIView):
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
-                extra_body={"thinking": False},
+                extra_body={"thinking": {"type": "disabled"}},
             )
         except Exception as exc:
             return "", str(exc)
