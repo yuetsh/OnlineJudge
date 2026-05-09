@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**OnlineJudge** is the backend for an Online Judge platform. Built with Django 5 + Django REST Framework, PostgreSQL, Redis, Django Channels (WebSocket), and Dramatiq (async task queue). Python 3.12+, managed with `uv`.
+**OnlineJudge** is the backend for an Online Judge platform. Built with Django 6 + Django REST Framework, PostgreSQL, Redis, Django Channels (WebSocket), and Dramatiq (async task queue). Python 3.12+, managed with `uv`.
 
 ## Commands
 
@@ -23,9 +23,10 @@ uv add <package>                 # Add a dependency
 python manage.py test            # Run all tests
 python manage.py test account    # Run tests for a single app
 python manage.py test account.tests.TestClassName  # Run a single test class
-python run_test.py               # Run flake8 lint + coverage in one step
-python run_test.py -m account    # Run flake8 + tests for a single module
-python run_test.py -c            # Run flake8 + tests + open HTML coverage report
+
+# Linting
+ruff check .                     # Lint (E, F, I rules, 180-char line length)
+ruff format .                    # Format (double quotes)
 
 ## Testing Policy
 
@@ -136,7 +137,7 @@ Test cases and submission outputs are stored in a separate data directory (confi
 | Judge statuses | COMPILE_ERROR(-2), WRONG_ANSWER(-1), ACCEPTED(0), CPU_TLE(1), REAL_TLE(2), MLE(3), RE(4), SE(5), PENDING(6), JUDGING(7), PARTIALLY_ACCEPTED(8) |
 | User roles | Regular / Admin / Super Admin |
 | Contest types | Public vs Password Protected |
-| Supported languages | C, C++, Python2, Python3, Java, JavaScript, Golang, Flowchart |
+| Supported languages | C, C++, Python3, Java, JavaScript, Golang |
 
 ## Related Repository
 
