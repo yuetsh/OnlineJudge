@@ -12,7 +12,6 @@ https://docs.djangoproject.com/en/1.8/ref/settings/
 
 import logging
 import os
-from copy import deepcopy
 
 import sentry_sdk
 from sentry_sdk.integrations.django import DjangoIntegration
