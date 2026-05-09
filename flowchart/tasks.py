@@ -3,8 +3,6 @@ import logging
 import time
 
 import dramatiq
-
-logger = logging.getLogger(__name__)
 from django.db import transaction
 from django.utils import timezone
 
@@ -12,6 +10,8 @@ from utils.openai import get_ai_client
 from utils.shortcuts import DRAMATIQ_WORKER_ARGS
 
 from .models import FlowchartSubmission, FlowchartSubmissionStatus
+
+logger = logging.getLogger(__name__)
 
 
 @dramatiq.actor(**DRAMATIQ_WORKER_ARGS(max_retries=3))

@@ -5,16 +5,16 @@ from django.db import models
 from utils.models import JSONField
 
 
-class AdminType(object):
-    REGULAR_USER = "Regular User"
-    ADMIN = "Admin"
-    SUPER_ADMIN = "Super Admin"
+class AdminType(models.TextChoices):
+    REGULAR_USER = "Regular User", "Regular User"
+    ADMIN = "Admin", "Admin"
+    SUPER_ADMIN = "Super Admin", "Super Admin"
 
 
-class ProblemPermission(object):
-    NONE = "None"
-    OWN = "Own"
-    ALL = "All"
+class ProblemPermission(models.TextChoices):
+    NONE = "None", "None"
+    OWN = "Own", "Own"
+    ALL = "All", "All"
 
 
 class UserManager(models.Manager):
@@ -30,8 +30,8 @@ class User(AbstractBaseUser):
     email = models.TextField(null=True)
     create_time = models.DateTimeField(auto_now_add=True, null=True)
     # One of UserType
-    admin_type = models.TextField(default=AdminType.REGULAR_USER)
-    problem_permission = models.TextField(default=ProblemPermission.NONE)
+    admin_type = models.TextField(default=AdminType.REGULAR_USER, choices=AdminType.choices)
+    problem_permission = models.TextField(default=ProblemPermission.NONE, choices=ProblemPermission.choices)
     reset_password_token = models.TextField(null=True)
     reset_password_token_expire_time = models.DateTimeField(null=True)
     # SSO auth token
@@ -43,9 +43,7 @@ class User(AbstractBaseUser):
     open_api = models.BooleanField(default=False)
     open_api_appkey = models.TextField(null=True)
     is_disabled = models.BooleanField(default=False)
-    raw_password = models.CharField(
-        max_length=20, null=True, blank=True, verbose_name="明文密码"
-    )
+    raw_password = models.CharField(max_length=20, null=True, blank=True, verbose_name="明文密码")
 
     USERNAME_FIELD = "username"
     REQUIRED_FIELDS = []
@@ -68,9 +66,7 @@ class User(AbstractBaseUser):
         return self.problem_permission == ProblemPermission.ALL
 
     def is_contest_admin(self, contest):
-        return self.is_authenticated and (
-            contest.created_by == self or self.admin_type == AdminType.SUPER_ADMIN
-        )
+        return self.is_authenticated and (contest.created_by == self or self.admin_type == AdminType.SUPER_ADMIN)
 
     def set_password(self, raw_password):
         super().set_password(raw_password)

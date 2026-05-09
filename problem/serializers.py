@@ -38,7 +38,7 @@ class CreateProblemCodeTemplateSerializer(serializers.Serializer):
 
 
 class ProblemIOModeSerializer(serializers.Serializer):
-    io_mode = serializers.ChoiceField(choices=ProblemIOMode.choices())
+    io_mode = serializers.ChoiceField(choices=ProblemIOMode.choices)
     input = serializers.CharField()
     output = serializers.CharField()
 
@@ -59,22 +59,16 @@ class CreateOrEditProblemSerializer(serializers.Serializer):
     output_description = serializers.CharField()
     samples = serializers.ListField(child=CreateSampleSerializer(), allow_empty=False)
     test_case_id = serializers.CharField(max_length=32)
-    test_case_score = serializers.ListField(
-        child=CreateTestCaseScoreSerializer(), allow_empty=True
-    )
+    test_case_score = serializers.ListField(child=CreateTestCaseScoreSerializer(), allow_empty=True)
     time_limit = serializers.IntegerField(min_value=1, max_value=1000 * 60)
     memory_limit = serializers.IntegerField(min_value=1, max_value=1024)
     languages = LanguageNameMultiChoiceField()
     template = serializers.DictField(child=serializers.CharField(min_length=1))
-    rule_type = serializers.ChoiceField(
-        choices=[ProblemRuleType.ACM, ProblemRuleType.OI]
-    )
+    rule_type = serializers.ChoiceField(choices=ProblemRuleType.choices)
     io_mode = ProblemIOModeSerializer()
     visible = serializers.BooleanField()
-    difficulty = serializers.ChoiceField(choices=Difficulty.choices())
-    tags = serializers.ListField(
-        child=serializers.CharField(max_length=32), allow_empty=False
-    )
+    difficulty = serializers.ChoiceField(choices=Difficulty.choices)
+    tags = serializers.ListField(child=serializers.CharField(max_length=32), allow_empty=False)
     hint = serializers.CharField(allow_blank=True, allow_null=True)
     source = serializers.CharField(max_length=256, allow_blank=True, allow_null=True)
     prompt = serializers.CharField(allow_blank=True, allow_null=True)
@@ -88,13 +82,9 @@ class CreateOrEditProblemSerializer(serializers.Serializer):
     # 流程图相关字段
     allow_flowchart = serializers.BooleanField(required=False, default=False)
     show_flowchart = serializers.BooleanField(required=False, default=False)
-    mermaid_code = serializers.CharField(
-        allow_blank=True, allow_null=True, required=False
-    )
+    mermaid_code = serializers.CharField(allow_blank=True, allow_null=True, required=False)
 
-    flowchart_hint = serializers.CharField(
-        allow_blank=True, allow_null=True, required=False
-    )
+    flowchart_hint = serializers.CharField(allow_blank=True, allow_null=True, required=False)
 
 
 class CreateProblemSerializer(CreateOrEditProblemSerializer):
@@ -219,6 +209,7 @@ class ProblemSafeSerializer(BaseProblemSerializer):
         if obj.allow_flowchart:
             return None
         return obj.flowchart_data
+
 
 class ContestProblemMakePublicSerializer(serializers.Serializer):
     id = serializers.IntegerField()

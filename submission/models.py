@@ -7,18 +7,18 @@ from utils.models import JSONField
 from utils.shortcuts import rand_str
 
 
-class JudgeStatus:
-    COMPILE_ERROR = -2
-    WRONG_ANSWER = -1
-    ACCEPTED = 0
-    CPU_TIME_LIMIT_EXCEEDED = 1
-    REAL_TIME_LIMIT_EXCEEDED = 2
-    MEMORY_LIMIT_EXCEEDED = 3
-    RUNTIME_ERROR = 4
-    SYSTEM_ERROR = 5
-    PENDING = 6
-    JUDGING = 7
-    PARTIALLY_ACCEPTED = 8
+class JudgeStatus(models.IntegerChoices):
+    COMPILE_ERROR = -2, "Compile Error"
+    WRONG_ANSWER = -1, "Wrong Answer"
+    ACCEPTED = 0, "Accepted"
+    CPU_TIME_LIMIT_EXCEEDED = 1, "CPU Time Limit Exceeded"
+    REAL_TIME_LIMIT_EXCEEDED = 2, "Real Time Limit Exceeded"
+    MEMORY_LIMIT_EXCEEDED = 3, "Memory Limit Exceeded"
+    RUNTIME_ERROR = 4, "Runtime Error"
+    SYSTEM_ERROR = 5, "System Error"
+    PENDING = 6, "Pending"
+    JUDGING = 7, "Judging"
+    PARTIALLY_ACCEPTED = 8, "Partially Accepted"
 
 
 class Submission(models.Model):
@@ -29,7 +29,7 @@ class Submission(models.Model):
     user_id = models.IntegerField(db_index=True)
     username = models.TextField()
     code = models.TextField()
-    result = models.IntegerField(db_index=True, default=JudgeStatus.PENDING)
+    result = models.IntegerField(choices=JudgeStatus.choices, db_index=True, default=JudgeStatus.PENDING)
     # 从JudgeServer返回的判题详情
     info = JSONField(default=dict)
     language = models.TextField()
@@ -40,11 +40,7 @@ class Submission(models.Model):
     ip = models.TextField(null=True)
 
     def check_user_permission(self, user, check_share=True):
-        if (
-            self.user_id == user.id
-            or not user.is_regular_user()
-            or self.problem.created_by_id == user.id
-        ):
+        if self.user_id == user.id or not user.is_regular_user() or self.problem.created_by_id == user.id:
             return True
 
         if check_share:
@@ -58,15 +54,9 @@ class Submission(models.Model):
         db_table = "submission"
         ordering = ("-create_time",)
         indexes = [
-            models.Index(
-                fields=["user_id", "create_time"], name="user_create_time_idx"
-            ),
-            models.Index(
-                fields=["contest_id", "-create_time"], name="contest_create_time_idx"
-            ),
-            models.Index(
-                fields=["problem_id", "user_id"], name="problem_user_idx"
-            ),
+            models.Index(fields=["user_id", "create_time"], name="user_create_time_idx"),
+            models.Index(fields=["contest_id", "-create_time"], name="contest_create_time_idx"),
+            models.Index(fields=["problem_id", "user_id"], name="problem_user_idx"),
         ]
 
     def __str__(self):

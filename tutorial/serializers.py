@@ -2,7 +2,7 @@ from rest_framework import serializers
 
 from account.serializers import UserSerializer
 
-from .models import Exercise, Tutorial
+from .models import Exercise, ExerciseType, Tutorial
 
 
 class TutorialListSerializer(serializers.ModelSerializer):
@@ -65,13 +65,13 @@ class ExerciseSerializer(serializers.ModelSerializer):
 
 class CreateExerciseSerializer(serializers.Serializer):
     tutorial_id = serializers.IntegerField()
-    type = serializers.ChoiceField(choices=["mcq", "sort", "fill"])
+    type = serializers.ChoiceField(choices=ExerciseType.choices)
     data = serializers.JSONField()
     order = serializers.IntegerField(default=0)
 
 
 class EditExerciseSerializer(serializers.Serializer):
     id = serializers.IntegerField()
-    type = serializers.ChoiceField(choices=["mcq", "sort", "fill"])
+    type = serializers.ChoiceField(choices=ExerciseType.choices)
     data = serializers.JSONField()
     order = serializers.IntegerField(default=0)

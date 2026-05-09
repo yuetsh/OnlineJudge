@@ -27,11 +27,7 @@ int main() {
         "max_memory": 256 * 1024 * 1024,
         "compile_command": "/usr/bin/gcc -DONLINE_JUDGE -O2 -w -fmax-errors=3 -std=c17 {src_path} -lm -o {exe_path}",
     },
-    "run": {
-        "command": "{exe_path}",
-        "seccomp_rule": {ProblemIOMode.standard: "c_cpp", ProblemIOMode.file: "c_cpp_file_io"},
-        "env": default_env
-    }
+    "run": {"command": "{exe_path}", "seccomp_rule": {ProblemIOMode.STANDARD: "c_cpp", ProblemIOMode.FILE: "c_cpp_file_io"}, "env": default_env},
 }
 
 
@@ -60,11 +56,7 @@ int main() {
         "max_memory": 1024 * 1024 * 1024,
         "compile_command": "/usr/bin/g++ -DONLINE_JUDGE -O2 -w -fmax-errors=3 -std=c++20 {src_path} -lm -o {exe_path}",
     },
-    "run": {
-        "command": "{exe_path}",
-        "seccomp_rule": {ProblemIOMode.standard: "c_cpp", ProblemIOMode.file: "c_cpp_file_io"},
-        "env": default_env
-    }
+    "run": {"command": "{exe_path}", "seccomp_rule": {ProblemIOMode.STANDARD: "c_cpp", ProblemIOMode.FILE: "c_cpp_file_io"}, "env": default_env},
 }
 
 
@@ -91,14 +83,9 @@ class Main {
         "max_cpu_time": 5000,
         "max_real_time": 10000,
         "max_memory": -1,
-        "compile_command": "/usr/bin/javac {src_path} -d {exe_dir}"
+        "compile_command": "/usr/bin/javac {src_path} -d {exe_dir}",
     },
-    "run": {
-        "command": "/usr/bin/java -cp {exe_dir} -XX:MaxRAM={max_memory}k Main",
-        "seccomp_rule": None,
-        "env": default_env,
-        "memory_limit_check_only": 1
-    }
+    "run": {"command": "/usr/bin/java -cp {exe_dir} -XX:MaxRAM={max_memory}k Main", "seccomp_rule": None, "env": default_env, "memory_limit_check_only": 1},
 }
 
 _py3_lang_config = {
@@ -122,11 +109,7 @@ print(add(1, 2))
         "max_memory": 128 * 1024 * 1024,
         "compile_command": "/usr/bin/python3 -m py_compile {src_path}",
     },
-    "run": {
-        "command": "/usr/bin/python3 -BS {exe_path}",
-        "seccomp_rule": "general",
-        "env": default_env
-    }
+    "run": {"command": "/usr/bin/python3 -BS {exe_path}", "seccomp_rule": "general", "env": default_env},
 }
 
 _go_lang_config = {
@@ -154,14 +137,9 @@ func main() {
         "max_real_time": 5000,
         "max_memory": 1024 * 1024 * 1024,
         "compile_command": "/usr/bin/go build -o {exe_path} {src_path}",
-        "env": ["GOCACHE=/tmp", "GOPATH=/tmp", "GOMAXPROCS=1"] + default_env
+        "env": ["GOCACHE=/tmp", "GOPATH=/tmp", "GOMAXPROCS=1"] + default_env,
     },
-    "run": {
-        "command": "{exe_path}",
-        "seccomp_rule": "golang",
-        "env": ["GOMAXPROCS=1"] + default_env,
-        "memory_limit_check_only": 1
-    }
+    "run": {"command": "{exe_path}", "seccomp_rule": "golang", "env": ["GOMAXPROCS=1"] + default_env, "memory_limit_check_only": 1},
 }
 
 _node_lang_config = {
@@ -184,14 +162,9 @@ console.log(add(1, 2))
         "max_real_time": 5000,
         "max_memory": 1024 * 1024 * 1024,
         "compile_command": "/usr/bin/node --check {src_path}",
-        "env": default_env
-    },
-    "run": {
-        "command": "/usr/bin/node {exe_path}",
-        "seccomp_rule": "node",
         "env": default_env,
-        "memory_limit_check_only": 1
-    }
+    },
+    "run": {"command": "/usr/bin/node {exe_path}", "seccomp_rule": "node", "env": default_env, "memory_limit_check_only": 1},
 }
 
 languages = [

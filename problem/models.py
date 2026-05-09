@@ -2,7 +2,7 @@ from django.db import models
 
 from account.models import User
 from contest.models import Contest
-from utils.constants import Choices
+from utils.constants import Difficulty
 from utils.models import RichTextField
 
 
@@ -13,25 +13,19 @@ class ProblemTag(models.Model):
         db_table = "problem_tag"
 
 
-class ProblemRuleType(Choices):
-    ACM = "ACM"
-    OI = "OI"
+class ProblemRuleType(models.TextChoices):
+    ACM = "ACM", "ACM"
+    OI = "OI", "OI"
 
 
-class ProblemDifficulty(object):
-    High = "High"
-    Mid = "Mid"
-    Low = "Low"
-
-
-class ProblemIOMode(Choices):
-    standard = "Standard IO"
-    file = "File IO"
+class ProblemIOMode(models.TextChoices):
+    STANDARD = "Standard IO", "Standard IO"
+    FILE = "File IO", "File IO"
 
 
 def _default_io_mode():
     return {
-        "io_mode": ProblemIOMode.standard,
+        "io_mode": ProblemIOMode.STANDARD,
         "input": "input.txt",
         "output": "output.txt",
     }
@@ -66,9 +60,9 @@ class Problem(models.Model):
     memory_limit = models.IntegerField()
     # io mode
     io_mode = models.JSONField(default=_default_io_mode)
-    rule_type = models.TextField()
+    rule_type = models.TextField(choices=ProblemRuleType.choices)
     visible = models.BooleanField(default=True)
-    difficulty = models.TextField()
+    difficulty = models.TextField(choices=Difficulty.choices)
     tags = models.ManyToManyField(ProblemTag)
     source = models.TextField(null=True)
     prompt = models.TextField(null=True)
@@ -81,7 +75,7 @@ class Problem(models.Model):
     # {JudgeStatus.ACCEPTED: 3, JudgeStatus.WRONG_ANSWER: 11}, the number means count
     statistic_info = models.JSONField(default=dict)
     share_submission = models.BooleanField(default=False)
-    
+
     # 流程图相关字段
     allow_flowchart = models.BooleanField(default=False)  # 是否允许/需要提交流程图
     mermaid_code = models.TextField(null=True, blank=True)  # 流程图答案(Mermaid代码)
@@ -91,7 +85,9 @@ class Problem(models.Model):
 
     class Meta:
         db_table = "problem"
-        unique_together = (("_id", "contest"),)
+        constraints = [
+            models.UniqueConstraint(fields=["_id", "contest"], name="unique_problem_id_contest"),
+        ]
         ordering = ("create_time",)
         indexes = [
             models.Index(fields=["contest", "visible"], name="problem_contest_visible_idx"),

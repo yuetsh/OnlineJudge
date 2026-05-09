@@ -12,18 +12,11 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "oj.settings")
 django.setup()
 from django.conf import settings
 from account.models import User, UserProfile, AdminType, ProblemPermission
-from problem.models import Problem, ProblemTag, ProblemDifficulty, ProblemRuleType
+from problem.models import Problem, ProblemTag, ProblemRuleType
+from utils.constants import Difficulty
 
-admin_type_map = {
-    0: AdminType.REGULAR_USER,
-    1: AdminType.ADMIN,
-    2: AdminType.SUPER_ADMIN
-}
-languages_map = {
-    1: "C",
-    2: "C++",
-    3: "Java"
-}
+admin_type_map = {0: AdminType.REGULAR_USER, 1: AdminType.ADMIN, 2: AdminType.SUPER_ADMIN}
+languages_map = {1: "C", 2: "C++", 3: "Java"}
 email_regex = re.compile(r"(^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$)")
 
 # pk -> name
@@ -46,9 +39,7 @@ def get_input_result():
 def set_problem_display_id_prefix():
     while True:
         print("Please input a prefix which will be used in all the imported problem's displayID")
-        print(
-            "For example, if your input is 'old'(no quote), the problems' display id will be old1, old2, old3..\ninput:",
-            end="")
+        print("For example, if your input is 'old'(no quote), the problems' display id will be old1, old2, old3..\ninput:", end="")
         resp = input()
         if resp.strip():
             return resp.strip()
@@ -60,8 +51,8 @@ def set_problem_display_id_prefix():
 
 def get_stripped_output_md5(test_case_id, output_name):
     output_path = os.path.join(settings.TEST_CASE_DIR, test_case_id, output_name)
-    with open(output_path, 'r') as f:
-        return hashlib.md5(f.read().rstrip().encode('utf-8')).hexdigest()
+    with open(output_path, "r") as f:
+        return hashlib.md5(f.read().rstrip().encode("utf-8")).hexdigest()
 
 
 def get_test_case_score(test_case_id):
@@ -79,9 +70,7 @@ def get_test_case_score(test_case_id):
             test_case["stripped_output_md5"] = test_case.pop("striped_output_md5")
         else:
             test_case["stripped_output_md5"] = get_stripped_output_md5(test_case_id, test_case["output_name"])
-        test_case_score.append({"input_name": test_case["input_name"],
-                                "output_name": test_case.get("output_name", "-"),
-                                "score": 0})
+        test_case_score.append({"input_name": test_case["input_name"], "output_name": test_case.get("output_name", "-"), "score": 0})
     if need_rewrite:
         with open(info_path, "w") as f:
             f.write(json.dumps(info))
@@ -120,7 +109,7 @@ def import_users():
 def import_tags():
     i = 0
     print("\nFind these tags in old data:")
-    print(", ".join(tags.values()), '\n')
+    print(", ".join(tags.values()), "\n")
     print("import tags now? (yes/no)")
     if get_input_result():
         for tagname in tags.values():
@@ -149,14 +138,13 @@ def import_problems():
                 print("%s has the same display_id with the db problem" % data["title"])
                 continue
             try:
-                creator_id = \
-                    User.objects.filter(username=users[data["created_by"]]["username"]).values_list("id", flat=True)[0]
+                creator_id = User.objects.filter(username=users[data["created_by"]]["username"]).values_list("id", flat=True)[0]
             except (User.DoesNotExist, IndexError):
                 print("The origin creator does not exist, set it to default_creator")
                 creator_id = default_creator.id
             data["created_by_id"] = creator_id
             data.pop("created_by")
-            data["difficulty"] = ProblemDifficulty.Mid
+            data["difficulty"] = Difficulty.MID
             if data["spj_language"]:
                 data["spj_language"] = languages_map[data["spj_language"]]
             data["samples"] = json.loads(data["samples"])

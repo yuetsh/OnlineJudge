@@ -78,9 +78,7 @@ class UserProfileAPI(APIView):
                 show_real_name = True
         except User.DoesNotExist:
             return self.error("User does not exist")
-        return self.success(
-            UserProfileSerializer(user.userprofile, show_real_name=show_real_name).data
-        )
+        return self.success(UserProfileSerializer(user.userprofile, show_real_name=show_real_name).data)
 
     @validate_serializer(EditUserProfileSerializer)
     @login_required
@@ -90,9 +88,7 @@ class UserProfileAPI(APIView):
         for k, v in data.items():
             setattr(user_profile, k, v)
         user_profile.save()
-        return self.success(
-            UserProfileSerializer(user_profile, show_real_name=True).data
-        )
+        return self.success(UserProfileSerializer(user_profile, show_real_name=True).data)
 
 
 class Metrics(APIView):
@@ -157,9 +153,7 @@ class TwoFactorAuthAPI(APIView):
         user.save()
 
         label = f"{SysOptions.website_name_shortcut}:{user.username}"
-        image = qrcode.make(
-            _totp_uri(token, label, SysOptions.website_name.replace(" ", ""))
-        )
+        image = qrcode.make(_totp_uri(token, label, SysOptions.website_name.replace(" ", "")))
         return self.success(img2base64(image))
 
     @login_required
@@ -224,9 +218,7 @@ class UserLoginAPI(APIView):
             if not user.two_factor_auth:
                 prev_login = user.last_login
                 auth.login(request, user)
-                request.session["prev_login"] = (
-                    datetime2str(prev_login) if prev_login else ""
-                )
+                request.session["prev_login"] = datetime2str(prev_login) if prev_login else ""
                 return self.success("Succeeded")
 
             # `tfa_code` not in post data
@@ -236,9 +228,7 @@ class UserLoginAPI(APIView):
             if _valid_totp(user.tfa_token, data["tfa_code"]):
                 prev_login = user.last_login
                 auth.login(request, user)
-                request.session["prev_login"] = (
-                    datetime2str(prev_login) if prev_login else ""
-                )
+                request.session["prev_login"] = datetime2str(prev_login) if prev_login else ""
                 return self.success("Succeeded")
             else:
                 return self.error("Invalid two factor verification code")
@@ -262,9 +252,7 @@ class UsernameOrEmailCheck(APIView):
         # True means already exist.
         result = {"username": False, "email": False}
         if data.get("username"):
-            result["username"] = User.objects.filter(
-                username=data["username"].lower()
-            ).exists()
+            result["username"] = User.objects.filter(username=data["username"].lower()).exists()
         if data.get("email"):
             result["email"] = User.objects.filter(email=data["email"].lower()).exists()
         return self.success(result)
@@ -301,9 +289,7 @@ class UserChangeEmailAPI(APIView):
     @login_required
     def post(self, request):
         data = request.data
-        user = auth.authenticate(
-            username=request.user.username, password=data["password"]
-        )
+        user = auth.authenticate(username=request.user.username, password=data["password"])
         if user:
             if user.two_factor_auth:
                 if "tfa_code" not in data:
@@ -356,12 +342,7 @@ class ApplyResetPasswordAPI(APIView):
             user = User.objects.get(email__iexact=data["email"])
         except User.DoesNotExist:
             return self.error("User does not exist")
-        if (
-            user.reset_password_token_expire_time
-            and 0
-            < int((user.reset_password_token_expire_time - now()).total_seconds())
-            < 20 * 60
-        ):
+        if user.reset_password_token_expire_time and 0 < int((user.reset_password_token_expire_time - now()).total_seconds()) < 20 * 60:
             return self.error("You can only reset password once per 20 minutes")
         user.reset_password_token = rand_str()
         user.reset_password_token_expire_time = now() + timedelta(minutes=20)
@@ -453,7 +434,7 @@ class UserRankAPI(APIView):
             n = int(request.GET.get("n", "0"))
         except ValueError:
             n = 0
-        if rule_type not in ContestRuleType.choices():
+        if rule_type not in ContestRuleType.values:
             rule_type = ContestRuleType.ACM
 
         profiles = UserProfile.objects.filter(
@@ -462,9 +443,7 @@ class UserRankAPI(APIView):
             user__username__icontains=username,
         ).select_related("user")
         if rule_type == ContestRuleType.ACM:
-            profiles = profiles.filter(accepted_number__gte=0).order_by(
-                "-accepted_number", "submission_number"
-            )
+            profiles = profiles.filter(accepted_number__gte=0).order_by("-accepted_number", "submission_number")
         else:
             profiles = profiles.filter(total_score__gt=0).order_by("-total_score")
         if n > 0:
@@ -482,19 +461,13 @@ class UserActivityRankAPI(APIView):
         if cached is not None:
             return self.success(cached)
 
-        hidden_names = User.objects.filter(
-            Q(admin_type=AdminType.SUPER_ADMIN) | Q(is_disabled=True)
-        ).values_list("username", flat=True)
+        hidden_names = User.objects.filter(Q(admin_type=AdminType.SUPER_ADMIN) | Q(is_disabled=True)).values_list("username", flat=True)
         submissions = Submission.objects.filter(
             contest_id__isnull=True,
             create_time__gte=start,
             result=JudgeStatus.ACCEPTED,
         ).exclude(username__in=hidden_names)
-        data = list(
-            submissions.values("username")
-            .annotate(count=Count("problem_id", distinct=True))
-            .order_by("-count")[:10]
-        )
+        data = list(submissions.values("username").annotate(count=Count("problem_id", distinct=True)).order_by("-count")[:10])
         cache.set(cache_key, data, 600)
         return self.success(data)
 
@@ -506,12 +479,8 @@ class UserProblemRankAPI(APIView):
         if not user.is_authenticated:
             return self.error("User is not authenticated")
 
-        problem = Problem.objects.get(
-            _id=problem_id, contest_id__isnull=True, visible=True
-        )
-        submissions = Submission.objects.filter(
-            problem=problem, result=JudgeStatus.ACCEPTED
-        )
+        problem = Problem.objects.get(_id=problem_id, contest_id__isnull=True, visible=True)
+        submissions = Submission.objects.filter(problem=problem, result=JudgeStatus.ACCEPTED)
 
         all_ac_count = submissions.values("user_id").distinct().count()
 
@@ -519,9 +488,7 @@ class UserProblemRankAPI(APIView):
         class_ac_count = 0
 
         if class_name:
-            users = User.objects.filter(
-                class_name=user.class_name, is_disabled=False
-            ).values_list("id", flat=True)
+            users = User.objects.filter(class_name=user.class_name, is_disabled=False).values_list("id", flat=True)
             user_ids = list(users)
             submissions = submissions.filter(user_id__in=user_ids)
             class_ac_count = submissions.values("user_id").distinct().count()
@@ -539,9 +506,7 @@ class UserProblemRankAPI(APIView):
             )
 
         my_first_submission = my_submissions.order_by("create_time").first()
-        rank = submissions.filter(
-            create_time__lte=my_first_submission.create_time
-        ).count()
+        rank = submissions.filter(create_time__lte=my_first_submission.create_time).count()
         return self.success(
             {
                 "class_name": class_name,
@@ -561,9 +526,7 @@ class ProfileProblemDisplayIDRefreshAPI(APIView):
         ids = list(acm_problems.keys()) + list(oi_problems.keys())
         if not ids:
             return self.success()
-        display_ids = Problem.objects.filter(id__in=ids, visible=True).values_list(
-            "_id", flat=True
-        )
+        display_ids = Problem.objects.filter(id__in=ids, visible=True).values_list("_id", flat=True)
         id_map = dict(zip(ids, display_ids))
         for k, v in acm_problems.items():
             v["_id"] = id_map[k]

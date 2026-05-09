@@ -1,24 +1,20 @@
-class Choices:
-    @classmethod
-    def choices(cls):
-        d = cls.__dict__
-        return [d[item] for item in d.keys() if not item.startswith("__")]
+from django.db import models
 
 
-class ContestType:
-    PUBLIC_CONTEST = "Public"
-    PASSWORD_PROTECTED_CONTEST = "Password Protected"
+class ContestType(models.TextChoices):
+    PUBLIC_CONTEST = "Public", "Public"
+    PASSWORD_PROTECTED_CONTEST = "Password Protected", "Password Protected"
 
 
-class ContestStatus:
-    CONTEST_NOT_START = "1"
-    CONTEST_ENDED = "-1"
-    CONTEST_UNDERWAY = "0"
+class ContestStatus(models.TextChoices):
+    CONTEST_NOT_START = "1", "Not Started"
+    CONTEST_ENDED = "-1", "Ended"
+    CONTEST_UNDERWAY = "0", "Underway"
 
 
-class ContestRuleType(Choices):
-    ACM = "ACM"
-    OI = "OI"
+class ContestRuleType(models.TextChoices):
+    ACM = "ACM", "ACM"
+    OI = "OI", "OI"
 
 
 class CacheKey:
@@ -31,10 +27,10 @@ class CacheKey:
     user_activity_rank = "user_activity_rank"
 
 
-class Difficulty(Choices):
-    LOW = "Low"
-    MID = "Mid"
-    HIGH = "High"
+class Difficulty(models.TextChoices):
+    LOW = "Low", "Low"
+    MID = "Mid", "Mid"
+    HIGH = "High", "High"
 
 
 CONTEST_PASSWORD_SESSION_KEY = "contest_password"

@@ -1,10 +1,13 @@
 from utils.api import UsernameSerializer, serializers
 
 from .models import (
+    BadgeConditionType,
     ProblemSet,
     ProblemSetBadge,
+    ProblemSetDifficulty,
     ProblemSetProblem,
     ProblemSetProgress,
+    ProblemSetStatus,
     UserBadge,
 )
 
@@ -13,9 +16,7 @@ def get_user_progress_data(problemset, request):
     """获取当前用户在该题单中的进度 - 公共方法"""
     if request and request.user.is_authenticated:
         try:
-            progress = ProblemSetProgress.objects.get(
-                problemset=problemset, user=request.user
-            )
+            progress = ProblemSetProgress.objects.get(problemset=problemset, user=request.user)
             return {
                 "is_joined": True,
                 "progress_percentage": progress.progress_percentage,
@@ -61,9 +62,7 @@ class ProblemSetSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         if request and request.user.is_authenticated:
             try:
-                progress = ProblemSetProgress.objects.get(
-                    problemset=obj, user=request.user
-                )
+                progress = ProblemSetProgress.objects.get(problemset=obj, user=request.user)
                 return progress.completed_problems_count
             except ProblemSetProgress.DoesNotExist:
                 return 0
@@ -124,22 +123,22 @@ class ProblemSetListSerializer(serializers.ModelSerializer):
     def get_badges(self, obj):
         """获取题单的奖章列表，并标记用户已获得的徽章"""
         request = self.context.get("request")
-        
+
         # 使用预加载的奖章数据
         badges = getattr(obj, "badges", [])
         badge_data = ProblemSetBadgeSerializer(badges, many=True).data
-        
+
         # 如果用户已登录，检查哪些徽章已被获得
         if request and request.user.is_authenticated and hasattr(request, "_user_earned_badge_ids"):
             earned_badge_ids = request._user_earned_badge_ids
             # 为每个徽章添加是否已获得的标记
             for badge in badge_data:
-                badge['is_earned'] = badge['id'] in earned_badge_ids
+                badge["is_earned"] = badge["id"] in earned_badge_ids
         else:
             # 未登录用户或未预加载，所有徽章都标记为未获得
             for badge in badge_data:
-                badge['is_earned'] = False
-                
+                badge["is_earned"] = False
+
         return badge_data
 
 
@@ -148,8 +147,8 @@ class CreateProblemSetSerializer(serializers.Serializer):
 
     title = serializers.CharField(max_length=200)
     description = serializers.CharField()
-    difficulty = serializers.CharField(default="Easy")
-    status = serializers.CharField(default="active")
+    difficulty = serializers.ChoiceField(choices=ProblemSetDifficulty.choices, default=ProblemSetDifficulty.EASY)
+    status = serializers.ChoiceField(choices=ProblemSetStatus.choices, default=ProblemSetStatus.ACTIVE)
     end_time = serializers.DateTimeField(required=False)
 
 
@@ -159,8 +158,8 @@ class EditProblemSetSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     title = serializers.CharField(max_length=200, required=False)
     description = serializers.CharField(required=False)
-    difficulty = serializers.CharField(required=False)
-    status = serializers.CharField(required=False)
+    difficulty = serializers.ChoiceField(choices=ProblemSetDifficulty.choices, required=False)
+    status = serializers.ChoiceField(choices=ProblemSetStatus.choices, required=False)
     visible = serializers.BooleanField(required=False)
     end_time = serializers.DateTimeField(required=False, allow_null=True)
 
@@ -190,9 +189,7 @@ class ProblemSetProblemSerializer(serializers.ModelSerializer):
         progress = self.context.get("user_progress")
         if progress is None:
             try:
-                progress = ProblemSetProgress.objects.get(
-                    problemset=obj.problemset, user=request.user
-                )
+                progress = ProblemSetProgress.objects.get(problemset=obj.problemset, user=request.user)
             except ProblemSetProgress.DoesNotExist:
                 return False
         return str(obj.problem.id) in progress.progress_detail
@@ -227,19 +224,21 @@ class ProblemSetBadgeSerializer(serializers.ModelSerializer):
 
 class CreateProblemSetBadgeSerializer(serializers.Serializer):
     """创建题单奖章序列化器"""
+
     name = serializers.CharField(max_length=100)
     description = serializers.CharField()
     icon = serializers.CharField()
-    condition_type = serializers.CharField()  # all_problems, problem_count, score
+    condition_type = serializers.ChoiceField(choices=BadgeConditionType.choices)
     condition_value = serializers.IntegerField(required=False)
 
 
 class EditProblemSetBadgeSerializer(serializers.Serializer):
     """编辑题单奖章序列化器"""
+
     name = serializers.CharField(max_length=100, required=False)
     description = serializers.CharField(required=False)
     icon = serializers.CharField(required=False)
-    condition_type = serializers.CharField(required=False)  # all_problems, problem_count, score
+    condition_type = serializers.ChoiceField(choices=BadgeConditionType.choices, required=False)
     condition_value = serializers.IntegerField(required=False)
 
 
@@ -252,42 +251,35 @@ class ProblemSetProgressSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProblemSetProgress
         fields = "__all__"
-    
+
     def get_completed_problems(self, obj):
         """获取已完成的题目列表"""
         completed_problems = []
-        
+
         # 尝试从 request 中获取预加载的问题字典（用于批量查询优化）
         problems_dict = {}
-        request = self.context.get('request')
-        if request and hasattr(request, '_problems_dict_cache'):
+        request = self.context.get("request")
+        if request and hasattr(request, "_problems_dict_cache"):
             problems_dict = request._problems_dict_cache
-        
+
         if obj.progress_detail:
             for problem_id in obj.progress_detail.keys():
                 # 优先使用预加载的问题字典
                 if problems_dict:
                     problem = problems_dict.get(problem_id)
                     if problem:
-                        completed_problems.append({
-                            'id': problem.id,
-                            '_id': problem._id,
-                            'title': problem.title
-                        })
+                        completed_problems.append({"id": problem.id, "_id": problem._id, "title": problem.title})
                     continue
-                
+
                 # 如果没有预加载字典，则回退到单独查询（向后兼容）
                 from problem.models import Problem
+
                 try:
                     problem = Problem.objects.get(id=problem_id)
-                    completed_problems.append({
-                        'id': problem.id,
-                        '_id': problem._id,
-                        'title': problem.title
-                    })
+                    completed_problems.append({"id": problem.id, "_id": problem._id, "title": problem.title})
                 except Problem.DoesNotExist:
                     continue
-        
+
         return completed_problems
 
 
@@ -313,5 +305,3 @@ class UpdateProgressSerializer(serializers.Serializer):
     problemset_id = serializers.IntegerField()
     problem_id = serializers.IntegerField()
     submission_id = serializers.CharField(required=False)
-
-

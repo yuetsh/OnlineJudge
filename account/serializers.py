@@ -44,9 +44,7 @@ class GenerateUserSerializer(serializers.Serializer):
 
 
 class ImportUserSerializer(serializers.Serializer):
-    users = serializers.ListField(
-        child=serializers.ListField(child=serializers.CharField(max_length=64))
-    )
+    users = serializers.ListField(child=serializers.ListField(child=serializers.CharField(max_length=64)))
 
 
 class UserAdminSerializer(serializers.ModelSerializer):
@@ -118,20 +116,15 @@ class EditUserSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     username = serializers.CharField(max_length=32)
     real_name = serializers.CharField(max_length=32, allow_blank=True, allow_null=True)
-    password = serializers.CharField(
-        min_length=6, allow_blank=True, required=False, default=None
-    )
+    password = serializers.CharField(min_length=6, allow_blank=True, required=False, default=None)
     email = serializers.EmailField(max_length=64)
-    admin_type = serializers.ChoiceField(
-        choices=(AdminType.REGULAR_USER, AdminType.ADMIN, AdminType.SUPER_ADMIN)
-    )
-    problem_permission = serializers.ChoiceField(
-        choices=(ProblemPermission.NONE, ProblemPermission.OWN, ProblemPermission.ALL)
-    )
+    admin_type = serializers.ChoiceField(choices=AdminType.choices)
+    problem_permission = serializers.ChoiceField(choices=ProblemPermission.choices)
     open_api = serializers.BooleanField()
     two_factor_auth = serializers.BooleanField()
     is_disabled = serializers.BooleanField()
     class_name = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+
 
 class EditUserProfileSerializer(serializers.Serializer):
     real_name = serializers.CharField(max_length=32, allow_null=True, required=False)
@@ -142,6 +135,7 @@ class EditUserProfileSerializer(serializers.Serializer):
     school = serializers.CharField(max_length=64, allow_blank=True, required=False)
     major = serializers.CharField(max_length=64, allow_blank=True, required=False)
     language = serializers.CharField(max_length=32, allow_blank=True, required=False)
+
 
 class ApplyResetPasswordSerializer(serializers.Serializer):
     email = serializers.EmailField()
