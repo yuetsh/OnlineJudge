@@ -139,7 +139,7 @@ def build_evaluation_prompt(problem):
 3. 评估流程图的规范性和可读性
 4. 给出0-100的分数
 5. Mermaid节点ID由系统生成，不是学生编写内容；不要评价节点ID，不要因节点ID扣分，不要建议修改节点ID
-6. feedback控制在60字以内，只总结核心优点和主要问题
+6. feedback控制在100字以内，只总结核心优点和主要问题
 7. suggestions最多3条，每条单独一行；重要建议必须以【重点】开头，普通建议不要加前缀
 8. criteria_details 中的 comment 保持简短，每项不超过25字
 
