@@ -219,6 +219,13 @@ class AIDetailDataAPI(APIView):
         end = request.GET.get("end")
         username = request.GET.get("username")
 
+        if not start or not end:
+            return self.error("参数 start 和 end 不能为空")
+        if not parse_datetime(start):
+            return self.error("start 格式无效，请使用 ISO 8601 格式")
+        if not parse_datetime(end):
+            return self.error("end 格式无效，请使用 ISO 8601 格式")
+
         user = request.user
         if username and request.user.is_super_admin():
             try:

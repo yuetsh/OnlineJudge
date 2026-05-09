@@ -1,7 +1,10 @@
 import json
+import logging
 import time
 
 import dramatiq
+
+logger = logging.getLogger(__name__)
 from django.db import transaction
 from django.utils import timezone
 
@@ -96,6 +99,7 @@ def evaluate_flowchart_task(submission_id):
         )
         
     except Exception as e:
+        logger.exception("evaluate_flowchart_task failed for submission %s", submission_id)
         if submission is not None:
             submission.status = FlowchartSubmissionStatus.FAILED
             submission.save()
