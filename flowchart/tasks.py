@@ -61,6 +61,7 @@ def evaluate_flowchart_task(submission_id):
                 {"role": "user", "content": user_prompt}
             ],
             temperature=0.3,
+            extra_body={"thinking": False},
         )
 
         ai_response = response.choices[0].message.content
