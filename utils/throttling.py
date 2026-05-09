@@ -32,8 +32,10 @@ class TokenBucket:
         last_capacity = self._redis_conn.hget(self._key, self._last_capacity_key)
         if last_capacity is None:
             return self._init_key()[0]
-        else:
+        try:
             return float(last_capacity)
+        except ValueError:
+            return self._init_key()[0]
 
     @_last_capacity.setter
     def _last_capacity(self, value):
@@ -41,7 +43,13 @@ class TokenBucket:
 
     @property
     def _last_timestamp(self):
-        return float(self._redis_conn.hget(self._key, self._last_timestamp_key))
+        last_timestamp = self._redis_conn.hget(self._key, self._last_timestamp_key)
+        if last_timestamp is None:
+            return self._init_key()[1]
+        try:
+            return float(last_timestamp)
+        except ValueError:
+            return self._init_key()[1]
 
     @_last_timestamp.setter
     def _last_timestamp(self, value):
