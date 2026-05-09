@@ -118,11 +118,11 @@ class ProblemSetBadge(models.Model):
 
     def _is_eligible(self, progress):
         """判断用户进度是否满足该徽章条件（纯逻辑，不查数据库）"""
-        if self.condition_type == "all_problems":
+        if self.condition_type == BadgeConditionType.ALL_PROBLEMS:
             return progress.completed_problems_count == progress.total_problems_count
-        if self.condition_type == "problem_count":
+        if self.condition_type == BadgeConditionType.PROBLEM_COUNT:
             return progress.completed_problems_count >= self.condition_value
-        if self.condition_type == "score":
+        if self.condition_type == BadgeConditionType.SCORE:
             return progress.total_score >= self.condition_value
         return False
 

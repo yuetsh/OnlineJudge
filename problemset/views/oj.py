@@ -4,10 +4,12 @@ from django.utils import timezone
 from account.models import User
 from problem.models import Problem
 from problemset.models import (
+    BadgeConditionType,
     ProblemSet,
     ProblemSetBadge,
     ProblemSetProblem,
     ProblemSetProgress,
+    ProblemSetStatus,
     ProblemSetSubmission,
     UserBadge,
 )
@@ -31,7 +33,7 @@ class ProblemSetAPI(APIView):
     def get(self, request):
         """获取题单列表"""
         # 预加载创建者信息
-        problem_sets = ProblemSet.objects.filter(visible=True).exclude(status="draft").select_related("created_by")
+        problem_sets = ProblemSet.objects.filter(visible=True).exclude(status=ProblemSetStatus.DRAFT).select_related("created_by")
 
         # 使用annotate在查询时计算题目数量，避免N+1查询
         problem_sets = problem_sets.annotate(problems_count=Count("problemsetproblem", distinct=True))
@@ -90,7 +92,7 @@ class ProblemSetDetailAPI(APIView):
     def get(self, request, problem_set_id):
         """获取题单详情"""
         try:
-            problem_set = ProblemSet.objects.filter(id=problem_set_id, visible=True).exclude(status="draft").get()
+            problem_set = ProblemSet.objects.filter(id=problem_set_id, visible=True).exclude(status=ProblemSetStatus.DRAFT).get()
         except ProblemSet.DoesNotExist:
             return self.error("题单不存在")
 
@@ -104,7 +106,7 @@ class ProblemSetProblemAPI(APIView):
     def get(self, request, problem_set_id):
         """获取题单中的题目列表"""
         try:
-            problem_set = ProblemSet.objects.filter(id=problem_set_id, visible=True).exclude(status="draft").get()
+            problem_set = ProblemSet.objects.filter(id=problem_set_id, visible=True).exclude(status=ProblemSetStatus.DRAFT).get()
         except ProblemSet.DoesNotExist:
             return self.error("题单不存在")
 
@@ -128,7 +130,7 @@ class ProblemSetProgressAPI(APIView):
         """加入题单"""
         data = request.data
         try:
-            problem_set = ProblemSet.objects.filter(id=data["problemset_id"], visible=True).exclude(status="draft").get()
+            problem_set = ProblemSet.objects.filter(id=data["problemset_id"], visible=True).exclude(status=ProblemSetStatus.DRAFT).get()
         except ProblemSet.DoesNotExist:
             return self.error("题单不存在")
 
@@ -144,7 +146,7 @@ class ProblemSetProgressAPI(APIView):
     def get(self, request, problem_set_id):
         """获取题单进度"""
         try:
-            problem_set = ProblemSet.objects.filter(id=problem_set_id, visible=True).exclude(status="draft").get()
+            problem_set = ProblemSet.objects.filter(id=problem_set_id, visible=True).exclude(status=ProblemSetStatus.DRAFT).get()
         except ProblemSet.DoesNotExist:
             return self.error("题单不存在")
 
@@ -161,7 +163,7 @@ class ProblemSetProgressAPI(APIView):
         """更新进度"""
         data = request.data
         try:
-            problem_set = ProblemSet.objects.filter(id=data["problemset_id"], visible=True).exclude(status="draft").get()
+            problem_set = ProblemSet.objects.filter(id=data["problemset_id"], visible=True).exclude(status=ProblemSetStatus.DRAFT).get()
         except ProblemSet.DoesNotExist:
             return self.error("题单不存在")
 
@@ -223,13 +225,13 @@ class ProblemSetProgressAPI(APIView):
             if UserBadge.objects.filter(user=progress.user, badge=badge).exists():
                 continue
 
-            if badge.condition_type == "all_problems":
+            if badge.condition_type == BadgeConditionType.ALL_PROBLEMS:
                 if progress.completed_problems_count == progress.total_problems_count:
                     UserBadge.objects.create(user=progress.user, badge=badge)
-            elif badge.condition_type == "problem_count":
+            elif badge.condition_type == BadgeConditionType.PROBLEM_COUNT:
                 if progress.completed_problems_count >= badge.condition_value:
                     UserBadge.objects.create(user=progress.user, badge=badge)
-            elif badge.condition_type == "score":
+            elif badge.condition_type == BadgeConditionType.SCORE:
                 if progress.total_score >= badge.condition_value:
                     UserBadge.objects.create(user=progress.user, badge=badge)
 
@@ -273,7 +275,7 @@ class ProblemSetBadgeAPI(APIView):
     def get(self, request, problem_set_id):
         """获取题单的奖章列表"""
         try:
-            problem_set = ProblemSet.objects.filter(id=problem_set_id, visible=True).exclude(status="draft").get()
+            problem_set = ProblemSet.objects.filter(id=problem_set_id, visible=True).exclude(status=ProblemSetStatus.DRAFT).get()
         except ProblemSet.DoesNotExist:
             return self.error("题单不存在")
 
@@ -288,7 +290,7 @@ class ProblemSetUserProgressAPI(APIView):
     def get(self, request, problem_set_id: int):
         """获取题单的用户进度列表"""
         try:
-            problem_set = ProblemSet.objects.filter(id=problem_set_id, visible=True).exclude(status="draft").get()
+            problem_set = ProblemSet.objects.filter(id=problem_set_id, visible=True).exclude(status=ProblemSetStatus.DRAFT).get()
         except ProblemSet.DoesNotExist:
             return self.error("题单不存在")
 

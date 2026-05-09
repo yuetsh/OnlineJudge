@@ -36,13 +36,13 @@ class User(AbstractBaseUser):
     reset_password_token_expire_time = models.DateTimeField(null=True)
     # SSO auth token
     auth_token = models.TextField(null=True)
-    two_factor_auth = models.BooleanField(default=False)
+    two_factor_auth = models.BooleanField(default=False, db_default=False)
     tfa_token = models.TextField(null=True)
-    session_keys = JSONField(default=list)
+    session_keys = JSONField(default=list, db_default=models.Value([]))
     # open api key
-    open_api = models.BooleanField(default=False)
+    open_api = models.BooleanField(default=False, db_default=False)
     open_api_appkey = models.TextField(null=True)
-    is_disabled = models.BooleanField(default=False)
+    is_disabled = models.BooleanField(default=False, db_default=False)
     raw_password = models.CharField(max_length=20, null=True, blank=True, verbose_name="明文密码")
 
     USERNAME_FIELD = "username"
@@ -93,9 +93,9 @@ class UserProfile(models.Model):
     #         }
     #     }
     # }
-    acm_problems_status = JSONField(default=dict)
+    acm_problems_status = JSONField(default=dict, db_default=models.Value({}))
     # like acm_problems_status, merely add "score" field
-    oi_problems_status = JSONField(default=dict)
+    oi_problems_status = JSONField(default=dict, db_default=models.Value({}))
 
     real_name = models.TextField(null=True)
     avatar = models.TextField(default=f"{settings.AVATAR_URI_PREFIX}/default.png")
@@ -106,24 +106,24 @@ class UserProfile(models.Model):
     major = models.TextField(null=True)
     language = models.TextField(null=True)
     # for ACM
-    accepted_number = models.IntegerField(default=0)
+    accepted_number = models.IntegerField(default=0, db_default=0)
     # for OI
-    total_score = models.BigIntegerField(default=0)
-    submission_number = models.IntegerField(default=0)
+    total_score = models.BigIntegerField(default=0, db_default=0)
+    submission_number = models.IntegerField(default=0, db_default=0)
 
     def add_accepted_problem_number(self):
         self.accepted_number = models.F("accepted_number") + 1
-        self.save()
+        self.save(update_fields=["accepted_number"])
 
     def add_submission_number(self):
         self.submission_number = models.F("submission_number") + 1
-        self.save()
+        self.save(update_fields=["submission_number"])
 
     # 计算总分时， 应先减掉上次该题所得分数， 然后再加上本次所得分数
     def add_score(self, this_time_score, last_time_score=None):
         last_time_score = last_time_score or 0
         self.total_score = models.F("total_score") - last_time_score + this_time_score
-        self.save()
+        self.save(update_fields=["total_score"])
 
     class Meta:
         db_table = "user_profile"

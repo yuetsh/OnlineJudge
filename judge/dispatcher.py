@@ -1,11 +1,13 @@
 import hashlib
 import json
 import logging
+from datetime import timedelta
 from urllib.parse import urljoin
 
 import requests
 from django.db import IntegrityError, transaction
 from django.db.models import F
+from django.utils import timezone
 
 from account.models import User
 from conf.models import JudgeServer
@@ -38,14 +40,23 @@ class ChooseJudgeServer:
 
     def __enter__(self) -> [JudgeServer, None]:
         with transaction.atomic():
-            servers = JudgeServer.objects.select_for_update().filter(is_disabled=False).order_by("task_number")
-            servers = [s for s in servers if s.status == "normal"]
-            for server in servers:
-                if server.task_number <= server.cpu_core * 2:
-                    server.task_number = F("task_number") + 1
-                    server.save(update_fields=["task_number"])
-                    self.server = server
-                    return server
+            cutoff = timezone.now() - timedelta(seconds=6)
+            server = (
+                JudgeServer.objects
+                .select_for_update(skip_locked=True)
+                .filter(
+                    is_disabled=False,
+                    last_heartbeat__gte=cutoff,
+                    task_number__lte=F("cpu_core") * 2,
+                )
+                .order_by("task_number")
+                .first()
+            )
+            if server:
+                server.task_number = F("task_number") + 1
+                server.save(update_fields=["task_number"])
+                self.server = server
+                return server
         return None
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -196,8 +207,8 @@ class JudgeDispatcher(DispatcherBase):
                 self.submission.result = error_test_case[0]["result"]
             else:
                 self.submission.result = JudgeStatus.PARTIALLY_ACCEPTED
-        self.submission.save()
-        
+        self.submission.save(update_fields=["result", "info", "statistic_info"])
+
         # 推送判题完成状态
         try:
             push_submission_update(
@@ -241,7 +252,7 @@ class JudgeDispatcher(DispatcherBase):
             # update problem status
             problem = Problem.objects.select_for_update().get(contest_id=self.contest_id, id=self.problem.id)
             if self.last_result != JudgeStatus.ACCEPTED and self.submission.result == JudgeStatus.ACCEPTED:
-                problem.accepted_number += 1
+                problem.accepted_number = F("accepted_number") + 1
             problem_info = problem.statistic_info
             problem_info[self.last_result] = problem_info.get(self.last_result, 1) - 1
             problem_info[result] = problem_info.get(result, 0) + 1
@@ -277,9 +288,9 @@ class JudgeDispatcher(DispatcherBase):
         with transaction.atomic():
             # update problem status
             problem = Problem.objects.select_for_update().get(contest_id=self.contest_id, id=self.problem.id)
-            problem.submission_number += 1
+            problem.submission_number = F("submission_number") + 1
             if self.submission.result == JudgeStatus.ACCEPTED:
-                problem.accepted_number += 1
+                problem.accepted_number = F("accepted_number") + 1
             problem_info = problem.statistic_info
             problem_info[result] = problem_info.get(result, 0) + 1
             problem.save(update_fields=["accepted_number", "submission_number", "statistic_info"])
@@ -287,7 +298,7 @@ class JudgeDispatcher(DispatcherBase):
             # update_userprofile
             user = User.objects.select_for_update().get(id=self.submission.user_id)
             user_profile = user.userprofile
-            user_profile.submission_number += 1
+            user_profile.submission_number = F("submission_number") + 1
             if problem.rule_type == ProblemRuleType.ACM:
                 acm_problems_status = user_profile.acm_problems_status.get("problems", {})
                 if problem_id not in acm_problems_status:
@@ -356,9 +367,9 @@ class JudgeDispatcher(DispatcherBase):
             result = str(self.submission.result)
             problem_info = problem.statistic_info
             problem_info[result] = problem_info.get(result, 0) + 1
-            problem.submission_number += 1
+            problem.submission_number = F("submission_number") + 1
             if self.submission.result == JudgeStatus.ACCEPTED:
-                problem.accepted_number += 1
+                problem.accepted_number = F("accepted_number") + 1
             problem.save(update_fields=["submission_number", "accepted_number", "statistic_info"])
 
     def update_contest_rank(self):
@@ -422,7 +433,7 @@ class JudgeDispatcher(DispatcherBase):
             elif self.submission.result != JudgeStatus.COMPILE_ERROR:
                 info["error_number"] = 1
         rank.submission_info[str(self.submission.problem_id)] = info
-        rank.save()
+        rank.save(update_fields=["submission_info", "total_time", "accepted_number", "submission_number"])
 
     def _update_oi_contest_rank(self, rank):
         problem_id = str(self.submission.problem_id)
@@ -433,4 +444,4 @@ class JudgeDispatcher(DispatcherBase):
         else:
             rank.total_score = rank.total_score + current_score
         rank.submission_info[problem_id] = current_score
-        rank.save()
+        rank.save(update_fields=["submission_info", "total_score", "submission_number"])

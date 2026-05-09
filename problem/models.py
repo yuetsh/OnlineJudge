@@ -36,7 +36,7 @@ class Problem(models.Model):
     _id = models.TextField(db_index=True)
     contest = models.ForeignKey(Contest, null=True, on_delete=models.CASCADE)
     # for contest problem
-    is_public = models.BooleanField(default=False)
+    is_public = models.BooleanField(default=False, db_default=False)
     title = models.TextField()
     # HTML
     description = RichTextField()
@@ -61,7 +61,7 @@ class Problem(models.Model):
     # io mode
     io_mode = models.JSONField(default=_default_io_mode)
     rule_type = models.TextField(choices=ProblemRuleType.choices)
-    visible = models.BooleanField(default=True)
+    visible = models.BooleanField(default=True, db_default=True)
     difficulty = models.TextField(choices=Difficulty.choices)
     tags = models.ManyToManyField(ProblemTag)
     source = models.TextField(null=True)
@@ -69,19 +69,19 @@ class Problem(models.Model):
     # [{language: "python", code: "..."}]
     answers = models.JSONField(null=True)
     # for OI mode
-    total_score = models.IntegerField(default=0)
-    submission_number = models.BigIntegerField(default=0)
-    accepted_number = models.BigIntegerField(default=0)
+    total_score = models.IntegerField(default=0, db_default=0)
+    submission_number = models.BigIntegerField(default=0, db_default=0)
+    accepted_number = models.BigIntegerField(default=0, db_default=0)
     # {JudgeStatus.ACCEPTED: 3, JudgeStatus.WRONG_ANSWER: 11}, the number means count
-    statistic_info = models.JSONField(default=dict)
-    share_submission = models.BooleanField(default=False)
+    statistic_info = models.JSONField(default=dict, db_default=models.Value({}))
+    share_submission = models.BooleanField(default=False, db_default=False)
 
     # 流程图相关字段
-    allow_flowchart = models.BooleanField(default=False)  # 是否允许/需要提交流程图
-    mermaid_code = models.TextField(null=True, blank=True)  # 流程图答案(Mermaid代码)
-    flowchart_data = models.JSONField(default=dict)  # 流程图答案元数据(JSON格式)
-    flowchart_hint = models.TextField(null=True, blank=True)  # 流程图提示信息
-    show_flowchart = models.BooleanField(default=False)  # 是否显示流程图答案数据，如果True，这样就不需要提交流程图了，说明就是给学生看的
+    allow_flowchart = models.BooleanField(default=False, db_default=False)
+    mermaid_code = models.TextField(null=True, blank=True)
+    flowchart_data = models.JSONField(default=dict, db_default=models.Value({}))
+    flowchart_hint = models.TextField(null=True, blank=True)
+    show_flowchart = models.BooleanField(default=False, db_default=False)
 
     class Meta:
         db_table = "problem"

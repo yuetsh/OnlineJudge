@@ -2,7 +2,7 @@ from django.db import models
 from django.db.models import F
 from django.utils import timezone
 
-from problemset.models import ProblemSetProgress
+from problemset.models import ProblemSetProgress, ProblemSetStatus
 from utils.api import serializers
 from utils.serializers import LanguageNameChoiceField
 
@@ -16,7 +16,7 @@ def bulk_fetch_problemset_progress(user, problem_ids):
     rows = (
         ProblemSetProgress.objects.filter(
             user=user,
-            problemset__status="active",
+            problemset__status=ProblemSetStatus.ACTIVE,
             problemset__problemsetproblem__problem_id__in=problem_ids,
         )
         .filter(
@@ -108,7 +108,7 @@ class SubmissionListSerializer(serializers.ModelSerializer):
             self._problemset_progress_cache[problem_id] = (
                 ProblemSetProgress.objects.filter(
                     user=self.user,
-                    problemset__status="active",
+                    problemset__status=ProblemSetStatus.ACTIVE,
                     problemset__problemsetproblem__problem_id=problem_id,
                 )
                 .filter(
