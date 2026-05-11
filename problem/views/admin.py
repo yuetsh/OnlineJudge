@@ -8,6 +8,7 @@ from wsgiref.util import FileWrapper
 
 from django.conf import settings
 from django.db.models import Count, Q
+from django.db.models.functions import ExtractYear
 from django.http import StreamingHttpResponse
 
 from account.decorators import ensure_created_by, problem_permission_required, super_admin_required
@@ -545,5 +546,61 @@ class StuckProblemsAPI(APIView):
                 else 0,
             }
             for r in rows
+        ]
+        return self.success(result)
+
+
+class TopACTrendAPI(APIView):
+    @super_admin_required
+    def get(self, request):
+        from collections import defaultdict
+        from submission.models import JudgeStatus
+
+        top_problems = list(
+            Submission.objects.filter(contest_id__isnull=True)
+            .values("problem_id", "problem___id", "problem__title")
+            .annotate(total=Count("id"))
+            .order_by("-total")[:10]
+        )
+        if not top_problems:
+            return self.success([])
+
+        top_ids = [r["problem_id"] for r in top_problems]
+        problem_meta = {
+            r["problem_id"]: (r["problem___id"], r["problem__title"])
+            for r in top_problems
+        }
+
+        yearly_rows = (
+            Submission.objects.filter(contest_id__isnull=True, problem_id__in=top_ids)
+            .annotate(year=ExtractYear("create_time"))
+            .values("problem_id", "year")
+            .annotate(
+                total=Count("id"),
+                accepted=Count("id", filter=Q(result=JudgeStatus.ACCEPTED)),
+            )
+            .order_by("problem_id", "year")
+        )
+
+        by_problem: dict[int, list] = defaultdict(list)
+        for r in yearly_rows:
+            by_problem[r["problem_id"]].append(
+                {
+                    "year": r["year"],
+                    "total": r["total"],
+                    "accepted": r["accepted"],
+                    "ac_rate": round(r["accepted"] / r["total"] * 100, 1)
+                    if r["total"]
+                    else 0,
+                }
+            )
+
+        result = [
+            {
+                "problem_id": problem_meta[pid][0],
+                "problem_title": problem_meta[pid][1],
+                "yearly": by_problem[pid],
+            }
+            for pid in top_ids
         ]
         return self.success(result)

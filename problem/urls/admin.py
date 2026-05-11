@@ -9,6 +9,7 @@ from ..views.admin import (
     ProblemVisibleAPI,
     StuckProblemsAPI,
     TestCaseAPI,
+    TopACTrendAPI,
 )
 
 urlpatterns = [
@@ -16,6 +17,7 @@ urlpatterns = [
     path("problem", ProblemAPI.as_view()),
     path("problem/visible", ProblemVisibleAPI.as_view()),
     path("problem/stuck", StuckProblemsAPI.as_view()),
+    path("problem/top_ac_trend", TopACTrendAPI.as_view()),
     path("problem/flowchart", ProblemFlowchartAIGen.as_view()),
     path("contest/problem", ContestProblemAPI.as_view()),
     path("contest_problem/make_public", MakeContestProblemPublicAPIView.as_view()),
