@@ -570,9 +570,9 @@ class TopACTrendAPI(APIView):
         try:
             until_year = int(request.GET.get("until_year", current_year))
             if until_year < since_year or until_year > current_year:
-                until_year = current_year
+                until_year = current_year - 1
         except (TypeError, ValueError):
-            until_year = current_year
+            until_year = current_year - 1
 
         try:
             min_per_year = int(request.GET.get("min_per_year", 100))
