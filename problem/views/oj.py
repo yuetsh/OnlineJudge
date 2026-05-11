@@ -3,6 +3,7 @@ from datetime import datetime
 
 from django.core.cache import cache
 from django.db.models import Count, Q
+from django.db.models.functions import ExtractYear
 
 from account.decorators import check_contest_permission
 from account.models import User
@@ -279,4 +280,53 @@ class ProblemAuthorAPI(APIView):
         ]
 
         cache.set(cache_key, result, 7200)
+
+
+class ProblemYearlyACRateAPI(APIView):
+    def get(self, request):
+        problem_id = request.GET.get("problem_id")
+        if not problem_id:
+            return self.error("problem_id is required")
+
+        cache_key = f"{CacheKey.problem_yearly_ac}:{problem_id}"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return self.success(cached)
+
+        try:
+            problem = Problem.objects.get(
+                _id=problem_id, contest_id__isnull=True, visible=True
+            )
+        except Problem.DoesNotExist:
+            return self.error("Problem does not exist")
+
+        rows = (
+            Submission.objects.filter(
+                problem_id=problem.id,
+                contest_id__isnull=True,
+            )
+            .exclude(result__in=[JudgeStatus.PENDING, JudgeStatus.JUDGING])
+            .annotate(year=ExtractYear("create_time"))
+            .values("year")
+            .annotate(
+                total=Count("id"),
+                accepted=Count("id", filter=Q(result=JudgeStatus.ACCEPTED)),
+            )
+            .order_by("year")
+        )
+
+        data = [
+            {
+                "year": row["year"],
+                "total": row["total"],
+                "accepted": row["accepted"],
+                "ac_rate": round(row["accepted"] / row["total"] * 100, 2)
+                if row["total"] > 0
+                else 0.0,
+            }
+            for row in rows
+        ]
+
+        cache.set(cache_key, data, 3600)
+        return self.success(data)
         return self.success(result)

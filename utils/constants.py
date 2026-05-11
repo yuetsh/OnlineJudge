@@ -25,6 +25,7 @@ class CacheKey:
     problem_tags = "problem_tags"
     comment_stats = "comment_stats"
     user_activity_rank = "user_activity_rank"
+    problem_yearly_ac = "problem_yearly_ac"
 
 
 class Difficulty(models.TextChoices):
