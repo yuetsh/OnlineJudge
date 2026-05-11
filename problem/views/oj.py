@@ -329,4 +329,3 @@ class ProblemYearlyACRateAPI(APIView):
 
         cache.set(cache_key, data, 3600)
         return self.success(data)
-        return self.success(result)
