@@ -560,7 +560,7 @@ class TopACTrendAPI(APIView):
             Submission.objects.filter(contest_id__isnull=True)
             .values("problem_id", "problem___id", "problem__title")
             .annotate(total=Count("id"))
-            .order_by("-total")[:10]
+            .order_by("-total")[:40]
         )
         if not top_problems:
             return self.success([])
