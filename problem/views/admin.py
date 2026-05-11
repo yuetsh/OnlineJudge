@@ -553,28 +553,44 @@ class StuckProblemsAPI(APIView):
 class TopACTrendAPI(APIView):
     @super_admin_required
     def get(self, request):
+        import datetime
         from collections import defaultdict
+
         from submission.models import JudgeStatus
 
-        top_problems = list(
-            Submission.objects.filter(contest_id__isnull=True)
-            .values("problem_id", "problem___id", "problem__title")
-            .annotate(total=Count("id"))
-            .order_by("-total")[:40]
-        )
-        if not top_problems:
-            return self.success([])
+        current_year = datetime.datetime.now().year
 
-        top_ids = [r["problem_id"] for r in top_problems]
-        problem_meta = {
-            r["problem_id"]: (r["problem___id"], r["problem__title"])
-            for r in top_problems
-        }
+        try:
+            since_year = int(request.GET.get("since_year", 2023))
+            if since_year < 2022 or since_year > current_year:
+                since_year = 2023
+        except (TypeError, ValueError):
+            since_year = 2023
+
+        try:
+            until_year = int(request.GET.get("until_year", current_year))
+            if until_year < since_year or until_year > current_year:
+                until_year = current_year
+        except (TypeError, ValueError):
+            until_year = current_year
+
+        try:
+            min_per_year = int(request.GET.get("min_per_year", 100))
+            if min_per_year not in (50, 100, 200):
+                min_per_year = 100
+        except (TypeError, ValueError):
+            min_per_year = 100
+
+        required_years = set(range(since_year, until_year + 1))
 
         yearly_rows = (
-            Submission.objects.filter(contest_id__isnull=True, problem_id__in=top_ids)
+            Submission.objects.filter(
+                contest_id__isnull=True,
+                create_time__year__gte=since_year,
+                create_time__year__lte=until_year,
+            )
             .annotate(year=ExtractYear("create_time"))
-            .values("problem_id", "year")
+            .values("problem_id", "problem___id", "problem__title", "year")
             .annotate(
                 total=Count("id"),
                 accepted=Count("id", filter=Q(result=JudgeStatus.ACCEPTED)),
@@ -583,24 +599,33 @@ class TopACTrendAPI(APIView):
         )
 
         by_problem: dict[int, list] = defaultdict(list)
+        problem_meta: dict[int, tuple] = {}
         for r in yearly_rows:
-            by_problem[r["problem_id"]].append(
+            pid = r["problem_id"]
+            if pid not in problem_meta:
+                problem_meta[pid] = (r["problem___id"], r["problem__title"])
+            by_problem[pid].append(
                 {
                     "year": r["year"],
                     "total": r["total"],
                     "accepted": r["accepted"],
-                    "ac_rate": round(r["accepted"] / r["total"] * 100, 1)
-                    if r["total"]
-                    else 0,
+                    "ac_rate": round(r["accepted"] / r["total"] * 100, 1) if r["total"] else 0,
                 }
             )
 
-        result = [
-            {
-                "problem_id": problem_meta[pid][0],
-                "problem_title": problem_meta[pid][1],
-                "yearly": by_problem[pid],
-            }
-            for pid in top_ids
-        ]
+        result = []
+        for pid, yearly in by_problem.items():
+            years_present = {row["year"] for row in yearly}
+            if not required_years.issubset(years_present):
+                continue
+            if not all(row["total"] > min_per_year for row in yearly):
+                continue
+            result.append(
+                {
+                    "problem_id": problem_meta[pid][0],
+                    "problem_title": problem_meta[pid][1],
+                    "yearly": sorted(yearly, key=lambda x: x["year"]),
+                }
+            )
+
         return self.success(result)
