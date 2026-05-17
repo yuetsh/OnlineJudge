@@ -38,7 +38,7 @@ class User(AbstractBaseUser):
     auth_token = models.TextField(null=True)
     two_factor_auth = models.BooleanField(default=False, db_default=False)
     tfa_token = models.TextField(null=True)
-    session_keys = JSONField(default=list, db_default=models.Value([]))
+    session_keys = JSONField(default=list, db_default=models.Value([], output_field=models.JSONField()))
     # open api key
     open_api = models.BooleanField(default=False, db_default=False)
     open_api_appkey = models.TextField(null=True)
@@ -93,9 +93,9 @@ class UserProfile(models.Model):
     #         }
     #     }
     # }
-    acm_problems_status = JSONField(default=dict, db_default=models.Value({}))
+    acm_problems_status = JSONField(default=dict, db_default=models.Value({}, output_field=models.JSONField()))
     # like acm_problems_status, merely add "score" field
-    oi_problems_status = JSONField(default=dict, db_default=models.Value({}))
+    oi_problems_status = JSONField(default=dict, db_default=models.Value({}, output_field=models.JSONField()))
 
     real_name = models.TextField(null=True)
     avatar = models.TextField(default=f"{settings.AVATAR_URI_PREFIX}/default.png")

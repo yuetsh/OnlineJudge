@@ -73,13 +73,13 @@ class Problem(models.Model):
     submission_number = models.BigIntegerField(default=0, db_default=0)
     accepted_number = models.BigIntegerField(default=0, db_default=0)
     # {JudgeStatus.ACCEPTED: 3, JudgeStatus.WRONG_ANSWER: 11}, the number means count
-    statistic_info = models.JSONField(default=dict, db_default=models.Value({}))
+    statistic_info = models.JSONField(default=dict, db_default=models.Value({}, output_field=models.JSONField()))
     share_submission = models.BooleanField(default=False, db_default=False)
 
     # 流程图相关字段
     allow_flowchart = models.BooleanField(default=False, db_default=False)
     mermaid_code = models.TextField(null=True, blank=True)
-    flowchart_data = models.JSONField(default=dict, db_default=models.Value({}))
+    flowchart_data = models.JSONField(default=dict, db_default=models.Value({}, output_field=models.JSONField()))
     flowchart_hint = models.TextField(null=True, blank=True)
     show_flowchart = models.BooleanField(default=False, db_default=False)
 

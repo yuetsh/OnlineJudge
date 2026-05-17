@@ -31,12 +31,12 @@ class Submission(models.Model):
     code = models.TextField()
     result = models.IntegerField(choices=JudgeStatus.choices, db_index=True, default=JudgeStatus.PENDING, db_default=JudgeStatus.PENDING)
     # 从JudgeServer返回的判题详情
-    info = JSONField(default=dict, db_default=models.Value({}))
+    info = JSONField(default=dict, db_default=models.Value({}, output_field=models.JSONField()))
     language = models.TextField()
     shared = models.BooleanField(default=False, db_default=False)
     # 存储该提交所用时间和内存值，方便提交列表显示
     # {time_cost: "", memory_cost: "", err_info: "", score: 0}
-    statistic_info = JSONField(default=dict, db_default=models.Value({}))
+    statistic_info = JSONField(default=dict, db_default=models.Value({}, output_field=models.JSONField()))
     ip = models.TextField(null=True)
 
     def check_user_permission(self, user, check_share=True):

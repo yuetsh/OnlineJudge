@@ -18,7 +18,7 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='acmcontestrank',
             name='submission_info',
-            field=models.JSONField(db_default=models.Value({}), default=dict),
+            field=models.JSONField(db_default=models.Value({}, output_field=models.JSONField()), default=dict),
         ),
         migrations.AlterField(
             model_name='acmcontestrank',
@@ -33,7 +33,7 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='oicontestrank',
             name='submission_info',
-            field=models.JSONField(db_default=models.Value({}), default=dict),
+            field=models.JSONField(db_default=models.Value({}, output_field=models.JSONField()), default=dict),
         ),
         migrations.AlterField(
             model_name='oicontestrank',

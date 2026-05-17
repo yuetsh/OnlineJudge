@@ -13,7 +13,7 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='submission',
             name='info',
-            field=models.JSONField(db_default=models.Value({}), default=dict),
+            field=models.JSONField(db_default=models.Value({}, output_field=models.JSONField()), default=dict),
         ),
         migrations.AlterField(
             model_name='submission',
@@ -28,6 +28,6 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='submission',
             name='statistic_info',
-            field=models.JSONField(db_default=models.Value({}), default=dict),
+            field=models.JSONField(db_default=models.Value({}, output_field=models.JSONField()), default=dict),
         ),
     ]

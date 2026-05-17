@@ -67,7 +67,7 @@ class ACMContestRank(AbstractContestRank):
     total_time = models.IntegerField(default=0, db_default=0)
     # {"23": {"is_ac": True, "ac_time": 8999, "error_number": 2, "is_first_ac": True}}
     # key is problem id
-    submission_info = JSONField(default=dict, db_default=models.Value({}))
+    submission_info = JSONField(default=dict, db_default=models.Value({}, output_field=models.JSONField()))
 
     class Meta:
         db_table = "acm_contest_rank"
@@ -84,7 +84,7 @@ class OIContestRank(AbstractContestRank):
     total_score = models.IntegerField(default=0, db_default=0)
     # {"23": 333}
     # key is problem id, value is current score
-    submission_info = JSONField(default=dict, db_default=models.Value({}))
+    submission_info = JSONField(default=dict, db_default=models.Value({}, output_field=models.JSONField()))
 
     class Meta:
         db_table = "oi_contest_rank"

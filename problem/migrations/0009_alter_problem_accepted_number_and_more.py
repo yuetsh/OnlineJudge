@@ -23,7 +23,7 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='problem',
             name='flowchart_data',
-            field=models.JSONField(db_default=models.Value({}), default=dict),
+            field=models.JSONField(db_default=models.Value({}, output_field=models.JSONField()), default=dict),
         ),
         migrations.AlterField(
             model_name='problem',
@@ -43,7 +43,7 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='problem',
             name='statistic_info',
-            field=models.JSONField(db_default=models.Value({}), default=dict),
+            field=models.JSONField(db_default=models.Value({}, output_field=models.JSONField()), default=dict),
         ),
         migrations.AlterField(
             model_name='problem',

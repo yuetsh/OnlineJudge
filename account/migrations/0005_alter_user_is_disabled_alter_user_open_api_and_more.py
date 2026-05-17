@@ -23,7 +23,7 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='user',
             name='session_keys',
-            field=models.JSONField(db_default=models.Value([]), default=list),
+            field=models.JSONField(db_default=models.Value([], output_field=models.JSONField()), default=list),
         ),
         migrations.AlterField(
             model_name='user',
@@ -38,12 +38,12 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='userprofile',
             name='acm_problems_status',
-            field=models.JSONField(db_default=models.Value({}), default=dict),
+            field=models.JSONField(db_default=models.Value({}, output_field=models.JSONField()), default=dict),
         ),
         migrations.AlterField(
             model_name='userprofile',
             name='oi_problems_status',
-            field=models.JSONField(db_default=models.Value({}), default=dict),
+            field=models.JSONField(db_default=models.Value({}, output_field=models.JSONField()), default=dict),
         ),
         migrations.AlterField(
             model_name='userprofile',
