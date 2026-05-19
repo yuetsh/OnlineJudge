@@ -1,3 +1,4 @@
+import math
 import statistics
 from datetime import datetime
 
@@ -181,6 +182,26 @@ class ClassPKAPI(APIView):
 
         class_comparisons = []
 
+        # 预计算全局阈值（所有参与PK班级的学生AC数合并）
+        all_user_ids = list(
+            User.objects.filter(
+                class_name__in=class_names,
+                is_disabled=False,
+                admin_type__in=[AdminType.REGULAR_USER, AdminType.ADMIN],
+            ).values_list("id", flat=True)
+        )
+        all_ac_list = sorted(
+            [p.accepted_number for p in UserProfile.objects.filter(user_id__in=all_user_ids)],
+            reverse=True,
+        )
+        if len(all_ac_list) > 1:
+            _quantiles = statistics.quantiles(all_ac_list, n=4)
+            global_q1 = _quantiles[0]
+            global_q3 = _quantiles[2]
+        else:
+            global_q1 = all_ac_list[0] if all_ac_list else 0
+            global_q3 = all_ac_list[0] if all_ac_list else 0
+
         for class_name in class_names:
             users = User.objects.filter(
                 class_name=class_name,
@@ -214,9 +235,9 @@ class ClassPKAPI(APIView):
             # 标准差
             std_dev = statistics.stdev(ac_list) if len(ac_list) > 1 else 0
 
-            # 前10名和后10名统计
-            top_10_count = min(10, user_count)
-            bottom_10_count = min(10, user_count)
+            # 前10%和后10%统计
+            top_10_count = max(1, math.ceil(user_count * 0.10))
+            bottom_10_count = max(1, math.ceil(user_count * 0.10))
             top_10_avg = (
                 statistics.mean(ac_list[:top_10_count]) if top_10_count > 0 else 0
             )
@@ -226,31 +247,21 @@ class ClassPKAPI(APIView):
                 else 0
             )
 
-            # 前25%和后25%统计
-            top_25_count = max(1, user_count // 4)
-            bottom_25_count = max(1, user_count // 4)
-            top_25_avg = (
-                statistics.mean(ac_list[:top_25_count]) if top_25_count > 0 else 0
-            )
-            bottom_25_avg = (
-                statistics.mean(ac_list[-bottom_25_count:])
-                if bottom_25_count > 0
-                else 0
-            )
+            # 中间80%均值（截尾均值，去掉前10%和后10%）
+            if top_10_count + bottom_10_count < user_count:
+                middle_list = ac_list[top_10_count:-bottom_10_count]
+            else:
+                middle_list = ac_list
+            middle_80_avg = statistics.mean(middle_list) if middle_list else avg_ac
 
-            # 优秀率（AC数 >= 中位数 + 标准差）
-            # 使用中位数+标准差方法，既不受极端值影响，又能反映班级差异
-            excellent_threshold = (
-                median_ac + std_dev if std_dev > 0 else median_ac * 1.5
-            )
-            excellent_count = sum(1 for ac in ac_list if ac >= excellent_threshold)
+            # 优秀率（AC数 >= 全局Q3，即超过PK组所有学生的前25%）
+            excellent_count = sum(1 for ac in ac_list if ac >= global_q3)
             excellent_rate = (
                 (excellent_count / user_count * 100) if user_count > 0 else 0
             )
 
-            # 及格率（AC数 >= 平均值的0.5倍）
-            pass_threshold = avg_ac * 0.5
-            pass_count = sum(1 for ac in ac_list if ac >= pass_threshold)
+            # 及格率（AC数 >= 全局Q1，即超过PK组所有学生的后25%）
+            pass_count = sum(1 for ac in ac_list if ac >= global_q1)
             pass_rate = (pass_count / user_count * 100) if user_count > 0 else 0
 
             # 参与度（有提交记录的学生比例）
@@ -292,7 +303,7 @@ class ClassPKAPI(APIView):
                         "recent_avg_ac": statistics.mean(recent_ac_list),
                         "recent_median_ac": statistics.median(recent_ac_list),
                         "recent_top_10_avg": statistics.mean(
-                            recent_ac_list[: min(10, len(recent_ac_list))]
+                            recent_ac_list[: max(1, math.ceil(len(recent_ac_list) * 0.10))]
                         )
                         if recent_ac_list
                         else 0,
@@ -318,9 +329,8 @@ class ClassPKAPI(APIView):
                     "std_dev": round(std_dev, 2),
                     # 分层统计
                     "top_10_avg": round(top_10_avg, 2),
+                    "middle_80_avg": round(middle_80_avg, 2),
                     "bottom_10_avg": round(bottom_10_avg, 2),
-                    "top_25_avg": round(top_25_avg, 2),
-                    "bottom_25_avg": round(bottom_25_avg, 2),
                     # 比率统计
                     "excellent_rate": round(excellent_rate, 2),
                     "pass_rate": round(pass_rate, 2),
@@ -334,8 +344,24 @@ class ClassPKAPI(APIView):
                 }
             )
 
-        # 按总AC数排序
-        class_comparisons.sort(key=lambda x: (-x["total_ac"], x["total_submission"]))
+        # 计算综合分（需要所有班级数据就绪后才能归一化）
+        max_median = max((c["median_ac"] for c in class_comparisons), default=1) or 1
+        max_middle = max((c["middle_80_avg"] for c in class_comparisons), default=1) or 1
+
+        for c in class_comparisons:
+            score = (
+                0.40 * (c["median_ac"] / max_median * 100)
+                + 0.15 * (c["middle_80_avg"] / max_middle * 100)
+                + 0.20 * c["active_rate"]
+                + 0.15 * c["pass_rate"]
+                + 0.10 * c["excellent_rate"]
+            )
+            c["composite_score"] = round(score, 1)
+
+        # 按综合分排序（主），中位数（次）
+        class_comparisons.sort(
+            key=lambda x: (-x["composite_score"], -x["median_ac"])
+        )
 
         return self.success(
             {
