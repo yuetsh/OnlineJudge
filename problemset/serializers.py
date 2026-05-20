@@ -304,4 +304,17 @@ class UpdateProgressSerializer(serializers.Serializer):
 
     problemset_id = serializers.IntegerField()
     problem_id = serializers.IntegerField()
-    submission_id = serializers.CharField(required=False)
+    submission_id = serializers.CharField()
+
+
+class ProblemSetVisibleSerializer(serializers.Serializer):
+    """切换题单可见性序列化器"""
+
+    id = serializers.IntegerField()
+
+
+class ProblemSetUpdateStatusSerializer(serializers.Serializer):
+    """更新题单状态序列化器"""
+
+    id = serializers.IntegerField()
+    status = serializers.ChoiceField(choices=ProblemSetStatus.choices)

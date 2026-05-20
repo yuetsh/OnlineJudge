@@ -14,6 +14,17 @@ from problemset.views.admin import (
 urlpatterns = [
     # 管理员题单管理API
     path("problemset", ProblemSetAdminAPI.as_view(), name="admin_problemset_api"),
+    # 题单状态管理API — 必须在 <int:problem_set_id> 之前，否则被整数路由遮蔽
+    path(
+        "problemset/visible",
+        ProblemSetVisibleAPI.as_view(),
+        name="admin_problemset_visible_api",
+    ),
+    path(
+        "problemset/status",
+        ProblemSetStatusAPI.as_view(),
+        name="admin_problemset_status_api",
+    ),
     path(
         "problemset/<int:problem_set_id>",
         ProblemSetDetailAdminAPI.as_view(),
@@ -56,16 +67,5 @@ urlpatterns = [
         "problemset/<int:problem_set_id>/sync",
         ProblemSetSyncAPI.as_view(),
         name="admin_problemset_sync_api",
-    ),
-    # 题单状态管理API
-    path(
-        "problemset/visible",
-        ProblemSetVisibleAPI.as_view(),
-        name="admin_problemset_visible_api",
-    ),
-    path(
-        "problemset/status",
-        ProblemSetStatusAPI.as_view(),
-        name="admin_problemset_status_api",
     ),
 ]

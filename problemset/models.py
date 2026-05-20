@@ -110,16 +110,20 @@ class ProblemSetBadge(models.Model):
         from django.db import transaction
 
         user_progresses = ProblemSetProgress.objects.filter(problemset=self.problemset)
-        new_badges = [UserBadge(user=progress.user, badge=self) for progress in user_progresses if self._is_eligible(progress)]
+        eligible_user_ids = {p.user_id for p in user_progresses if self._is_eligible(p)}
         with transaction.atomic():
-            UserBadge.objects.filter(badge=self).delete()
+            # 移除不再满足条件的用户徽章
+            UserBadge.objects.filter(badge=self).exclude(user_id__in=eligible_user_ids).delete()
+            # 为新满足条件的用户授予徽章（保留已有记录的 earned_time）
+            existing_user_ids = set(UserBadge.objects.filter(badge=self).values_list("user_id", flat=True))
+            new_badges = [UserBadge(user_id=uid, badge=self) for uid in eligible_user_ids - existing_user_ids]
             if new_badges:
                 UserBadge.objects.bulk_create(new_badges)
 
     def _is_eligible(self, progress):
         """判断用户进度是否满足该徽章条件（纯逻辑，不查数据库）"""
         if self.condition_type == BadgeConditionType.ALL_PROBLEMS:
-            return progress.completed_problems_count == progress.total_problems_count
+            return progress.total_problems_count > 0 and progress.completed_problems_count == progress.total_problems_count
         if self.condition_type == BadgeConditionType.PROBLEM_COUNT:
             return progress.completed_problems_count >= self.condition_value
         if self.condition_type == BadgeConditionType.SCORE:

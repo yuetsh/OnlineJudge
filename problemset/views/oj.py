@@ -1,6 +1,7 @@
 from django.db.models import Avg, Count, Prefetch, Q
 from django.utils import timezone
 
+from account.decorators import admin_role_required, login_required
 from account.models import User
 from problem.models import Problem
 from problemset.models import (
@@ -23,7 +24,7 @@ from problemset.serializers import (
     UpdateProgressSerializer,
     UserBadgeSerializer,
 )
-from submission.models import Submission
+from submission.models import JudgeStatus, Submission
 from utils.api import APIView, validate_serializer
 
 
@@ -125,6 +126,7 @@ class ProblemSetProblemAPI(APIView):
 class ProblemSetProgressAPI(APIView):
     """题单进度API"""
 
+    @login_required
     @validate_serializer(JoinProblemSetSerializer)
     def post(self, request):
         """加入题单"""
@@ -143,6 +145,7 @@ class ProblemSetProgressAPI(APIView):
 
         return self.success("成功加入题单")
 
+    @login_required
     def get(self, request, problem_set_id):
         """获取题单进度"""
         try:
@@ -158,6 +161,7 @@ class ProblemSetProgressAPI(APIView):
         serializer = ProblemSetProgressSerializer(progress)
         return self.success(serializer.data)
 
+    @login_required
     @validate_serializer(UpdateProgressSerializer)
     def put(self, request):
         """更新进度"""
@@ -172,10 +176,20 @@ class ProblemSetProgressAPI(APIView):
         except ProblemSetProgress.DoesNotExist:
             return self.error("未加入该题单")
 
-        # 更新详细进度
         problem_id = str(data["problem_id"])
+        submission_id = data.get("submission_id")
 
-        # 获取该题目在题单中的分值
+        if not submission_id:
+            return self.error("需要提供提交记录ID")
+
+        try:
+            submission = Submission.objects.get(id=submission_id, user=request.user)
+        except Submission.DoesNotExist:
+            return self.error("提交记录不存在")
+
+        if submission.result != JudgeStatus.ACCEPTED:
+            return self.error("只有通过的提交才能更新进度")
+
         try:
             problemset_problem = ProblemSetProblem.objects.get(problemset=problem_set, problem_id=problem_id)
             problem_score = problemset_problem.score
@@ -183,38 +197,24 @@ class ProblemSetProgressAPI(APIView):
             problem_score = 0
 
         progress.progress_detail[problem_id] = {
-            "score": problem_score,  # 题单中设置的分值
-            "submit_time": data.get("submit_time", timezone.now().isoformat()),
+            "score": problem_score,
+            "submit_time": timezone.now().isoformat(),
         }
-
-        # 更新进度
         progress.update_progress()
 
-        # 只有当提供了submission_id时才创建ProblemSetSubmission记录
-        if "submission_id" in data and data["submission_id"]:
-            try:
-                submission = Submission.objects.get(id=data["submission_id"])
-                problem = Problem.objects.get(id=problem_id)
-
-                has_accepted = ProblemSetSubmission.objects.filter(
+        try:
+            problem = Problem.objects.get(id=problem_id)
+            if not ProblemSetSubmission.objects.filter(problemset=problem_set, user=request.user, problem=problem).exists():
+                ProblemSetSubmission.objects.create(
                     problemset=problem_set,
                     user=request.user,
+                    submission=submission,
                     problem=problem,
-                ).exists()
-                if not has_accepted:
-                    ProblemSetSubmission.objects.create(
-                        problemset=problem_set,
-                        user=request.user,
-                        submission=submission,
-                        problem=problem,
-                    )
-            except Submission.DoesNotExist:
-                # 如果提交记录不存在，记录错误但不中断流程
-                pass
+                )
+        except Problem.DoesNotExist:
+            pass
 
-        # 检查是否获得奖章
         self._check_badges(progress)
-
         return self.success("进度已更新")
 
     def _check_badges(self, progress):
@@ -226,7 +226,7 @@ class ProblemSetProgressAPI(APIView):
                 continue
 
             if badge.condition_type == BadgeConditionType.ALL_PROBLEMS:
-                if progress.completed_problems_count == progress.total_problems_count:
+                if progress.total_problems_count > 0 and progress.completed_problems_count == progress.total_problems_count:
                     UserBadge.objects.create(user=progress.user, badge=badge)
             elif badge.condition_type == BadgeConditionType.PROBLEM_COUNT:
                 if progress.completed_problems_count >= badge.condition_value:
@@ -239,6 +239,7 @@ class ProblemSetProgressAPI(APIView):
 class UserProgressAPI(APIView):
     """用户进度API"""
 
+    @login_required
     def get(self, request):
         """获取用户的题单进度列表"""
         progress_list = ProblemSetProgress.objects.filter(user=request.user).order_by("-join_time")
@@ -287,6 +288,7 @@ class ProblemSetBadgeAPI(APIView):
 class ProblemSetUserProgressAPI(APIView):
     """题单用户进度列表API"""
 
+    @admin_role_required
     def get(self, request, problem_set_id: int):
         """获取题单的用户进度列表"""
         try:

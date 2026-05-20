@@ -1,4 +1,4 @@
-from django.db.models import Q
+from django.db.models import Count, Q
 
 from account.decorators import ensure_created_by, super_admin_required
 from problem.models import Problem
@@ -7,7 +7,6 @@ from problemset.models import (
     ProblemSetBadge,
     ProblemSetProblem,
     ProblemSetProgress,
-    ProblemSetStatus,
 )
 from problemset.serializers import (
     AddProblemToSetSerializer,
@@ -21,6 +20,8 @@ from problemset.serializers import (
     ProblemSetProblemSerializer,
     ProblemSetProgressSerializer,
     ProblemSetSerializer,
+    ProblemSetUpdateStatusSerializer,
+    ProblemSetVisibleSerializer,
 )
 from utils.api import APIView, validate_serializer
 
@@ -31,7 +32,7 @@ class ProblemSetAdminAPI(APIView):
     @super_admin_required
     def get(self, request):
         """获取题单列表（管理员）"""
-        problem_sets = ProblemSet.objects.all().order_by("-create_time")
+        problem_sets = ProblemSet.objects.filter(visible=True).annotate(problems_count=Count("problemsetproblem", distinct=True)).order_by("-create_time")
 
         # 过滤条件
         keyword = request.GET.get("keyword", "").strip()
@@ -72,10 +73,8 @@ class ProblemSetAdminAPI(APIView):
         except ProblemSet.DoesNotExist:
             return self.error("题单不存在")
 
-        # 更新题单信息
         for key, value in data.items():
-            if key != "id":
-                setattr(problem_set, key, value)
+            setattr(problem_set, key, value)
         problem_set.save()
 
         return self.success(ProblemSetSerializer(problem_set).data)
@@ -93,10 +92,7 @@ class ProblemSetAdminAPI(APIView):
         except ProblemSet.DoesNotExist:
             return self.error("题单不存在")
 
-        # 软删除：设置为不可见
-        problem_set.visible = False
-        problem_set.save()
-
+        problem_set.delete()
         return self.success("题单已删除")
 
 
@@ -165,9 +161,6 @@ class ProblemSetProblemAdminAPI(APIView):
             hint=data.get("hint", ""),
         )
 
-        # 同步所有用户的进度
-        ProblemSetProgress.sync_all_progress_for_problemset(problem_set)
-
         return self.success("题目已添加到题单")
 
     @super_admin_required
@@ -198,9 +191,6 @@ class ProblemSetProblemAdminAPI(APIView):
 
         problem_set_problem.save()
 
-        # 同步所有用户的进度
-        ProblemSetProgress.sync_all_progress_for_problemset(problem_set)
-
         return self.success("题目已更新")
 
     @super_admin_required
@@ -215,10 +205,6 @@ class ProblemSetProblemAdminAPI(APIView):
         try:
             problem_set_problem = ProblemSetProblem.objects.get(id=problem_set_problem_id, problemset=problem_set)
             problem_set_problem.delete()
-
-            # 同步所有用户的进度
-            ProblemSetProgress.sync_all_progress_for_problemset(problem_set)
-
             return self.success("题目已从题单中移除")
         except ProblemSetProblem.DoesNotExist:
             return self.error("题目不在该题单中")
@@ -289,19 +275,11 @@ class ProblemSetBadgeAdminAPI(APIView):
         if "condition_value" in data:
             badge.condition_value = data["condition_value"]
             condition_changed = True
-        if "level" in data:
-            badge.level = data["level"]
 
-        badge.save()
+        badge.save()  # post_save 信号自动触发 recalculate_user_badges
 
-        # 如果修改了条件，重新计算所有用户的徽章资格
         if condition_changed:
-            try:
-                badge.recalculate_user_badges()
-                return self.success("奖章已更新，并重新计算了所有用户的徽章资格")
-            except Exception as e:
-                return self.error(f"奖章已更新，但重新计算徽章资格时出错: {str(e)}")
-
+            return self.success("奖章已更新，并重新计算了所有用户的徽章资格")
         return self.success("奖章已更新")
 
     @super_admin_required
@@ -376,6 +354,7 @@ class ProblemSetVisibleAPI(APIView):
     """题单可见性管理API"""
 
     @super_admin_required
+    @validate_serializer(ProblemSetVisibleSerializer)
     def put(self, request):
         """切换题单可见性"""
         data = request.data
@@ -394,6 +373,7 @@ class ProblemSetStatusAPI(APIView):
     """题单状态管理API"""
 
     @super_admin_required
+    @validate_serializer(ProblemSetUpdateStatusSerializer)
     def put(self, request):
         """更新题单状态"""
         data = request.data
@@ -403,10 +383,6 @@ class ProblemSetStatusAPI(APIView):
         except ProblemSet.DoesNotExist:
             return self.error("题单不存在")
 
-        status = data.get("status")
-        if status not in ProblemSetStatus.values:
-            return self.error("无效的状态")
-
-        problem_set.status = status
+        problem_set.status = data["status"]
         problem_set.save()
         return self.success()
