@@ -183,7 +183,7 @@ class ProblemSetProgressAPI(APIView):
             return self.error("需要提供提交记录ID")
 
         try:
-            submission = Submission.objects.get(id=submission_id, user=request.user)
+            submission = Submission.objects.get(id=submission_id, user_id=request.user.id)
         except Submission.DoesNotExist:
             return self.error("提交记录不存在")
 
