@@ -130,7 +130,7 @@ class ProblemAdminSerializer(BaseProblemSerializer):
 class ProblemAdminListSerializer(BaseProblemSerializer):
     class Meta:
         model = Problem
-        fields = ["_id", "id", "title", "created_by", "visible", "create_time"]
+        fields = ["_id", "id", "title", "created_by", "visible", "create_time", "difficulty", "tags"]
 
 
 class ProblemSerializer(BaseProblemSerializer):
