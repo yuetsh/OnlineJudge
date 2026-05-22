@@ -94,9 +94,7 @@ class ContestAPI(APIView):
         keyword = request.GET.get("keyword")
         if keyword:
             contests = contests.filter(title__contains=keyword)
-        return self.success(
-            self.paginate_data(request, contests, ContestAdminSerializer)
-        )
+        return self.success(self.paginate_data(request, contests, ContestAdminSerializer))
 
 
 class ContestAnnouncementAPI(APIView):
@@ -150,29 +148,19 @@ class ContestAnnouncementAPI(APIView):
         contest_announcement_id = request.GET.get("id")
         if contest_announcement_id:
             try:
-                contest_announcement = ContestAnnouncement.objects.get(
-                    id=contest_announcement_id
-                )
-                return self.success(
-                    ContestAnnouncementSerializer(contest_announcement).data
-                )
+                contest_announcement = ContestAnnouncement.objects.get(id=contest_announcement_id)
+                return self.success(ContestAnnouncementSerializer(contest_announcement).data)
             except ContestAnnouncement.DoesNotExist:
                 return self.error("Contest announcement does not exist")
 
         contest_id = request.GET.get("contest_id")
         if not contest_id:
             return self.error("Parameter error")
-        contest_announcements = ContestAnnouncement.objects.filter(
-            contest_id=contest_id
-        )
+        contest_announcements = ContestAnnouncement.objects.filter(contest_id=contest_id)
         keyword = request.GET.get("keyword")
         if keyword:
-            contest_announcements = contest_announcements.filter(
-                title__contains=keyword
-            )
-        return self.success(
-            ContestAnnouncementSerializer(contest_announcements, many=True).data
-        )
+            contest_announcements = contest_announcements.filter(title__contains=keyword)
+        return self.success(ContestAnnouncementSerializer(contest_announcements, many=True).data)
 
 
 class ACMContestHelper(APIView):
@@ -189,11 +177,7 @@ class ACMContestHelper(APIView):
         problems = Problem.objects.filter(contest=contest).values("id", "_id")
         problem_id_map = {str(p["id"]): p["_id"] for p in problems}
 
-        ranks = ACMContestRank.objects.filter(
-            contest=contest, accepted_number__gt=0
-        ).values(
-            "id", "user__username", "user__userprofile__real_name", "submission_info"
-        )
+        ranks = ACMContestRank.objects.filter(contest=contest, accepted_number__gt=0).values("id", "user__username", "user__userprofile__real_name", "submission_info")
         results = []
         for rank in ranks:
             for problem_id, info in rank["submission_info"].items():
@@ -204,9 +188,7 @@ class ACMContestHelper(APIView):
                             "username": rank["user__username"],
                             "real_name": rank["user__userprofile__real_name"],
                             "problem_id": problem_id,
-                            "problem_display_id": problem_id_map.get(
-                                problem_id, problem_id
-                            ),
+                            "problem_display_id": problem_id_map.get(problem_id, problem_id),
                             "ac_info": info,
                             "checked": info.get("checked", False),
                         }
@@ -235,9 +217,7 @@ class DownloadContestSubmissions(APIView):
         problem_ids = contest.problem_set.all().values_list("id", "_id")
         id2display_id = {k[0]: k[1] for k in problem_ids}
         ac_map = {k[0]: False for k in problem_ids}
-        submissions = Submission.objects.filter(
-            contest=contest, result=JudgeStatus.ACCEPTED
-        ).order_by("-create_time")
+        submissions = Submission.objects.filter(contest=contest, result=JudgeStatus.ACCEPTED).order_by("-create_time")
         user_ids = submissions.values_list("user_id", flat=True)
         users = User.objects.filter(id__in=user_ids)
         path = f"/tmp/{rand_str()}.zip"
@@ -251,9 +231,7 @@ class DownloadContestSubmissions(APIView):
                     problem_id = submission.problem_id
                     if user_ac_map[problem_id]:
                         continue
-                    file_name = (
-                        f"{user.username}_{id2display_id[submission.problem_id]}.txt"
-                    )
+                    file_name = f"{user.username}_{id2display_id[submission.problem_id]}.txt"
                     compression = zipfile.ZIP_DEFLATED
                     zip_file.writestr(
                         zinfo_or_arcname=f"{file_name}",
@@ -278,9 +256,7 @@ class DownloadContestSubmissions(APIView):
         delete_files.send_with_options(args=(zip_path,), delay=300_000)
         resp = FileResponse(open(zip_path, "rb"))
         resp["Content-Type"] = "application/zip"
-        resp["Content-Disposition"] = (
-            f"attachment;filename={os.path.basename(zip_path)}"
-        )
+        resp["Content-Disposition"] = f"attachment;filename={os.path.basename(zip_path)}"
         return resp
 
 
@@ -304,7 +280,7 @@ class ContestCloneAPI(APIView):
             rule_type=original.rule_type,
             password=original.password,
             real_time_rank=original.real_time_rank,
-            visible=original.visible,
+            visible=False,
             allowed_ip_ranges=original.allowed_ip_ranges,
             start_time=new_start,
             end_time=new_end,
