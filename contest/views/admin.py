@@ -312,38 +312,14 @@ class ContestCloneAPI(APIView):
         )
 
         for problem in Problem.objects.filter(contest=original):
-            new_problem = Problem.objects.create(
-                _id=problem._id,
-                contest=new_contest,
-                is_public=problem.is_public,
-                title=problem.title,
-                description=problem.description,
-                input_description=problem.input_description,
-                output_description=problem.output_description,
-                samples=problem.samples,
-                test_case_id=problem.test_case_id,
-                test_case_score=problem.test_case_score,
-                hint=problem.hint,
-                languages=problem.languages,
-                template=problem.template,
-                created_by=request.user,
-                time_limit=problem.time_limit,
-                memory_limit=problem.memory_limit,
-                io_mode=problem.io_mode,
-                rule_type=problem.rule_type,
-                visible=problem.visible,
-                difficulty=problem.difficulty,
-                source=problem.source,
-                prompt=problem.prompt,
-                answers=problem.answers,
-                total_score=problem.total_score,
-                share_submission=problem.share_submission,
-                allow_flowchart=problem.allow_flowchart,
-                mermaid_code=problem.mermaid_code,
-                flowchart_data=problem.flowchart_data,
-                flowchart_hint=problem.flowchart_hint,
-                show_flowchart=problem.show_flowchart,
-            )
-            new_problem.tags.set(problem.tags.all())
+            tags = problem.tags.all()
+            problem.pk = None
+            problem.contest = new_contest
+            problem.submission_number = 0
+            problem.accepted_number = 0
+            problem.statistic_info = {}
+            problem.created_by = request.user
+            problem.save()
+            problem.tags.set(tags)
 
         return self.success(ContestAdminSerializer(new_contest).data)
