@@ -107,3 +107,7 @@ class ACMContesHelperSerializer(serializers.Serializer):
     problem_id = serializers.CharField()
     rank_id = serializers.IntegerField()
     checked = serializers.BooleanField()
+
+
+class ContestCloneSerializer(serializers.Serializer):
+    contest_id = serializers.IntegerField()

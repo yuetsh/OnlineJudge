@@ -1,10 +1,12 @@
 import copy
 import os
 import zipfile
+from datetime import timedelta
 from ipaddress import ip_network
 
 import dateutil.parser
 from django.http import FileResponse
+from django.utils.timezone import now
 
 from account.decorators import super_admin_required
 from account.models import User
@@ -21,6 +23,7 @@ from ..serializers import (
     ACMContesHelperSerializer,
     ContestAdminSerializer,
     ContestAnnouncementSerializer,
+    ContestCloneSerializer,
     CreateConetestSeriaizer,
     CreateContestAnnouncementSerializer,
     EditConetestSeriaizer,
@@ -279,3 +282,68 @@ class DownloadContestSubmissions(APIView):
             f"attachment;filename={os.path.basename(zip_path)}"
         )
         return resp
+
+
+class ContestCloneAPI(APIView):
+    @validate_serializer(ContestCloneSerializer)
+    @super_admin_required
+    def post(self, request):
+        try:
+            original = Contest.objects.get(id=request.data["contest_id"])
+        except Contest.DoesNotExist:
+            return self.error("Contest does not exist")
+
+        duration = original.end_time - original.start_time
+        new_start = now() + timedelta(minutes=10)
+        new_end = new_start + duration
+
+        new_contest = Contest.objects.create(
+            title=original.title,
+            description=original.description,
+            tag=original.tag,
+            rule_type=original.rule_type,
+            password=original.password,
+            real_time_rank=original.real_time_rank,
+            visible=original.visible,
+            allowed_ip_ranges=original.allowed_ip_ranges,
+            start_time=new_start,
+            end_time=new_end,
+            created_by=request.user,
+        )
+
+        for problem in Problem.objects.filter(contest=original):
+            new_problem = Problem.objects.create(
+                _id=problem._id,
+                contest=new_contest,
+                is_public=problem.is_public,
+                title=problem.title,
+                description=problem.description,
+                input_description=problem.input_description,
+                output_description=problem.output_description,
+                samples=problem.samples,
+                test_case_id=problem.test_case_id,
+                test_case_score=problem.test_case_score,
+                hint=problem.hint,
+                languages=problem.languages,
+                template=problem.template,
+                created_by=request.user,
+                time_limit=problem.time_limit,
+                memory_limit=problem.memory_limit,
+                io_mode=problem.io_mode,
+                rule_type=problem.rule_type,
+                visible=problem.visible,
+                difficulty=problem.difficulty,
+                source=problem.source,
+                prompt=problem.prompt,
+                answers=problem.answers,
+                total_score=problem.total_score,
+                share_submission=problem.share_submission,
+                allow_flowchart=problem.allow_flowchart,
+                mermaid_code=problem.mermaid_code,
+                flowchart_data=problem.flowchart_data,
+                flowchart_hint=problem.flowchart_hint,
+                show_flowchart=problem.show_flowchart,
+            )
+            new_problem.tags.set(problem.tags.all())
+
+        return self.success(ContestAdminSerializer(new_contest).data)
