@@ -63,7 +63,7 @@ def evaluate_flowchart_task(submission_id):
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
             ],
-            temperature=0.3,
+            temperature=0,
             extra_body={"thinking": {"type": "disabled"}},
         )
 
