@@ -381,9 +381,15 @@ These are pure Python wheels with pre-compiled grammars, no system dependencies 
 
 One Django migration:
 1. Add `ast_rules` JSONField (null=True) to Problem model
-2. Add `AST_CHECK_FAILED = 9` to JudgeStatus
+2. Add `AST_CHECK_FAILED = 10` to JudgeStatus
 
 Both are additive, no data migration needed. Existing problems get `ast_rules=null` (no AST checking).
+
+### Legacy Data Policy
+
+- **Existing submissions are not retroactively checked.** When a teacher adds AST rules to an existing problem, only new submissions are AST-checked. Prior AC submissions remain AC.
+- **No data migration required.** `accepted_number` and `statistic_info` keep their current values. The `statistic_info` will naturally accumulate `"10"` entries as new AST_CHECK_FAILED submissions come in.
+- **Phase 2: optional "AST re-check"** — an admin action to re-run AST rules on all existing AC submissions for a given problem. Not in Phase 1.
 
 ---
 
