@@ -1,53 +1,59 @@
 # AST Checker Design Spec
 
-## Overview
+> Tree-sitter-based code structure validation for the Online Judge platform.
 
-Add tree-sitter-based AST checking to the Online Judge submission flow. Teachers can configure per-problem, per-language rules that validate student code structure (e.g., "must use while loop", "cannot use for loop", "must call print()").
+## 1. Overview
 
-**Critical invariant**: AST check runs AFTER normal judging. Only submissions that would be AC are checked. If AST fails, the displayed result is `AST_CHECK_FAILED`, but **all statistics treat it as AC** (problem accepted count, user profile solved status, contest ranking). The student solved the problem correctly — they just didn't use the required syntax.
+Teachers can configure per-problem, per-language rules that validate student code structure (e.g., "must use while loop", "cannot use for loop", "must call print()"). Rules use a predefined engine library — admins never write raw tree-sitter queries.
 
-## Goals
+### Critical Invariant
+
+AST check runs **AFTER** normal judging, **ONLY** on submissions that would be AC. If AST fails, the displayed result is `AST_CHECK_FAILED`, but **all statistics treat it as AC** — problem `accepted_number`, user profile solved status, contest ranking. The student solved the problem correctly; they just didn't use the required syntax.
+
+### Goals
 
 - Enforce coding constraints for pedagogical purposes (beginner programming courses)
-- Support all 6 languages: Python3, C, C++, Java, Golang, JavaScript
-- Predefined rule library with parameterized engines (no raw tree-sitter queries for admins)
+- Support all 6 languages: Python3, C, C++, Java, Golang, JavaScript (Python3 and C prioritized)
+- Predefined rule library with parameterized engines
 - Full admin UI for configuring rules per problem per language
 - New `AST_CHECK_FAILED` judge status with clear error messages
 
-## Non-Goals
+### Non-Goals
 
 - Output-aware checks ("禁止直接输出完整目标答案") — requires expected output, not AST
-- String literal content matching (`.2f`, `03d` format specifiers) — deferred to a later phase
+- String literal content matching (`.2f`, `03d` format specifiers) — deferred
 - Custom tree-sitter query support for admins
 
 ---
 
-## Architecture
+## 2. New Judge Status
 
-### Submission Flow (modified)
-
-```
-SubmissionAPI.post()
-  → create Submission(PENDING)
-  → judge_task.send()
-    → JudgeDispatcher.judge()
-      → apply code template
-      → choose judge server
-      → send to judge server
-      → process judge result
-      → if result == AC and ast_rules exist for this language:
-          → **AST check** ← NEW
-          → if AST fails:
-              → result = AST_CHECK_FAILED (display only)
-              → write err_info with rule violation details
-          → (statistics still treat as AC)
-      → update_problem_status / update_contest_* (treats AST_CHECK_FAILED as AC)
-      → push WebSocket with final result
+```python
+class JudgeStatus(models.IntegerChoices):
+    COMPILE_ERROR = -2
+    WRONG_ANSWER = -1
+    ACCEPTED = 0
+    CPU_TIME_LIMIT_EXCEEDED = 1
+    REAL_TIME_LIMIT_EXCEEDED = 2
+    MEMORY_LIMIT_EXCEEDED = 3
+    RUNTIME_ERROR = 4
+    SYSTEM_ERROR = 5
+    PENDING = 6
+    JUDGING = 7
+    PARTIALLY_ACCEPTED = 8
+    AST_CHECK_FAILED = 10   # 9 is taken by frontend SubmissionStatus.submitting
 ```
 
-AST check runs AFTER the judge server returns a result, and ONLY when the result is AC. The key insight: a student who produces correct output has solved the problem — they just need to adjust their approach. Statistics (accepted count, user profile, contest rank) always reflect the AC.
+Helper function in `submission/models.py`:
 
-### Data Model
+```python
+def is_accepted(result):
+    return result in (JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED)
+```
+
+---
+
+## 3. Data Model
 
 **Problem model** — new JSONField:
 
@@ -72,40 +78,71 @@ Schema:
 }
 ```
 
-Key design: `target` uses **language-agnostic logical names** (e.g., `for_loop`, `while_loop`, `print`). Each engine maps these to language-specific tree-sitter node types internally.
-
-When `ast_rules` is `null` or the current language has no rules, AST checking is skipped entirely.
-
-**JudgeStatus** — new status code:
-
-```python
-class JudgeStatus(models.IntegerChoices):
-    COMPILE_ERROR = -2, "Compile Error"
-    WRONG_ANSWER = -1, "Wrong Answer"
-    ACCEPTED = 0, "Accepted"
-    CPU_TIME_LIMIT_EXCEEDED = 1, "CPU Time Limit Exceeded"
-    REAL_TIME_LIMIT_EXCEEDED = 2, "Real Time Limit Exceeded"
-    MEMORY_LIMIT_EXCEEDED = 3, "Memory Limit Exceeded"
-    RUNTIME_ERROR = 4, "Runtime Error"
-    SYSTEM_ERROR = 5, "System Error"
-    PENDING = 6, "Pending"
-    JUDGING = 7, "Judging"
-    PARTIALLY_ACCEPTED = 8, "Partially Accepted"
-    AST_CHECK_FAILED = 10, "AST Check Failed"   # NEW (9 is taken by frontend's "submitting" transient state)
-```
-
-Frontend `constants.ts` must be updated with the new status code, label, and color.
+`target` uses **language-agnostic logical names** (e.g., `for_loop`, `while_loop`). Each engine maps these to language-specific tree-sitter node types via the mapping layer. When `ast_rules` is `null` or the current language has no rules, AST checking is skipped entirely.
 
 ---
 
-## Rule Engine Architecture
+## 4. Submission Flow
+
+```
+SubmissionAPI.post()
+  → create Submission(PENDING)
+  → judge_task.send()
+    → JudgeDispatcher.judge()
+      → apply code template
+      → choose judge server
+      → send to judge server
+      → process judge result
+      → _compute_statistic_info()
+      → if result == AC and ast_rules exist for this language:
+          → AST check (NEW)
+          → if AST fails:
+              result = AST_CHECK_FAILED (display only)
+              err_info = rule violation details
+      → update_problem_status (treats AST_CHECK_FAILED as AC)
+      → push WebSocket with final result
+```
+
+The check runs on `self.submission.code` (raw student code), not the template-wrapped version.
+
+### Integration Code
+
+```python
+# In JudgeDispatcher.judge(), after _compute_statistic_info and result determination:
+
+if self.submission.result == JudgeStatus.ACCEPTED:
+    ast_rules = self.problem.ast_rules
+    if ast_rules and language in ast_rules:
+        from ast_checker.checker import check_ast
+        passed, errors = check_ast(self.submission.code, language, ast_rules[language])
+        if not passed:
+            self.submission.result = JudgeStatus.AST_CHECK_FAILED
+            self.submission.statistic_info["err_info"] = "\n".join(errors)
+
+self.submission.save(update_fields=["result", "info", "statistic_info"])
+```
+
+### Statistics Storage
+
+`statistic_info` uses the **actual result code** as the key: `{"0": 5, "10": 3, "-1": 20}`. This means:
+- `accepted_number` = AC + AST_CHECK_FAILED combined (for overall acceptance rate)
+- `statistic_info` retains the breakdown: 5 pure AC, 3 AST check failed, 20 WA
+- Frontend statistics chart can show AST_CHECK_FAILED as a separate slice
+
+### Profile Status Storage
+
+When storing status in `acm_problems_status` / `oi_problems_status` / `contest_problems_status`, always store `JudgeStatus.ACCEPTED` (0), **never** `AST_CHECK_FAILED` (10). This ensures `my_status` shows as AC in the problem list and sidebar without special frontend handling.
+
+---
+
+## 5. Rule Engine
 
 ### Directory Structure
 
 ```
 OnlineJudge/ast_checker/
 ├── __init__.py
-├── checker.py              # Entry point: check(code, language, rules) → (ok, errors)
+├── checker.py              # Entry point: check_ast(code, language, rules) → (bool, errors)
 ├── engines/
 │   ├── __init__.py         # Engine registry
 │   ├── base.py             # BaseEngine abstract class
@@ -132,40 +169,52 @@ OnlineJudge/ast_checker/
 ```python
 class BaseEngine:
     def check(self, tree, rule, language, mapping) -> list[str]:
-        """
-        Returns a list of error messages (empty = pass).
-        - tree: tree-sitter parsed tree
-        - rule: the rule dict (engine, target, message, min, max, value, etc.)
-        - language: language name string
-        - mapping: language-specific node type mapping dict
-        """
+        """Returns error messages (empty = pass)."""
         raise NotImplementedError
+```
+
+### Entry Point
+
+```python
+def check_ast(code: str, language: str, rules: list[dict]) -> tuple[bool, list[str]]:
+    """
+    Parse code with tree-sitter, run all rules, return (passed, error_messages).
+    - Empty rules → (True, [])
+    - Parse failure → (True, []) — skip AST check, let compiler report errors
+    """
 ```
 
 ### Engine Catalog
 
-| Engine Name | Parameters | Description |
+| Engine | Parameters | Description |
 |---|---|---|
 | `must_exist_node` | `target` | Node type must appear at least once |
 | `must_not_exist_node` | `target` | Node type must not appear |
-| `count_node` | `target`, `min?`, `max?` | Node type count must be within [min, max] |
-| `must_call_function` | `target` | Must call a specific function (e.g., `print`, `input`) |
-| `must_not_call_function` | `target` | Must not call a specific function |
+| `count_node` | `target`, `min?`, `max?` | Node type count within [min, max] |
+| `must_call_function` | `target` | Must call a function (e.g., `print`, `input`) |
+| `must_not_call_function` | `target` | Must not call a function |
 | `count_function_call` | `target`, `min?`, `max?` | Function call count within range |
-| `must_call_method` | `target` | Must call a method (e.g., `.append()`, `.split()`) |
+| `must_call_method` | `target` | Must call a method (e.g., `.append()`) |
 | `must_not_call_method` | `target` | Must not call a method |
-| `must_use_operator` | `target`, `category?` | Must use a specific operator. Category auto-inferred from target: arithmetic (`+`,`-`,`*`,`/`,`//`,`%`,`**`) → search in binary expressions; augmented (`+=`,`-=`) → search in augmented assignments; comparison (`==`,`!=`,`>`,`>=`,`<`,`<=`) → search in comparisons; logical (`and`,`or`,`not`) → search in boolean/unary expressions; bitwise (`&`,`\|`) → search in binary expressions |
-| `must_use_keyword_arg` | `target` (function), `arg_name`, `value?` | Must use keyword arg in a call |
-| `must_import` | `target` | Must import a specific module |
-| `must_not_import` | `target` | Must not import a specific module |
+| `must_use_operator` | `target`, `category?` | Must use a specific operator (see below) |
+| `must_use_keyword_arg` | `target` (fn), `arg_name`, `value?` | Must use keyword arg in a call |
+| `must_import` | `target` | Must import a module |
+| `must_not_import` | `target` | Must not import a module |
 | `must_use_variable_name` | `target` | Must assign to a variable with this name |
-| `must_not_use_variable_name` | `target` | Must not assign to a variable with this name |
-| `nested_for` | — | Must have a for loop nested inside another for loop |
-| `chained_comparison` | — | Must use chained comparison (e.g., `a < b < c`) |
-| `swap_assignment` | — | Must use swap assignment (e.g., `a, b = b, a`) |
-| `chain_assignment` | — | Must use chain assignment (e.g., `a = b = 1`) |
-| `must_use_recursion` | — | Must have a function that calls itself |
+| `must_not_use_variable_name` | `target` | Must not use a variable with this name |
+| `nested_for` | — | Must have nested for loops |
+| `chained_comparison` | — | Must use chained comparison (Python only) |
+| `swap_assignment` | — | Must use swap assignment (Python only) |
+| `chain_assignment` | — | Must use chain assignment (Python only) |
+| `must_use_recursion` | — | Must have a self-calling function |
 | `no_recursion` | — | No function may call itself |
+
+**Operator categories** (auto-inferred from `target`):
+- Arithmetic (`+`,`-`,`*`,`/`,`//`,`%`,`**`) → binary expressions
+- Augmented (`+=`,`-=`) → augmented assignments
+- Comparison (`==`,`!=`,`>`,`>=`,`<`,`<=`) → comparisons
+- Logical (`and`,`or`,`not`) → boolean/unary expressions
+- Bitwise (`&`,`|`) → binary expressions
 
 ### Language Mapping
 
@@ -174,7 +223,6 @@ Each mapping file exports a dict translating logical names to tree-sitter node t
 ```python
 # mappings/python.py
 PYTHON_MAPPING = {
-    # Node types
     "for_loop": "for_statement",
     "while_loop": "while_statement",
     "if_statement": "if_statement",
@@ -195,32 +243,14 @@ PYTHON_MAPPING = {
     "import_from": "import_from_statement",
     "assignment": "assignment",
     "class_definition": "class_definition",
-
-    # Operators
-    "+": "+",
-    "-": "-",
-    "*": "*",
-    "/": "/",
-    "//": "//",
-    "%": "%",
-    "**": "**",
-    "+=": "+=",
-    "-=": "-=",
-    "==": "==",
-    "!=": "!=",
-    ">": ">",
-    ">=": ">=",
-    "<": "<",
-    "<=": "<=",
-    "and": "and",
-    "or": "or",
-    "not": "not",
-    "&": "&",
-    "|": "|",
+    # Operators map to themselves in Python
+    "+": "+", "-": "-", "*": "*", "/": "/", "//": "//", "%": "%", "**": "**",
+    "+=": "+=", "-=": "-=",
+    "==": "==", "!=": "!=", ">": ">", ">=": ">=", "<": "<", "<=": "<=",
+    "and": "and", "or": "or", "not": "not",
+    "&": "&", "|": "|",
 }
-```
 
-```python
 # mappings/c.py
 C_MAPPING = {
     "for_loop": "for_statement",
@@ -236,309 +266,203 @@ C_MAPPING = {
 }
 ```
 
-### Entry Point
-
-```python
-# checker.py
-def check_ast(code: str, language: str, rules: list[dict]) -> tuple[bool, list[str]]:
-    """
-    Parse code with tree-sitter, run all rules, return (passed, error_messages).
-    If rules is empty, returns (True, []).
-    If tree-sitter fails to parse (syntax error), returns (True, []) — skip AST
-    check and let the compiler report the error downstream.
-    """
-```
-
 ### Known Limitations
 
-- **Method call detection is name-based only**: `must_call_method("append")` matches any `.append()` call regardless of object type. tree-sitter provides no type information. Acceptable for teaching scenarios.
-- **Structural rules are language-specific**: `swap_assignment`, `chained_comparison`, `chain_assignment` only apply to Python. The engine should return (pass) for unsupported languages rather than erroring.
+- **Method call detection is name-based only**: `must_call_method("append")` matches any `.append()` regardless of object type. tree-sitter has no type information. Acceptable for teaching scenarios.
+- **Structural rules are language-specific**: `swap_assignment`, `chained_comparison`, `chain_assignment` apply only to Python. The engine returns pass for unsupported languages.
 
-### Integration in JudgeDispatcher
+---
 
-The AST check happens AFTER the judge server returns a result, and ONLY when the result is AC.
+## 6. Backend Impact Checklist
 
-```python
-# In JudgeDispatcher.judge(), after processing the judge server response:
-# (after _compute_statistic_info and result determination)
+Every location that checks `JudgeStatus.ACCEPTED` must be updated to use `is_accepted()` or `result__in=[ACCEPTED, AST_CHECK_FAILED]`.
 
-    # --- AST CHECK (NEW) ---
-    # Only check AST when the submission would be AC
-    if self.submission.result == JudgeStatus.ACCEPTED:
-        ast_rules = self.problem.ast_rules
-        if ast_rules and language in ast_rules:
-            from ast_checker.checker import check_ast
-            passed, errors = check_ast(self.submission.code, language, ast_rules[language])
-            if not passed:
-                self.submission.result = JudgeStatus.AST_CHECK_FAILED
-                self.submission.statistic_info["err_info"] = "\n".join(errors)
-    # --- END AST CHECK ---
-
-    self.submission.save(update_fields=["result", "info", "statistic_info"])
-    # ... push WebSocket, update statistics
-```
-
-Note: AST check runs on `self.submission.code` (raw student code), not the template-wrapped `code`, because the template prepend/append is not student-written.
-
-### Statistics: AST_CHECK_FAILED = AC
-
-All statistics methods must treat `AST_CHECK_FAILED` the same as `ACCEPTED`.
-
-### Helper
-
-```python
-# submission/models.py (add to JudgeStatus or as module-level function)
-def is_accepted(result):
-    return result in (JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED)
-```
-
-### Backend Impact Checklist (every location that checks JudgeStatus.ACCEPTED)
-
-**`judge/dispatcher.py` — statistics methods (10 changes):**
+### 6.1 `judge/dispatcher.py` — Statistics Methods (10 changes)
 
 | Line | Current Code | Change |
 |---|---|---|
-| 106 | `resp_data[i]["result"] == JudgeStatus.ACCEPTED` | **NO CHANGE** — individual test case results from judge server, unrelated to AST |
-| 205 | `self.submission.result = JudgeStatus.ACCEPTED` | **NO CHANGE** — this is where result is first set; AST check happens after this |
+| 106 | `resp_data[i]["result"] == JudgeStatus.ACCEPTED` | **NO CHANGE** — individual test case results from judge server |
+| 205 | `self.submission.result = JudgeStatus.ACCEPTED` | **NO CHANGE** — initial result assignment, before AST check |
 | 254 | `self.last_result != JudgeStatus.ACCEPTED and self.submission.result == JudgeStatus.ACCEPTED` | → `not is_accepted(self.last_result) and is_accepted(self.submission.result)` |
 | 264 | `acm_problems_status[problem_id]["status"] != JudgeStatus.ACCEPTED` | → `not is_accepted(...)` |
 | 266 | `self.submission.result == JudgeStatus.ACCEPTED` | → `is_accepted(...)` |
 | 274 | `oi_problems_status[problem_id]["status"] != JudgeStatus.ACCEPTED` | → `not is_accepted(...)` |
 | 280 | `self.submission.result == JudgeStatus.ACCEPTED` | → `is_accepted(...)` |
 | 292 | `self.submission.result == JudgeStatus.ACCEPTED` | → `is_accepted(...)` |
-| 305-310 | `acm_problems_status[problem_id] = {"status": self.submission.result, ...}` | → store `JudgeStatus.ACCEPTED` as status (not raw result) |
+| 305-310 | `acm_problems_status[problem_id] = {"status": self.submission.result, ...}` | → store `JudgeStatus.ACCEPTED` as status when `is_accepted()` |
 | 308 | `acm_problems_status[problem_id]["status"] != JudgeStatus.ACCEPTED` | → `not is_accepted(...)` |
 | 310 | `self.submission.result == JudgeStatus.ACCEPTED` | → `is_accepted(...)` |
 | 320-331 | OI mode — same pattern as ACM | Same changes |
 
-**Critical**: When storing status in `acm_problems_status` / `oi_problems_status`, always store `JudgeStatus.ACCEPTED` (0), not `AST_CHECK_FAILED` (10). This ensures `my_status` shows as AC in the problem list. The raw `AST_CHECK_FAILED` result lives only on the Submission record itself.
-
-**`judge/dispatcher.py` — `update_contest_problem_status()` (5 changes):**
+### 6.2 `judge/dispatcher.py` — `update_contest_problem_status()` (5 changes)
 
 | Line | Current Code | Change |
 |---|---|---|
-| 344 | `{"status": self.submission.result, "_id": ...}` | → store `JudgeStatus.ACCEPTED` when `is_accepted(self.submission.result)` |
+| 344 | `{"status": self.submission.result, ...}` | → store `JudgeStatus.ACCEPTED` when `is_accepted()` |
 | 345 | `contest_problems_status[problem_id]["status"] != JudgeStatus.ACCEPTED` | → `not is_accepted(...)` |
 | 346 | `contest_problems_status[problem_id]["status"] = self.submission.result` | → store `JudgeStatus.ACCEPTED` when `is_accepted()` |
-| 357,362 | OI mode — same pattern as ACM lines 344,346 | Same changes |
+| 357,362 | OI mode — same pattern | Same changes |
 | 371 | `self.submission.result == JudgeStatus.ACCEPTED` | → `is_accepted(...)` |
 
-**`judge/dispatcher.py` — `_update_acm_contest_rank()` (2 changes):**
+### 6.3 `judge/dispatcher.py` — `_update_acm_contest_rank()` (2 changes)
 
 | Line | Current Code | Change |
 |---|---|---|
 | 409 | `self.submission.result == JudgeStatus.ACCEPTED` | → `is_accepted(...)` |
 | 424 | `self.submission.result == JudgeStatus.ACCEPTED` | → `is_accepted(...)` |
 
-**Important**: Lines 417 and 433 (`self.submission.result != JudgeStatus.COMPILE_ERROR` → increment `error_number`) are automatically correct once lines 409/424 are fixed. Without this fix, AST_CHECK_FAILED (10) would fall into the `elif` branch and be incorrectly counted as an error submission in ACM penalty calculation.
+Lines 417/433 (`!= COMPILE_ERROR` → increment `error_number`) are automatically correct once 409/424 are fixed. Without this fix, AST_CHECK_FAILED would fall into the `elif` branch and incorrectly add 20 minutes penalty.
 
-**`judge/dispatcher.py` — `_update_oi_contest_rank()`: NO CHANGE needed.** OI rank uses `statistic_info["score"]` which is set by `_compute_statistic_info()` before AST check. AST check does not modify the score — a correct submission gets full score regardless of AST result.
+### 6.4 `judge/dispatcher.py` — `_update_oi_contest_rank()`
 
-**`account/views/oj.py` — query filters (2 changes):**
+**NO CHANGE needed.** OI rank uses `statistic_info["score"]` set by `_compute_statistic_info()` before AST check. AST check does not modify the score.
 
-| Line | Current Code | Change |
+### 6.5 Other Backend Files (11 changes)
+
+| File | Line(s) | Change |
 |---|---|---|
-| 468 | `result=JudgeStatus.ACCEPTED` | → `result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED]` |
-| 483 | `result=JudgeStatus.ACCEPTED` | → `result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED]` |
+| `account/views/oj.py` | 468, 483 | `result=JudgeStatus.ACCEPTED` → `result__in=[ACCEPTED, AST_CHECK_FAILED]` |
+| `comment/views/oj.py` | 31 | Same |
+| `contest/views/admin.py` | 220 | Same |
+| `problem/views/oj.py` | 199, 210 | Same |
+| `problem/views/oj.py` | 241 | **NO CHANGE** — profile stores ACCEPTED(0) |
+| `problem/views/admin.py` | 530, 596 | `Count("id", filter=Q(result=JudgeStatus.ACCEPTED))` → `Q(result__in=[...])` |
+| `problem/views/admin.py` | 444, 472 | **NO CHANGE** — full resets |
+| `problemset/views/oj.py` | 190 | `result != JudgeStatus.ACCEPTED` → `not is_accepted(result)` |
+| `problemset/management/commands/fix_problemset_progress.py` | 41 | `result=JudgeStatus.ACCEPTED` → `result__in=[...]` |
+| `class_pk/views/oj.py` | 280, 291 | Same |
+| `submission/views/admin.py` | 81, 94 | `Count(...filter=Q(result=JudgeStatus.ACCEPTED))` → `Q(result__in=[...])` |
 
-**`comment/views/oj.py` (1 change):**
-
-| Line | Current Code | Change |
-|---|---|---|
-| 31 | `result=JudgeStatus.ACCEPTED` | → `result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED]` |
-
-**`contest/views/admin.py` (1 change):**
-
-| Line | Current Code | Change |
-|---|---|---|
-| 220 | `result=JudgeStatus.ACCEPTED` | → `result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED]` |
-
-**`problem/views/oj.py` (2 changes):**
-
-| Line | Current Code | Change |
-|---|---|---|
-| 199 | `result=JudgeStatus.ACCEPTED` | → `result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED]` |
-| 210 | `result=JudgeStatus.ACCEPTED` | → `result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED]` |
-| 241 | `v.get("status") == JudgeStatus.ACCEPTED` | **NO CHANGE** — profile stores ACCEPTED(0), not raw result |
-
-**`problem/views/admin.py` (2 changes + no-change):**
-
-| Line | Current Code | Change |
-|---|---|---|
-| 530 | `accepted=Count("id", filter=Q(result=JudgeStatus.ACCEPTED))` | → `Q(result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED])` |
-| 596 | Same pattern | Same change |
-| 444,472 | `problem.accepted_number = 0` | **NO CHANGE** — full resets |
-
-**`problemset/views/oj.py` (1 change):**
-
-| Line | Current Code | Change |
-|---|---|---|
-| 190 | `submission.result != JudgeStatus.ACCEPTED` | → `not is_accepted(submission.result)` |
-
-**`problemset/management/commands/fix_problemset_progress.py` (1 change):**
-
-| Line | Current Code | Change |
-|---|---|---|
-| 41 | `result=JudgeStatus.ACCEPTED` | → `result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED]` |
-
-**`class_pk/views/oj.py` (2 changes):**
-
-| Line | Current Code | Change |
-|---|---|---|
-| 280 | `submissions.filter(result=JudgeStatus.ACCEPTED)` | → `result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED]` |
-| 291 | `submissions.filter(user_id=user_id, result=JudgeStatus.ACCEPTED)` | Same |
-
-**`submission/views/admin.py` (2 changes):**
-
-| Line | Current Code | Change |
-|---|---|---|
-| 81 | `accepted_count=Count("id", filter=Q(result=JudgeStatus.ACCEPTED))` | → `Q(result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED])` |
-| 94 | Same pattern | Same change |
-
-### statistic_info (per-result counts)
-
-Use the **actual result code** as the key — `{"0": 5, "10": 3, "-1": 20}`. This means:
-- `accepted_number` = AC + AST_CHECK_FAILED combined (for overall acceptance rate)
-- `statistic_info` retains the breakdown: 5 pure AC, 3 AST check failed, 20 WA
-- Frontend statistics display can show AST_CHECK_FAILED as a separate category, giving teachers visibility into how many students solved the problem but didn't meet syntax requirements
+**Total: 28 backend changes + 3 no-change confirmations = 31 audit points**
 
 ---
 
-## Frontend Changes
+## 7. Frontend Changes
 
-### Status Code Registration
+### 7.1 Status Code Registration
 
-**Conflict**: Frontend `SubmissionStatus.submitting = 9` is a frontend-only transient state. AST_CHECK_FAILED uses `10` to avoid collision.
-
-Changes to `ojnext/src/utils/constants.ts`:
+`ojnext/src/utils/constants.ts`:
 
 ```typescript
-// SubmissionStatus enum — add:
+// SubmissionStatus enum
 ast_check_failed = 10,
 
-// JUDGE_STATUS object — add:
+// JUDGE_STATUS object
 "10": {
   name: "代码检查未通过",
   type: "warning",
 },
 ```
 
-Changes to `ojnext/src/utils/types.ts`:
-- Update `SUBMISSION_RESULT` type to include `"10"`
+`ojnext/src/utils/types.ts` line 68 — add `| 10` to `SUBMISSION_RESULT` type.
 
-### Submission Result Display
+### 7.2 SubmissionResult.vue
 
-`SubmissionResult.vue` checks specific statuses to decide what to show:
-- Line 37-38: Shows `err_info` for `compile_error` and `runtime_error` → **add `ast_check_failed`** so AST error messages are displayed
-- Line 110-112: Shows test case details for `accepted`, `compile_error`, `runtime_error` → **add `ast_check_failed`** (submission was judged, test cases exist)
-- Line 119: `data.some((item) => item.result === 0)` filters test case data → **also include result === 10** or leave as-is since AST_CHECK_FAILED submissions did pass all test cases (result 0 in individual test case items)
+| Line | What | Change |
+|---|---|---|
+| 37-38 | Shows `err_info` for `compile_error`, `runtime_error` | Add `ast_check_failed` |
+| 110-112 | Shows test case details | Add `ast_check_failed` |
+| 119 | `item.result === 0` in test case filter | No change — individual test cases are result 0 |
 
-### SubmitCode.vue — AC celebration and my_status
+### 7.3 SubmitCode.vue
 
-- Line 152: `result !== SubmissionStatus.accepted` → controls confetti. **Do NOT add `ast_check_failed`** — no celebration when AST fails.
-- Line 162-165: `if (result !== SubmissionStatus.accepted) return` → skips setting `problem.value!.my_status = 0`. **NEEDS CHANGE**: add `ast_check_failed` so that `my_status` is immediately set to 0 in the UI (without waiting for page refresh). Otherwise the problem stays "unsolved" in the sidebar until the user refreshes.
+| Line | What | Change |
+|---|---|---|
+| 152 | Confetti on AC | **NO CHANGE** — no celebration for AST fail |
+| 162 | `if (result !== SubmissionStatus.accepted) return` — sets `my_status = 0` | **Add `ast_check_failed`**: `if (result !== SubmissionStatus.accepted && result !== SubmissionStatus.ast_check_failed) return` |
 
-```typescript
-// Line 162: change to
-if (result !== SubmissionStatus.accepted && result !== SubmissionStatus.ast_check_failed) return
-```
+Without the line 162 fix, the problem stays "unsolved" in the sidebar until page refresh.
 
-### Problem List "My Status"
+### 7.4 Other Frontend (no changes needed)
 
-`oj/api.ts` line 26-28 checks `my_status === 0` to show the green AC icon. Since backend stores `ACCEPTED` (0) in the user profile status (not the raw AST_CHECK_FAILED result), `my_status` will be `0`. **No change needed** — the problem list will correctly show the green AC icon.
+| Component | Why |
+|---|---|
+| `oj/api.ts` (my_status check) | Backend stores 0 in profile, not 10 |
+| `ProblemComment.vue` (my_status check) | Same reason |
+| `ProblemInfo.vue` (statistic chart) | Covered by constants.ts — chart auto-shows new status |
+| `useSubmissionMonitor.ts` (WebSocket) | Only treats result 9 as "still processing" |
 
-### ProblemComment.vue
-
-Line 5: `v-if="problem?.my_status !== 0"` — hides comment if not AC. Since `my_status` stores 0, **NO CHANGE needed**.
-
-### ProblemInfo.vue — statistic_info chart
-
-Line 33-38: Iterates `statistic_info` keys and maps via `JUDGE_STATUS[i]["name"]`. Since `statistic_info` will contain key `"10"` for AST_CHECK_FAILED, the JUDGE_STATUS entry must exist. **Covered by constants.ts change** — the chart will automatically show "代码检查未通过" as a separate slice.
-
-### types.ts
-
-Line 68: `export type SUBMISSION_RESULT = -2 | -1 | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9` → **add `| 10`**
-
-### WebSocket Monitor
-
-`useSubmissionMonitor.ts` line 92-94 treats result `9` as "still processing". Since AST_CHECK_FAILED is `10`, **no change needed** — when result `10` arrives via WebSocket, the monitor will correctly stop polling and show the final result.
-
-### Admin UI (ojnext)
+### 7.5 Admin UI
 
 In the problem edit page, add a collapsible "代码规则检查" section:
 
-- **Language tabs**: Only show tabs for languages selected in this problem's `languages` field
+- **Language tabs**: Only show tabs for languages enabled on this problem
 - **Rule list per language**: Each rule is a row with:
-  - Engine dropdown (grouped by category: 节点检查 / 函数调用 / 运算符 / 结构检查 / 导入…)
-  - Target dropdown/input (context-dependent: node types for node engines, function names for call engines, operators for operator engine)
-  - Optional parameters: `min`, `max`, `value` fields (shown only when the selected engine uses them)
-  - Message input (custom error message, with auto-generated default)
+  - Engine dropdown (grouped: 节点检查 / 函数调用 / 运算符 / 结构检查 / 导入…)
+  - Target dropdown/input (context-dependent on engine type)
+  - Optional parameters: `min`, `max`, `value` (shown when engine uses them)
+  - Message input (with auto-generated default)
   - Delete button
 - **Add rule button** per language tab
-- Section is collapsed by default (most problems won't have AST rules)
+- Collapsed by default (most problems won't have AST rules)
 
 ---
 
-## Dependencies
+## 8. Contest Behavior
 
-Backend (add to pyproject.toml / requirements):
-- `tree-sitter` (Python bindings)
-- `tree-sitter-python`
-- `tree-sitter-c`
-- `tree-sitter-cpp`
-- `tree-sitter-java`
-- `tree-sitter-go`
-- `tree-sitter-javascript`
+Contests and regular problems use the **same AST check logic**. No `contest_id` guard — if the contest problem has `ast_rules`, AST check runs.
 
-These are pure Python wheels with pre-compiled grammars, no system dependencies needed.
+- AST_CHECK_FAILED counts as AC for contest ranking (ACM `accepted_number`, penalty time)
+- When adding a bank problem to a contest, `ast_rules` is copied. Contest creator can edit/clear rules on the contest copy.
+- `update_contest_problem_status()` and `_update_acm_contest_rank()` use `is_accepted()`.
+- All contests currently use ACM mode only. OI code paths are updated for correctness but lower risk.
 
 ---
 
-## Migration
+## 9. Legacy Data & Migration
 
-One Django migration:
+### Migration
+
+One Django migration (additive, no data migration):
 1. Add `ast_rules` JSONField (null=True) to Problem model
 2. Add `AST_CHECK_FAILED = 10` to JudgeStatus
 
-Both are additive, no data migration needed. Existing problems get `ast_rules=null` (no AST checking).
-
-### Contest Behavior
-
-**Contests and regular problems use the same AST check logic.** No `contest_id` guard — if the contest problem has `ast_rules`, AST check runs.
-
-- AST_CHECK_FAILED counts as AC for contest ranking (ACM `accepted_number`, penalty time; OI score)
-- From bank to contest: `ast_rules` is copied along with other fields. Contest creator can edit/clear it on the contest problem if they don't want AST checking in that contest.
-- `update_contest_problem_status()` and `update_contest_rank()` use `is_accepted()` — same as regular problem statistics.
-
-This keeps the logic uniform and gives contest creators full control at the problem level.
+Existing problems get `ast_rules=null` (no AST checking).
 
 ### Legacy Data Policy
 
-- **Existing submissions are not retroactively checked.** When a teacher adds AST rules to an existing problem, only new submissions are AST-checked. Prior AC submissions remain AC.
-- **No data migration required.** `accepted_number` and `statistic_info` keep their current values. The `statistic_info` will naturally accumulate `"10"` entries as new AST_CHECK_FAILED submissions come in.
-- **Phase 2: optional "AST re-check"** — an admin action to re-run AST rules on all existing AC submissions for a given problem. Not in Phase 1.
+- Existing submissions are **not retroactively checked**. Only new submissions after rules are added.
+- `accepted_number` and `statistic_info` keep current values. `statistic_info` will naturally accumulate `"10"` entries as new AST_CHECK_FAILED submissions come in.
+- Phase 2: optional "AST re-check" admin action — not in Phase 1.
 
 ---
 
-## Phased Delivery
+## 10. Dependencies
 
-> Note: Most problems use Python3 and C. Prioritize these two languages.
+```
+tree-sitter
+tree-sitter-python
+tree-sitter-c
+tree-sitter-cpp
+tree-sitter-java
+tree-sitter-go
+tree-sitter-javascript
+```
+
+Pure Python wheels with pre-compiled grammars, no system dependencies.
+
+---
+
+## 11. Phased Delivery
 
 ### Phase 1 (MVP)
-- Rule engine framework + checker entry point
-- **Python3 mapping** (most complete, matches the full rule catalog)
-- **C mapping** (second priority, covers the most-used language pair)
+
+- Rule engine framework + `check_ast()` entry point
+- **Python3 mapping** (most complete, matches full rule catalog)
+- **C mapping** (second priority)
 - Engines: `must_exist_node`, `must_not_exist_node`, `count_node`, `must_call_function`, `must_not_call_function`, `count_function_call`, `must_call_method`, `must_not_call_method`, `must_use_operator`
-- JudgeDispatcher integration
-- Frontend: status code + admin UI
+- JudgeDispatcher integration (AST check + all 28 statistics changes)
+- Frontend: status code, result display, admin UI
 - Migration
 
 ### Phase 2
-- Remaining engines: `must_use_keyword_arg`, `must_import`/`must_not_import`, `must_use_variable_name`/`must_not_use_variable_name`
-- Structural engines: `nested_for`, `chained_comparison` (Python only), `swap_assignment` (Python only), `chain_assignment` (Python only), `must_use_recursion`, `no_recursion`
-- C++ mapping (shares most structure with C)
+
+- Engines: `must_use_keyword_arg`, `must_import`/`must_not_import`, `must_use_variable_name`/`must_not_use_variable_name`
+- Structural engines: `nested_for`, `chained_comparison`, `swap_assignment`, `chain_assignment`, `must_use_recursion`, `no_recursion`
+- C++ mapping
 
 ### Phase 3
+
 - Java, Go, JavaScript mappings
 - String literal content checks (format specifiers)
-- Additional structural rules as needed
+- Optional "AST re-check" admin action for existing AC submissions
