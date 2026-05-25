@@ -335,8 +335,47 @@ Same changes in `update_contest_problem_status()` — treat AST_CHECK_FAILED as 
 |---|---|---|
 | 220 | `result=JudgeStatus.ACCEPTED` | → `result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED]` |
 
-**`problem/views/admin.py` — rejudge reset:**
-`problem.accepted_number = 0` and `problem.statistic_info = {}` during rejudge reset — **NO CHANGE** needed, these are full resets.
+**`problem/views/oj.py` (2 changes):**
+
+| Line | Current Code | Change |
+|---|---|---|
+| 199 | `result=JudgeStatus.ACCEPTED` | → `result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED]` |
+| 210 | `result=JudgeStatus.ACCEPTED` | → `result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED]` |
+| 241 | `v.get("status") == JudgeStatus.ACCEPTED` | **NO CHANGE** — profile stores ACCEPTED(0), not raw result |
+
+**`problem/views/admin.py` (2 changes + no-change):**
+
+| Line | Current Code | Change |
+|---|---|---|
+| 530 | `accepted=Count("id", filter=Q(result=JudgeStatus.ACCEPTED))` | → `Q(result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED])` |
+| 596 | Same pattern | Same change |
+| 444,472 | `problem.accepted_number = 0` | **NO CHANGE** — full resets |
+
+**`problemset/views/oj.py` (1 change):**
+
+| Line | Current Code | Change |
+|---|---|---|
+| 190 | `submission.result != JudgeStatus.ACCEPTED` | → `not is_accepted(submission.result)` |
+
+**`problemset/management/commands/fix_problemset_progress.py` (1 change):**
+
+| Line | Current Code | Change |
+|---|---|---|
+| 41 | `result=JudgeStatus.ACCEPTED` | → `result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED]` |
+
+**`class_pk/views/oj.py` (2 changes):**
+
+| Line | Current Code | Change |
+|---|---|---|
+| 280 | `submissions.filter(result=JudgeStatus.ACCEPTED)` | → `result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED]` |
+| 291 | `submissions.filter(user_id=user_id, result=JudgeStatus.ACCEPTED)` | Same |
+
+**`submission/views/admin.py` (2 changes):**
+
+| Line | Current Code | Change |
+|---|---|---|
+| 81 | `accepted_count=Count("id", filter=Q(result=JudgeStatus.ACCEPTED))` | → `Q(result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED])` |
+| 94 | Same pattern | Same change |
 
 ### statistic_info (per-result counts)
 
@@ -376,13 +415,31 @@ Changes to `ojnext/src/utils/types.ts`:
 - Line 110-112: Shows test case details for `accepted`, `compile_error`, `runtime_error` → **add `ast_check_failed`** (submission was judged, test cases exist)
 - Line 119: `data.some((item) => item.result === 0)` filters test case data → **also include result === 10** or leave as-is since AST_CHECK_FAILED submissions did pass all test cases (result 0 in individual test case items)
 
-### SubmitCode.vue — AC Celebration
+### SubmitCode.vue — AC celebration and my_status
 
-`SubmitCode.vue` line 152 and 162 check `result !== SubmissionStatus.accepted` to trigger confetti/celebration when AC. **Do NOT add `ast_check_failed` here** — if AST check fails, no celebration. This motivates the student to re-submit with correct syntax.
+- Line 152: `result !== SubmissionStatus.accepted` → controls confetti. **Do NOT add `ast_check_failed`** — no celebration when AST fails.
+- Line 162-165: `if (result !== SubmissionStatus.accepted) return` → skips setting `problem.value!.my_status = 0`. **NEEDS CHANGE**: add `ast_check_failed` so that `my_status` is immediately set to 0 in the UI (without waiting for page refresh). Otherwise the problem stays "unsolved" in the sidebar until the user refreshes.
+
+```typescript
+// Line 162: change to
+if (result !== SubmissionStatus.accepted && result !== SubmissionStatus.ast_check_failed) return
+```
 
 ### Problem List "My Status"
 
 `oj/api.ts` line 26-28 checks `my_status === 0` to show the green AC icon. Since backend stores `ACCEPTED` (0) in the user profile status (not the raw AST_CHECK_FAILED result), `my_status` will be `0`. **No change needed** — the problem list will correctly show the green AC icon.
+
+### ProblemComment.vue
+
+Line 5: `v-if="problem?.my_status !== 0"` — hides comment if not AC. Since `my_status` stores 0, **NO CHANGE needed**.
+
+### ProblemInfo.vue — statistic_info chart
+
+Line 33-38: Iterates `statistic_info` keys and maps via `JUDGE_STATUS[i]["name"]`. Since `statistic_info` will contain key `"10"` for AST_CHECK_FAILED, the JUDGE_STATUS entry must exist. **Covered by constants.ts change** — the chart will automatically show "代码检查未通过" as a separate slice.
+
+### types.ts
+
+Line 68: `export type SUBMISSION_RESULT = -2 | -1 | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9` → **add `| 10`**
 
 ### WebSocket Monitor
 
