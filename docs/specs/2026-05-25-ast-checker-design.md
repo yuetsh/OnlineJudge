@@ -282,27 +282,65 @@ Note: AST check runs on `self.submission.code` (raw student code), not the templ
 
 ### Statistics: AST_CHECK_FAILED = AC
 
-All statistics methods must treat `AST_CHECK_FAILED` the same as `ACCEPTED`. Affected locations:
+All statistics methods must treat `AST_CHECK_FAILED` the same as `ACCEPTED`.
 
-1. **`update_problem_status()`** — increments `problem.accepted_number` and sets user profile status
-2. **`update_problem_status_rejudge()`** — same logic for rejudge
-3. **`update_contest_problem_status()`** — contest problem accepted tracking
-4. **`update_contest_rank()`** — ACM/OI contest ranking
-
-Implementation approach: define a helper:
+### Helper
 
 ```python
+# submission/models.py (add to JudgeStatus or as module-level function)
 def is_accepted(result):
     return result in (JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED)
 ```
 
-Then replace all `self.submission.result == JudgeStatus.ACCEPTED` checks in statistics methods with `is_accepted(self.submission.result)`. This affects:
-- `problem.accepted_number` increments
-- `user_profile.accepted_number` increments
-- `acm_problems_status` / `oi_problems_status` solved tracking
-- Contest rank calculations
+### Backend Impact Checklist (every location that checks JudgeStatus.ACCEPTED)
 
-**statistic_info (per-result counts)**: Use the **actual result code** as the key — `{"0": 5, "10": 3, "-1": 20}`. This means:
+**`judge/dispatcher.py` — statistics methods (10 changes):**
+
+| Line | Current Code | Change |
+|---|---|---|
+| 106 | `resp_data[i]["result"] == JudgeStatus.ACCEPTED` | **NO CHANGE** — individual test case results from judge server, unrelated to AST |
+| 205 | `self.submission.result = JudgeStatus.ACCEPTED` | **NO CHANGE** — this is where result is first set; AST check happens after this |
+| 254 | `self.last_result != JudgeStatus.ACCEPTED and self.submission.result == JudgeStatus.ACCEPTED` | → `not is_accepted(self.last_result) and is_accepted(self.submission.result)` |
+| 264 | `acm_problems_status[problem_id]["status"] != JudgeStatus.ACCEPTED` | → `not is_accepted(...)` |
+| 266 | `self.submission.result == JudgeStatus.ACCEPTED` | → `is_accepted(...)` |
+| 274 | `oi_problems_status[problem_id]["status"] != JudgeStatus.ACCEPTED` | → `not is_accepted(...)` |
+| 280 | `self.submission.result == JudgeStatus.ACCEPTED` | → `is_accepted(...)` |
+| 292 | `self.submission.result == JudgeStatus.ACCEPTED` | → `is_accepted(...)` |
+| 305-310 | `acm_problems_status[problem_id] = {"status": self.submission.result, ...}` | → store `JudgeStatus.ACCEPTED` as status (not raw result) |
+| 308 | `acm_problems_status[problem_id]["status"] != JudgeStatus.ACCEPTED` | → `not is_accepted(...)` |
+| 310 | `self.submission.result == JudgeStatus.ACCEPTED` | → `is_accepted(...)` |
+| 320-331 | OI mode — same pattern as ACM | Same changes |
+
+**Critical**: When storing status in `acm_problems_status` / `oi_problems_status`, always store `JudgeStatus.ACCEPTED` (0), not `AST_CHECK_FAILED` (10). This ensures `my_status` shows as AC in the problem list. The raw `AST_CHECK_FAILED` result lives only on the Submission record itself.
+
+**`judge/dispatcher.py` — contest statistics:**
+Same changes in `update_contest_problem_status()` — treat AST_CHECK_FAILED as AC for contest accepted tracking and rank.
+
+**`account/views/oj.py` — query filters (2 changes):**
+
+| Line | Current Code | Change |
+|---|---|---|
+| 468 | `result=JudgeStatus.ACCEPTED` | → `result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED]` |
+| 483 | `result=JudgeStatus.ACCEPTED` | → `result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED]` |
+
+**`comment/views/oj.py` (1 change):**
+
+| Line | Current Code | Change |
+|---|---|---|
+| 31 | `result=JudgeStatus.ACCEPTED` | → `result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED]` |
+
+**`contest/views/admin.py` (1 change):**
+
+| Line | Current Code | Change |
+|---|---|---|
+| 220 | `result=JudgeStatus.ACCEPTED` | → `result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED]` |
+
+**`problem/views/admin.py` — rejudge reset:**
+`problem.accepted_number = 0` and `problem.statistic_info = {}` during rejudge reset — **NO CHANGE** needed, these are full resets.
+
+### statistic_info (per-result counts)
+
+Use the **actual result code** as the key — `{"0": 5, "10": 3, "-1": 20}`. This means:
 - `accepted_number` = AC + AST_CHECK_FAILED combined (for overall acceptance rate)
 - `statistic_info` retains the breakdown: 5 pure AC, 3 AST check failed, 20 WA
 - Frontend statistics display can show AST_CHECK_FAILED as a separate category, giving teachers visibility into how many students solved the problem but didn't meet syntax requirements
@@ -338,9 +376,13 @@ Changes to `ojnext/src/utils/types.ts`:
 - Line 110-112: Shows test case details for `accepted`, `compile_error`, `runtime_error` → **add `ast_check_failed`** (submission was judged, test cases exist)
 - Line 119: `data.some((item) => item.result === 0)` filters test case data → **also include result === 10** or leave as-is since AST_CHECK_FAILED submissions did pass all test cases (result 0 in individual test case items)
 
+### SubmitCode.vue — AC Celebration
+
+`SubmitCode.vue` line 152 and 162 check `result !== SubmissionStatus.accepted` to trigger confetti/celebration when AC. **Do NOT add `ast_check_failed` here** — if AST check fails, no celebration. This motivates the student to re-submit with correct syntax.
+
 ### Problem List "My Status"
 
-`oj/api.ts` line 26-28 checks `my_status === 0` to show the green AC icon. Since backend statistics treat AST_CHECK_FAILED as AC, the user's `my_status` in their profile will be stored as `0` (AC). **No change needed** — the problem list will correctly show the green AC icon.
+`oj/api.ts` line 26-28 checks `my_status === 0` to show the green AC icon. Since backend stores `ACCEPTED` (0) in the user profile status (not the raw AST_CHECK_FAILED result), `my_status` will be `0`. **No change needed** — the problem list will correctly show the green AC icon.
 
 ### WebSocket Monitor
 
