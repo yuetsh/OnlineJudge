@@ -150,7 +150,7 @@ class SubmissionStatisticsAPI(APIView):
             for username in unaccepted_usernames:
                 class_name = all_users_dict[username]
                 real_name = get_real_name(username, class_name)
-                unaccepted.append(real_name)
+                unaccepted.append({"username": username, "real_name": real_name})
 
         # 计算人数完成率
         person_count = len(all_users_dict) if all_users_dict else 0
