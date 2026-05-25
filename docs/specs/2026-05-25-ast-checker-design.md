@@ -263,8 +263,9 @@ The AST check happens AFTER the judge server returns a result, and ONLY when the
 # (after _compute_statistic_info and result determination)
 
     # --- AST CHECK (NEW) ---
+    # Skip AST check in contests (Phase 1). Contest AST support deferred to Phase 2.
     # Only check AST when the submission would be AC
-    if self.submission.result == JudgeStatus.ACCEPTED:
+    if self.submission.result == JudgeStatus.ACCEPTED and not self.contest_id:
         ast_rules = self.problem.ast_rules
         if ast_rules and language in ast_rules:
             from ast_checker.checker import check_ast
@@ -483,6 +484,17 @@ One Django migration:
 2. Add `AST_CHECK_FAILED = 10` to JudgeStatus
 
 Both are additive, no data migration needed. Existing problems get `ast_rules=null` (no AST checking).
+
+### Contest Behavior
+
+**Phase 1: Contests skip AST check entirely.** Even if a contest problem has `ast_rules` configured, submissions during a contest are not AST-checked. The guard is a single condition: `not self.contest_id`.
+
+Reasons:
+- Contests focus on correctness and speed; syntax enforcement is a practice/homework tool
+- Showing "代码检查未通过" in a timed contest would confuse contestants (the submission IS correct)
+- Avoids complexity around ACM penalty time and OI score calculation for AST_CHECK_FAILED
+
+**Phase 2 (deferred):** Add a `enable_ast_check` boolean on the Contest model, allowing contest creators to opt in. If enabled, AST_CHECK_FAILED counts as AC for ranking, penalty, and score — same semantics as regular problems.
 
 ### Legacy Data Policy
 
