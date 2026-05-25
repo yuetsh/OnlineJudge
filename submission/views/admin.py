@@ -40,11 +40,14 @@ class SubmissionStatisticsAPI(APIView):
         start = request.GET.get("start")
         end = request.GET.get("end")
 
-        if not start or not end:
-            return self.error("start and end is required")
+        if not end:
+            return self.error("end is required")
 
+        filters = {"contest_id__isnull": True, "create_time__lte": end}
+        if start:
+            filters["create_time__gte"] = start
         submissions = Submission.objects.filter(
-            contest_id__isnull=True, create_time__gte=start, create_time__lte=end
+            **filters
         ).select_related("problem__created_by")
 
         problem_id = request.GET.get("problem_id")
