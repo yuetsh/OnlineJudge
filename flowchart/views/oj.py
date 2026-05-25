@@ -75,7 +75,7 @@ class FlowchartSubmissionListAPI(APIView):
         if problem_id:
             try:
                 problem = Problem.objects.get(
-                    _id=problem_id, contest_id__isnull=True, visible=True
+                    _id__iexact=problem_id, contest_id__isnull=True, visible=True
                 )
             except Problem.DoesNotExist:
                 return self.error("Problem doesn't exist")

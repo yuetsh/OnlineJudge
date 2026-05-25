@@ -479,7 +479,7 @@ class UserProblemRankAPI(APIView):
         if not user.is_authenticated:
             return self.error("User is not authenticated")
 
-        problem = Problem.objects.get(_id=problem_id, contest_id__isnull=True, visible=True)
+        problem = Problem.objects.get(_id__iexact=problem_id, contest_id__isnull=True, visible=True)
         submissions = Submission.objects.filter(problem=problem, result=JudgeStatus.ACCEPTED)
 
         all_ac_count = submissions.values("user_id").distinct().count()

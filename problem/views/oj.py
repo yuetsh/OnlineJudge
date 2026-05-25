@@ -70,7 +70,7 @@ class ProblemAPI(APIView):
         if problem_id:
             try:
                 problem = Problem.objects.select_related("created_by").get(
-                    _id=problem_id, contest_id__isnull=True, visible=True
+                    _id__iexact=problem_id, contest_id__isnull=True, visible=True
                 )
                 problem_data = ProblemSerializer(problem).data
                 self._add_problem_status(request, problem_data)
@@ -160,7 +160,7 @@ class ContestProblemAPI(APIView):
         if problem_id:
             try:
                 problem = Problem.objects.select_related("created_by").get(
-                    _id=problem_id, contest=self.contest, visible=True
+                    _id__iexact=problem_id, contest=self.contest, visible=True
                 )
             except Problem.DoesNotExist:
                 return self.error("Problem does not exist.")
@@ -224,7 +224,7 @@ class SimilarProblemAPI(APIView):
             return self.error("problem_id is required")
 
         try:
-            problem = Problem.objects.get(_id=problem_display_id, contest__isnull=True)
+            problem = Problem.objects.get(_id__iexact=problem_display_id, contest__isnull=True)
         except Problem.DoesNotExist:
             return self.error("Problem not found")
 
@@ -295,7 +295,7 @@ class ProblemYearlyACRateAPI(APIView):
 
         try:
             problem = Problem.objects.get(
-                _id=problem_id, contest_id__isnull=True, visible=True
+                _id__iexact=problem_id, contest_id__isnull=True, visible=True
             )
         except Problem.DoesNotExist:
             return self.error("Problem does not exist")

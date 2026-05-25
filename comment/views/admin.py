@@ -13,7 +13,7 @@ class CommentAPI(APIView):
         if problem_id:
             try:
                 # 这里如果题目不可见，也需要显示该题目的评论
-                problem = Problem.objects.get(_id=problem_id, contest_id__isnull=True)
+                problem = Problem.objects.get(_id__iexact=problem_id, contest_id__isnull=True)
             except Problem.DoesNotExist:
                 return self.error("Problem doesn't exist")
             comments = comments.filter(problem=problem)

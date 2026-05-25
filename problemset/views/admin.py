@@ -141,7 +141,7 @@ class ProblemSetProblemAdminAPI(APIView):
         data = request.data
         try:
             problem = Problem.objects.filter(
-                _id=data["problem_id"],
+                _id__iexact=data["problem_id"],
                 visible=True,
                 contest_id__isnull=True,
             ).get()
