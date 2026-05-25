@@ -263,9 +263,8 @@ The AST check happens AFTER the judge server returns a result, and ONLY when the
 # (after _compute_statistic_info and result determination)
 
     # --- AST CHECK (NEW) ---
-    # Skip AST check in contests (Phase 1). Contest AST support deferred to Phase 2.
     # Only check AST when the submission would be AC
-    if self.submission.result == JudgeStatus.ACCEPTED and not self.contest_id:
+    if self.submission.result == JudgeStatus.ACCEPTED:
         ast_rules = self.problem.ast_rules
         if ast_rules and language in ast_rules:
             from ast_checker.checker import check_ast
@@ -314,8 +313,26 @@ def is_accepted(result):
 
 **Critical**: When storing status in `acm_problems_status` / `oi_problems_status`, always store `JudgeStatus.ACCEPTED` (0), not `AST_CHECK_FAILED` (10). This ensures `my_status` shows as AC in the problem list. The raw `AST_CHECK_FAILED` result lives only on the Submission record itself.
 
-**`judge/dispatcher.py` — contest statistics:**
-Same changes in `update_contest_problem_status()` — treat AST_CHECK_FAILED as AC for contest accepted tracking and rank.
+**`judge/dispatcher.py` — `update_contest_problem_status()` (5 changes):**
+
+| Line | Current Code | Change |
+|---|---|---|
+| 344 | `{"status": self.submission.result, "_id": ...}` | → store `JudgeStatus.ACCEPTED` when `is_accepted(self.submission.result)` |
+| 345 | `contest_problems_status[problem_id]["status"] != JudgeStatus.ACCEPTED` | → `not is_accepted(...)` |
+| 346 | `contest_problems_status[problem_id]["status"] = self.submission.result` | → store `JudgeStatus.ACCEPTED` when `is_accepted()` |
+| 357,362 | OI mode — same pattern as ACM lines 344,346 | Same changes |
+| 371 | `self.submission.result == JudgeStatus.ACCEPTED` | → `is_accepted(...)` |
+
+**`judge/dispatcher.py` — `_update_acm_contest_rank()` (2 changes):**
+
+| Line | Current Code | Change |
+|---|---|---|
+| 409 | `self.submission.result == JudgeStatus.ACCEPTED` | → `is_accepted(...)` |
+| 424 | `self.submission.result == JudgeStatus.ACCEPTED` | → `is_accepted(...)` |
+
+**Important**: Lines 417 and 433 (`self.submission.result != JudgeStatus.COMPILE_ERROR` → increment `error_number`) are automatically correct once lines 409/424 are fixed. Without this fix, AST_CHECK_FAILED (10) would fall into the `elif` branch and be incorrectly counted as an error submission in ACM penalty calculation.
+
+**`judge/dispatcher.py` — `_update_oi_contest_rank()`: NO CHANGE needed.** OI rank uses `statistic_info["score"]` which is set by `_compute_statistic_info()` before AST check. AST check does not modify the score — a correct submission gets full score regardless of AST result.
 
 **`account/views/oj.py` — query filters (2 changes):**
 
@@ -487,14 +504,13 @@ Both are additive, no data migration needed. Existing problems get `ast_rules=nu
 
 ### Contest Behavior
 
-**Phase 1: Contests skip AST check entirely.** Even if a contest problem has `ast_rules` configured, submissions during a contest are not AST-checked. The guard is a single condition: `not self.contest_id`.
+**Contests and regular problems use the same AST check logic.** No `contest_id` guard — if the contest problem has `ast_rules`, AST check runs.
 
-Reasons:
-- Contests focus on correctness and speed; syntax enforcement is a practice/homework tool
-- Showing "代码检查未通过" in a timed contest would confuse contestants (the submission IS correct)
-- Avoids complexity around ACM penalty time and OI score calculation for AST_CHECK_FAILED
+- AST_CHECK_FAILED counts as AC for contest ranking (ACM `accepted_number`, penalty time; OI score)
+- From bank to contest: `ast_rules` is copied along with other fields. Contest creator can edit/clear it on the contest problem if they don't want AST checking in that contest.
+- `update_contest_problem_status()` and `update_contest_rank()` use `is_accepted()` — same as regular problem statistics.
 
-**Phase 2 (deferred):** Add a `enable_ast_check` boolean on the Contest model, allowing contest creators to opt in. If enabled, AST_CHECK_FAILED counts as AC for ranking, penalty, and score — same semantics as regular problems.
+This keeps the logic uniform and gives contest creators full control at the problem level.
 
 ### Legacy Data Policy
 
