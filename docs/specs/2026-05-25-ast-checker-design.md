@@ -2,7 +2,9 @@
 
 ## Overview
 
-Add tree-sitter-based AST checking to the Online Judge submission flow. Teachers can configure per-problem, per-language rules that validate student code structure before judging (e.g., "must use while loop", "cannot use for loop", "must call print()").
+Add tree-sitter-based AST checking to the Online Judge submission flow. Teachers can configure per-problem, per-language rules that validate student code structure (e.g., "must use while loop", "cannot use for loop", "must call print()").
+
+**Critical invariant**: AST check runs AFTER normal judging. Only submissions that would be AC are checked. If AST fails, the displayed result is `AST_CHECK_FAILED`, but **all statistics treat it as AC** (problem accepted count, user profile solved status, contest ranking). The student solved the problem correctly — they just didn't use the required syntax.
 
 ## Goals
 
@@ -30,15 +32,20 @@ SubmissionAPI.post()
   → judge_task.send()
     → JudgeDispatcher.judge()
       → apply code template
-      → **AST check** ← NEW
-        → fail: result=AST_CHECK_FAILED, write err_info, push WebSocket, return
-        → pass: continue
       → choose judge server
       → send to judge server
-      → process result
+      → process judge result
+      → if result == AC and ast_rules exist for this language:
+          → **AST check** ← NEW
+          → if AST fails:
+              → result = AST_CHECK_FAILED (display only)
+              → write err_info with rule violation details
+          → (statistics still treat as AC)
+      → update_problem_status / update_contest_* (treats AST_CHECK_FAILED as AC)
+      → push WebSocket with final result
 ```
 
-AST check runs inside the Dramatiq task, after template application and before judge server dispatch. This is consistent with how `COMPILE_ERROR` is handled — the submission exists in history, the result is pushed via WebSocket.
+AST check runs AFTER the judge server returns a result, and ONLY when the result is AC. The key insight: a student who produces correct output has solved the problem — they just need to adjust their approach. Statistics (accepted count, user profile, contest rank) always reflect the AC.
 
 ### Data Model
 
@@ -84,7 +91,7 @@ class JudgeStatus(models.IntegerChoices):
     PENDING = 6, "Pending"
     JUDGING = 7, "Judging"
     PARTIALLY_ACCEPTED = 8, "Partially Accepted"
-    AST_CHECK_FAILED = 9, "AST Check Failed"   # NEW
+    AST_CHECK_FAILED = 10, "AST Check Failed"   # NEW (9 is taken by frontend's "submitting" transient state)
 ```
 
 Frontend `constants.ts` must be updated with the new status code, label, and color.
@@ -249,52 +256,95 @@ def check_ast(code: str, language: str, rules: list[dict]) -> tuple[bool, list[s
 
 ### Integration in JudgeDispatcher
 
-```python
-# In JudgeDispatcher.judge(), after template application:
-def judge(self):
-    language = self.submission.language
-    sub_config = list(filter(...))[0]
+The AST check happens AFTER the judge server returns a result, and ONLY when the result is AC.
 
-    if language in self.problem.template:
-        template = parse_problem_template(self.problem.template[language])
-        code = f"{template['prepend']}\n{self.submission.code}\n{template['append']}"
-    else:
-        code = self.submission.code
+```python
+# In JudgeDispatcher.judge(), after processing the judge server response:
+# (after _compute_statistic_info and result determination)
 
     # --- AST CHECK (NEW) ---
-    ast_rules = self.problem.ast_rules
-    if ast_rules and language in ast_rules:
-        from ast_checker.checker import check_ast
-        passed, errors = check_ast(self.submission.code, language, ast_rules[language])
-        if not passed:
-            self.submission.result = JudgeStatus.AST_CHECK_FAILED
-            self.submission.statistic_info["err_info"] = "\n".join(errors)
-            self.submission.statistic_info["score"] = 0
-            self.submission.save(update_fields=["result", "info", "statistic_info"])
-            try:
-                push_submission_update(
-                    submission_id=str(self.submission.id),
-                    user_id=self.submission.user_id,
-                    data={
-                        "type": "submission_update",
-                        "submission_id": str(self.submission.id),
-                        "result": JudgeStatus.AST_CHECK_FAILED,
-                        "status": "finished",
-                    }
-                )
-            except Exception as e:
-                logger.error(f"Failed to push submission update: {str(e)}")
-            return
+    # Only check AST when the submission would be AC
+    if self.submission.result == JudgeStatus.ACCEPTED:
+        ast_rules = self.problem.ast_rules
+        if ast_rules and language in ast_rules:
+            from ast_checker.checker import check_ast
+            passed, errors = check_ast(self.submission.code, language, ast_rules[language])
+            if not passed:
+                self.submission.result = JudgeStatus.AST_CHECK_FAILED
+                self.submission.statistic_info["err_info"] = "\n".join(errors)
     # --- END AST CHECK ---
 
-    # ... continue with judge server dispatch
+    self.submission.save(update_fields=["result", "info", "statistic_info"])
+    # ... push WebSocket, update statistics
 ```
 
 Note: AST check runs on `self.submission.code` (raw student code), not the template-wrapped `code`, because the template prepend/append is not student-written.
 
+### Statistics: AST_CHECK_FAILED = AC
+
+All statistics methods must treat `AST_CHECK_FAILED` the same as `ACCEPTED`. Affected locations:
+
+1. **`update_problem_status()`** — increments `problem.accepted_number` and sets user profile status
+2. **`update_problem_status_rejudge()`** — same logic for rejudge
+3. **`update_contest_problem_status()`** — contest problem accepted tracking
+4. **`update_contest_rank()`** — ACM/OI contest ranking
+
+Implementation approach: define a helper:
+
+```python
+def is_accepted(result):
+    return result in (JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED)
+```
+
+Then replace all `self.submission.result == JudgeStatus.ACCEPTED` checks in statistics methods with `is_accepted(self.submission.result)`. This affects:
+- `problem.accepted_number` increments
+- `user_profile.accepted_number` increments
+- `acm_problems_status` / `oi_problems_status` solved tracking
+- Contest rank calculations
+
+**statistic_info (per-result counts)**: Use the **actual result code** as the key — `{"0": 5, "10": 3, "-1": 20}`. This means:
+- `accepted_number` = AC + AST_CHECK_FAILED combined (for overall acceptance rate)
+- `statistic_info` retains the breakdown: 5 pure AC, 3 AST check failed, 20 WA
+- Frontend statistics display can show AST_CHECK_FAILED as a separate category, giving teachers visibility into how many students solved the problem but didn't meet syntax requirements
+
 ---
 
 ## Frontend Changes
+
+### Status Code Registration
+
+**Conflict**: Frontend `SubmissionStatus.submitting = 9` is a frontend-only transient state. AST_CHECK_FAILED uses `10` to avoid collision.
+
+Changes to `ojnext/src/utils/constants.ts`:
+
+```typescript
+// SubmissionStatus enum — add:
+ast_check_failed = 10,
+
+// JUDGE_STATUS object — add:
+"10": {
+  name: "代码检查未通过",
+  type: "warning",
+},
+```
+
+Changes to `ojnext/src/utils/types.ts`:
+- Update `SUBMISSION_RESULT` type to include `"10"`
+
+### Submission Result Display
+
+`SubmissionResult.vue` checks specific statuses to decide what to show:
+- Line 37-38: Shows `err_info` for `compile_error` and `runtime_error` → **add `ast_check_failed`** so AST error messages are displayed
+- Line 110-112: Shows test case details for `accepted`, `compile_error`, `runtime_error` → **add `ast_check_failed`** (submission was judged, test cases exist)
+- Line 119: `data.some((item) => item.result === 0)` filters test case data → **also include result === 10** or leave as-is since AST_CHECK_FAILED submissions did pass all test cases (result 0 in individual test case items)
+
+### Problem List "My Status"
+
+`oj/api.ts` line 26-28 checks `my_status === 0` to show the green AC icon. Since backend statistics treat AST_CHECK_FAILED as AC, the user's `my_status` in their profile will be stored as `0` (AC). **No change needed** — the problem list will correctly show the green AC icon.
+
+### WebSocket Monitor
+
+`useSubmissionMonitor.ts` line 92-94 treats result `9` as "still processing". Since AST_CHECK_FAILED is `10`, **no change needed** — when result `10` arrives via WebSocket, the monitor will correctly stop polling and show the final result.
 
 ### Admin UI (ojnext)
 
@@ -309,13 +359,6 @@ In the problem edit page, add a collapsible "代码规则检查" section:
   - Delete button
 - **Add rule button** per language tab
 - Section is collapsed by default (most problems won't have AST rules)
-
-### Status Display
-
-- Add `AST_CHECK_FAILED = 9` to `ojnext/src/utils/constants.ts`
-- Assign a distinct color (suggest orange, between COMPILE_ERROR red and PENDING grey)
-- Label: "AST Check Failed" / "代码结构检查未通过"
-- When viewing a submission with this status, display `statistic_info.err_info` as the error detail (same rendering as COMPILE_ERROR)
 
 ---
 
