@@ -131,9 +131,14 @@ class ProblemAdminSerializer(BaseProblemSerializer):
 
 
 class ProblemAdminListSerializer(BaseProblemSerializer):
+    has_ast_rules = serializers.SerializerMethodField()
+
+    def get_has_ast_rules(self, obj):
+        return bool(obj.ast_rules)
+
     class Meta:
         model = Problem
-        fields = ["_id", "id", "title", "created_by", "visible", "create_time", "difficulty", "tags"]
+        fields = ["_id", "id", "title", "created_by", "visible", "create_time", "difficulty", "tags", "has_ast_rules", "allow_flowchart", "show_flowchart"]
 
 
 class ProblemSerializer(BaseProblemSerializer):

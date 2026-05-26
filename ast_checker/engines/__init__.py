@@ -1,5 +1,6 @@
 from .function_call import CountFunctionCallEngine, MustCallFunctionEngine, MustNotCallFunctionEngine
 from .method_call import MustCallMethodEngine, MustNotCallMethodEngine
+from .nesting import MustHaveNestingEngine
 from .node_count import CountNodeEngine
 from .node_exists import MustExistNodeEngine, MustNotExistNodeEngine
 from .operator import MustUseOperatorEngine
@@ -14,6 +15,7 @@ ENGINES = {
     "must_call_method": MustCallMethodEngine(),
     "must_not_call_method": MustNotCallMethodEngine(),
     "must_use_operator": MustUseOperatorEngine(),
+    "must_have_nesting": MustHaveNestingEngine(),
 }
 
 
