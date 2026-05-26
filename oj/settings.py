@@ -32,7 +32,6 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Applications
 VENDOR_APPS = [
-    "daphne",  # Channels ASGI server - must be first
     "django.contrib.auth",
     "django.contrib.sessions",
     "django.contrib.contenttypes",
@@ -96,9 +95,6 @@ TEMPLATES = [
         },
     },
 ]
-WSGI_APPLICATION = "oj.wsgi.application"
-
-# ASGI Application for WebSocket support
 ASGI_APPLICATION = "oj.asgi.application"
 
 # Password validation
