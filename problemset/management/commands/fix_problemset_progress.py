@@ -38,7 +38,7 @@ class Command(BaseCommand):
                     Submission.objects.filter(
                         user_id=progress.user_id,
                         problem_id=psp.problem_id,
-                        result=JudgeStatus.ACCEPTED,
+                        result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED],
                     )
                     .order_by("create_time")
                     .first()

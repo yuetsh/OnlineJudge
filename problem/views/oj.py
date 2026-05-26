@@ -196,7 +196,7 @@ class ProblemSolvedPeopleCount(APIView):
         submission_count = Submission.objects.filter(
             user_id=request.user.id,
             problem_id=problem_id,
-            result=JudgeStatus.ACCEPTED,
+            result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED],
         ).count()
         if submission_count == 0:
             return self.success(rate)
@@ -207,7 +207,7 @@ class ProblemSolvedPeopleCount(APIView):
         ).count()
         accepted_count = Submission.objects.filter(
             problem_id=problem_id,
-            result=JudgeStatus.ACCEPTED,
+            result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED],
             create_time__gte=years_ago,
         ).aggregate(user_count=Count("user_id", distinct=True))["user_count"]
         if accepted_count < total_count:
@@ -310,7 +310,7 @@ class ProblemYearlyACRateAPI(APIView):
             .values("year")
             .annotate(
                 total=Count("id"),
-                accepted=Count("id", filter=Q(result=JudgeStatus.ACCEPTED)),
+                accepted=Count("id", filter=Q(result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED])),
             )
             .order_by("year")
         )

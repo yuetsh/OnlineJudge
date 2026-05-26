@@ -16,7 +16,7 @@ from otpauth import TOTP
 
 from options.options import SysOptions
 from problem.models import Problem
-from submission.models import JudgeStatus, Submission
+from submission.models import JudgeStatus, Submission, is_accepted
 from utils.api import APIView, CSRFExemptAPIView, validate_serializer
 from utils.captcha import Captcha
 from utils.constants import CacheKey, ContestRuleType
@@ -465,7 +465,7 @@ class UserActivityRankAPI(APIView):
         submissions = Submission.objects.filter(
             contest_id__isnull=True,
             create_time__gte=start,
-            result=JudgeStatus.ACCEPTED,
+            result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED],
         ).exclude(username__in=hidden_names)
         data = list(submissions.values("username").annotate(count=Count("problem_id", distinct=True)).order_by("-count")[:10])
         cache.set(cache_key, data, 600)
@@ -480,7 +480,7 @@ class UserProblemRankAPI(APIView):
             return self.error("User is not authenticated")
 
         problem = Problem.objects.get(_id__iexact=problem_id, contest_id__isnull=True, visible=True)
-        submissions = Submission.objects.filter(problem=problem, result=JudgeStatus.ACCEPTED)
+        submissions = Submission.objects.filter(problem=problem, result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED])
 
         all_ac_count = submissions.values("user_id").distinct().count()
 

@@ -217,7 +217,7 @@ class DownloadContestSubmissions(APIView):
         problem_ids = contest.problem_set.all().values_list("id", "_id")
         id2display_id = {k[0]: k[1] for k in problem_ids}
         ac_map = {k[0]: False for k in problem_ids}
-        submissions = Submission.objects.filter(contest=contest, result=JudgeStatus.ACCEPTED).order_by("-create_time")
+        submissions = Submission.objects.filter(contest=contest, result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED]).order_by("-create_time")
         user_ids = submissions.values_list("user_id", flat=True)
         users = User.objects.filter(id__in=user_ids)
         path = f"/tmp/{rand_str()}.zip"

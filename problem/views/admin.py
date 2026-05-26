@@ -527,7 +527,7 @@ class StuckProblemsAPI(APIView):
             Submission.objects.values("problem_id", "problem___id", "problem__title")
             .annotate(
                 total=Count("id"),
-                accepted=Count("id", filter=Q(result=JudgeStatus.ACCEPTED)),
+                accepted=Count("id", filter=Q(result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED])),
                 failed=Count("id", filter=failed_q),
                 failed_users=Count("user_id", filter=failed_q, distinct=True),
             )
@@ -593,7 +593,7 @@ class TopACTrendAPI(APIView):
             .values("problem_id", "problem___id", "problem__title", "year")
             .annotate(
                 total=Count("id"),
-                accepted=Count("id", filter=Q(result=JudgeStatus.ACCEPTED)),
+                accepted=Count("id", filter=Q(result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED])),
             )
             .order_by("problem_id", "year")
         )

@@ -24,7 +24,7 @@ from problemset.serializers import (
     UpdateProgressSerializer,
     UserBadgeSerializer,
 )
-from submission.models import JudgeStatus, Submission
+from submission.models import JudgeStatus, Submission, is_accepted
 from utils.api import APIView, validate_serializer
 
 
@@ -187,7 +187,7 @@ class ProblemSetProgressAPI(APIView):
         except Submission.DoesNotExist:
             return self.error("提交记录不存在")
 
-        if submission.result != JudgeStatus.ACCEPTED:
+        if not is_accepted(submission.result):
             return self.error("只有通过的提交才能更新进度")
 
         try:

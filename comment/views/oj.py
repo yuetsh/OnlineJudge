@@ -28,7 +28,7 @@ class CommentAPI(APIView):
                 .filter(
                     user_id=request.user.id,
                     problem_id=data["problem_id"],
-                    result=JudgeStatus.ACCEPTED,
+                    result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED],
                 )
                 .first()
             )

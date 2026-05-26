@@ -78,7 +78,7 @@ class SubmissionStatisticsAPI(APIView):
         # 优化：一次性获取所有统计数据
         submission_stats = submissions.aggregate(
             total_count=Count("id"),
-            accepted_count=Count("id", filter=Q(result=JudgeStatus.ACCEPTED)),
+            accepted_count=Count("id", filter=Q(result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED])),
         )
         submission_count = submission_stats["total_count"]
         accepted_count = submission_stats["accepted_count"]
@@ -91,7 +91,7 @@ class SubmissionStatisticsAPI(APIView):
             submissions.values("username")
             .annotate(
                 submission_count=Count("id"),
-                accepted_count=Count("id", filter=Q(result=JudgeStatus.ACCEPTED)),
+                accepted_count=Count("id", filter=Q(result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED])),
             )
             .order_by("-submission_count")
         )

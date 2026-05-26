@@ -277,7 +277,7 @@ class ClassPKAPI(APIView):
                     create_time__lte=end_time,
                 )
                 recent_ac = (
-                    submissions.filter(result=JudgeStatus.ACCEPTED)
+                    submissions.filter(result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED])
                     .values("user_id", "problem_id")
                     .distinct()
                     .count()
@@ -288,7 +288,7 @@ class ClassPKAPI(APIView):
                 recent_user_ac = {}
                 for user_id in user_ids:
                     user_recent_ac = (
-                        submissions.filter(user_id=user_id, result=JudgeStatus.ACCEPTED)
+                        submissions.filter(user_id=user_id, result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED])
                         .values("problem_id")
                         .distinct()
                         .count()
