@@ -149,7 +149,6 @@ class ProblemSerializer(BaseProblemSerializer):
             "visible",
             "is_public",
             "answers",
-            "ast_rules",
         )
 
     def get_mermaid_code(self, obj):
@@ -200,7 +199,6 @@ class ProblemSafeSerializer(BaseProblemSerializer):
             "accepted_number",
             "statistic_info",
             "answers",
-            "ast_rules",
         )
 
     def get_mermaid_code(self, obj):
