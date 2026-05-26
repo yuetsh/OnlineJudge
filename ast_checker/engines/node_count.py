@@ -1,4 +1,5 @@
 from .base import BaseEngine
+from ast_checker.labels import label
 
 
 class CountNodeEngine(BaseEngine):
@@ -7,9 +8,9 @@ class CountNodeEngine(BaseEngine):
         min_count = rule.get("min")
         max_count = rule.get("max")
         if min_count is not None and count < min_count:
-            return rule.get("message") or f"{target} 至少出现 {min_count} 次，当前 {count} 次"
+            return rule.get("message") or f"{rule.get('label') or label(target)} 至少出现 {min_count} 次，当前 {count} 次"
         if max_count is not None and count > max_count:
-            return rule.get("message") or f"{target} 至多出现 {max_count} 次，当前 {count} 次"
+            return rule.get("message") or f"{rule.get('label') or label(target)} 至多出现 {max_count} 次，当前 {count} 次"
         return None
 
     def check(self, tree, rule, language, mapping):
@@ -30,4 +31,4 @@ class CountNodeEngine(BaseEngine):
             parts.append(f"至少 {min_count} 次")
         if max_count is not None:
             parts.append(f"至多 {max_count} 次")
-        return f"{target} " + "、".join(parts)
+        return f"{rule.get('label') or label(target)} " + "、".join(parts)

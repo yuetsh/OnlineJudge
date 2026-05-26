@@ -1,9 +1,10 @@
 from .base import BaseEngine
+from ast_checker.labels import label
 
 
 class MustExistNodeEngine(BaseEngine):
     def _message(self, rule):
-        return rule.get("message") or f"必须使用 {rule['target']}"
+        return rule.get("message") or f"必须使用 {rule.get('label') or label(rule['target'])}"
 
     def check(self, tree, rule, language, mapping):
         node_type = mapping.get(rule["target"], rule["target"])
@@ -17,7 +18,7 @@ class MustExistNodeEngine(BaseEngine):
 
 class MustNotExistNodeEngine(BaseEngine):
     def _message(self, rule):
-        return rule.get("message") or f"不能使用 {rule['target']}"
+        return rule.get("message") or f"不能使用 {rule.get('label') or label(rule['target'])}"
 
     def check(self, tree, rule, language, mapping):
         node_type = mapping.get(rule["target"], rule["target"])
