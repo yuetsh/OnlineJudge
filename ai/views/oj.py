@@ -126,7 +126,7 @@ def get_user_first_ac_submissions(
     # 用户自己的 AC 记录按时间范围过滤
     user_first_ac = list(
         Submission.objects.filter(
-            result=JudgeStatus.ACCEPTED,
+            result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED],
             user_id=user_id,
             create_time__gte=start,
             create_time__lte=end,
@@ -144,7 +144,7 @@ def get_user_first_ac_submissions(
 
     # 排名基于全局数据（不限时间），后注册的学生与所有人公平竞争
     rank_qs = Submission.objects.filter(
-        result=JudgeStatus.ACCEPTED,
+        result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED],
         problem_id__in=problem_ids,
     )
     if use_class_scope and class_user_ids:
@@ -250,7 +250,7 @@ class AIDetailDataAPI(APIView):
         by_problem_period = defaultdict(list)
         if problem_ids:
             period_qs = Submission.objects.filter(
-                result=JudgeStatus.ACCEPTED,
+                result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED],
                 problem_id__in=problem_ids,
                 create_time__gte=start,
                 create_time__lte=end,
@@ -487,7 +487,7 @@ class AIDurationDataAPI(APIView):
                     period_data["problem_count"] = len(problem_ids)
                     by_problem_period = defaultdict(list)
                     period_qs = Submission.objects.filter(
-                        result=JudgeStatus.ACCEPTED,
+                        result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED],
                         problem_id__in=problem_ids,
                         create_time__gte=start,
                         create_time__lte=period_end,
@@ -570,9 +570,9 @@ class AILoginSummaryAPI(APIView):
             user_id=user.id, create_time__gte=start_time, create_time__lte=end_time
         )
         submission_count = submissions_qs.count()
-        accepted_count = submissions_qs.filter(result=JudgeStatus.ACCEPTED).count()
+        accepted_count = submissions_qs.filter(result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED]).count()
         solved_count = (
-            submissions_qs.filter(result=JudgeStatus.ACCEPTED)
+            submissions_qs.filter(result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED])
             .values("problem_id")
             .distinct()
             .count()
