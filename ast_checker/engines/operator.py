@@ -2,9 +2,14 @@ from .base import BaseEngine
 
 
 class MustUseOperatorEngine(BaseEngine):
+    def _message(self, rule):
+        return rule.get("message") or f"必须使用 {rule['target']} 运算符"
+
     def check(self, tree, rule, language, mapping):
-        target = rule["target"]
-        mapped_op = mapping.get(target, target)
+        mapped_op = mapping.get(rule["target"], rule["target"])
         if not self.has_node(tree.root_node, mapped_op):
-            return [rule.get("message", f"必须使用 {target} 运算符")]
+            return [self._message(rule)]
         return []
+
+    def describe(self, rule, language, mapping):
+        return self._message(rule)

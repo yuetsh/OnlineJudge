@@ -213,10 +213,10 @@ class JudgeDispatcher(DispatcherBase):
                 if ast_rules and language in ast_rules:
                     from ast_checker.checker import check_ast
 
-                    passed, errors = check_ast(self.submission.code, language, ast_rules[language])
+                    passed, results = check_ast(self.submission.code, language, ast_rules[language])
                     if not passed:
                         self.submission.result = JudgeStatus.AST_CHECK_FAILED
-                        self.submission.statistic_info["err_info"] = "\n".join(errors)
+                        self.submission.statistic_info["ast_results"] = results
         self.submission.save(update_fields=["result", "info", "statistic_info"])
 
         # 推送判题完成状态

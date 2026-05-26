@@ -23,16 +23,26 @@ class _MethodCallBase(BaseEngine):
 
 
 class MustCallMethodEngine(_MethodCallBase):
+    def _message(self, rule):
+        return rule.get("message") or f"必须调用 .{rule['target']}()"
+
     def check(self, tree, rule, language, mapping):
-        target = rule["target"]
-        if not self._find_method_calls(tree.root_node, target, language):
-            return [rule.get("message", f"必须调用 .{target}()")]
+        if not self._find_method_calls(tree.root_node, rule["target"], language):
+            return [self._message(rule)]
         return []
+
+    def describe(self, rule, language, mapping):
+        return self._message(rule)
 
 
 class MustNotCallMethodEngine(_MethodCallBase):
+    def _message(self, rule):
+        return rule.get("message") or f"不能调用 .{rule['target']}()"
+
     def check(self, tree, rule, language, mapping):
-        target = rule["target"]
-        if self._find_method_calls(tree.root_node, target, language):
-            return [rule.get("message", f"不能调用 .{target}()")]
+        if self._find_method_calls(tree.root_node, rule["target"], language):
+            return [self._message(rule)]
         return []
+
+    def describe(self, rule, language, mapping):
+        return self._message(rule)

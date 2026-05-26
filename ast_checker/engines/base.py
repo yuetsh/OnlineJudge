@@ -16,3 +16,6 @@ class BaseEngine:
 
     def check(self, tree, rule, language, mapping) -> list[str]:
         raise NotImplementedError
+
+    def describe(self, rule, language, mapping) -> str:
+        raise NotImplementedError

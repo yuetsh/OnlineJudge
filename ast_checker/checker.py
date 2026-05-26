@@ -4,7 +4,7 @@ from .engines import get_engine
 from .mappings import get_language, get_mapping
 
 
-def check_ast(code: str, language: str, rules: list[dict]) -> tuple[bool, list[str]]:
+def check_ast(code: str, language: str, rules: list[dict]) -> tuple[bool, list[dict]]:
     if not rules:
         return True, []
 
@@ -20,12 +20,16 @@ def check_ast(code: str, language: str, rules: list[dict]) -> tuple[bool, list[s
     except Exception:
         return True, []
 
-    errors = []
+    results = []
+    all_passed = True
     for rule in rules:
         engine = get_engine(rule.get("engine", ""))
         if engine is None:
             continue
-        rule_errors = engine.check(tree, rule, language, mapping)
-        errors.extend(rule_errors)
+        errors = engine.check(tree, rule, language, mapping)
+        passed = len(errors) == 0
+        if not passed:
+            all_passed = False
+        results.append({"description": engine.describe(rule, language, mapping), "passed": passed})
 
-    return len(errors) == 0, errors
+    return all_passed, results
