@@ -170,6 +170,11 @@ class ProblemSerializer(BaseProblemSerializer):
 
 
 class ProblemListSerializer(BaseProblemSerializer):
+    has_ast_rules = serializers.SerializerMethodField()
+
+    def get_has_ast_rules(self, obj):
+        return bool(obj.ast_rules)
+
     class Meta:
         model = Problem
         fields = [
@@ -184,6 +189,7 @@ class ProblemListSerializer(BaseProblemSerializer):
             "contest",
             "allow_flowchart",
             "show_flowchart",
+            "has_ast_rules",
         ]
 
 

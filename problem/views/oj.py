@@ -2,7 +2,7 @@ import random
 from datetime import datetime
 
 from django.core.cache import cache
-from django.db.models import Count, Q
+from django.db.models import BooleanField, Case, Count, Q, Value, When
 from django.db.models.functions import ExtractYear
 
 from account.decorators import check_contest_permission
@@ -128,10 +128,18 @@ class ProblemAPI(APIView):
 
         # 排序
         sort = request.GET.get("sort")
-        if sort and sort != "flowchart":
-            problems = problems.order_by(sort)
-        if sort and sort == "flowchart":
+        if sort == "flowchart":
             problems = problems.order_by("-allow_flowchart", "-show_flowchart", "-create_time")
+        elif sort == "ast":
+            problems = problems.annotate(
+                _has_ast=Case(
+                    When(ast_rules__isnull=False, then=Value(True)),
+                    default=Value(False),
+                    output_field=BooleanField(),
+                )
+            ).order_by("-_has_ast", "-create_time")
+        elif sort:
+            problems = problems.order_by(sort)
 
         # 根据profile 为做过的题目添加标记
         data = self.paginate_data(request, problems, ProblemListSerializer)
