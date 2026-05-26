@@ -86,6 +86,9 @@ class CreateOrEditProblemSerializer(serializers.Serializer):
 
     flowchart_hint = serializers.CharField(allow_blank=True, allow_null=True, required=False)
 
+    # AST 规则
+    ast_rules = serializers.JSONField(required=False, allow_null=True, default=None)
+
 
 class CreateProblemSerializer(CreateOrEditProblemSerializer):
     pass
@@ -146,6 +149,7 @@ class ProblemSerializer(BaseProblemSerializer):
             "visible",
             "is_public",
             "answers",
+            "ast_rules",
         )
 
     def get_mermaid_code(self, obj):
@@ -196,6 +200,7 @@ class ProblemSafeSerializer(BaseProblemSerializer):
             "accepted_number",
             "statistic_info",
             "answers",
+            "ast_rules",
         )
 
     def get_mermaid_code(self, obj):

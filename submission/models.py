@@ -19,6 +19,11 @@ class JudgeStatus(models.IntegerChoices):
     PENDING = 6, "Pending"
     JUDGING = 7, "Judging"
     PARTIALLY_ACCEPTED = 8, "Partially Accepted"
+    AST_CHECK_FAILED = 10, "AST Check Failed"
+
+
+def is_accepted(result):
+    return result in (JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED)
 
 
 class Submission(models.Model):

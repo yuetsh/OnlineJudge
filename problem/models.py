@@ -83,6 +83,9 @@ class Problem(models.Model):
     flowchart_hint = models.TextField(null=True, blank=True)
     show_flowchart = models.BooleanField(default=False, db_default=False)
 
+    # AST 代码结构检查规则
+    ast_rules = models.JSONField(null=True, blank=True, default=None)
+
     class Meta:
         db_table = "problem"
         constraints = [
