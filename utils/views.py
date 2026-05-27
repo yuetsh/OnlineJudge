@@ -46,6 +46,7 @@ class SimditorImageUploadAPIView(CSRFExemptAPIView):
             "file_path": f"{settings.UPLOAD_PREFIX}/{img_name}"})
 
 
+# DEPRECATED: 前端未调用 (2026-05-26)
 class SimditorFileUploadAPIView(CSRFExemptAPIView):
     request_parsers = ()
 

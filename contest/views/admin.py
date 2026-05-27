@@ -97,6 +97,7 @@ class ContestAPI(APIView):
         return self.success(self.paginate_data(request, contests, ContestAdminSerializer))
 
 
+# DEPRECATED: 前端未调用 (2026-05-26)
 class ContestAnnouncementAPI(APIView):
     @validate_serializer(CreateContestAnnouncementSerializer)
     @super_admin_required
@@ -212,6 +213,7 @@ class ACMContestHelper(APIView):
         return self.success()
 
 
+# DEPRECATED: 前端未调用 (2026-05-26)
 class DownloadContestSubmissions(APIView):
     def _dump_submissions(self, contest, exclude_admin=True):
         problem_ids = contest.problem_set.all().values_list("id", "_id")

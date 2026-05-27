@@ -4,7 +4,6 @@ from account.models import UserProfile
 from problem.models import Problem
 from submission.models import JudgeStatus
 
-
 ACCEPTED_STATUSES = {JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED}
 
 

@@ -332,6 +332,7 @@ class ProblemSetProgressAdminAPI(APIView):
             return self.error("用户未加入该题单")
 
 
+# DEPRECATED: 前端未调用 (2026-05-26)
 class ProblemSetSyncAPI(APIView):
     """题单同步管理API"""
 

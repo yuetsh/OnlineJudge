@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import json
 import os
@@ -6,9 +7,10 @@ import re
 import shutil
 import smtplib
 import time
-from datetime import datetime
+from datetime import timedelta
 
 import requests
+from asgiref.sync import sync_to_async
 from django.conf import settings
 from django.utils import timezone
 from requests.exceptions import RequestException
@@ -20,7 +22,7 @@ from judge.dispatcher import process_pending_task
 from options.options import SysOptions
 from problem.models import Problem
 from submission.models import Submission
-from utils.api import APIView, CSRFExemptAPIView, validate_serializer
+from utils.api import APIView, AsyncAPIView, CSRFExemptAPIView, validate_serializer
 from utils.cache import JsonDataLoader
 from utils.shortcuts import get_env, send_email
 from utils.websocket import push_config_update
@@ -38,6 +40,7 @@ from .serializers import (
 )
 
 
+# DEPRECATED: 前端未调用 (2026-05-26)
 class SMTPAPI(APIView):
     @super_admin_required
     def get(self, request):
@@ -66,6 +69,7 @@ class SMTPAPI(APIView):
         return self.success()
 
 
+# DEPRECATED: 前端未调用 (2026-05-26)
 class SMTPTestAPI(APIView):
     @super_admin_required
     @validate_serializer(TestSMTPConfigSerializer)
@@ -97,35 +101,33 @@ class SMTPTestAPI(APIView):
         return self.success()
 
 
-class WebsiteConfigAPI(APIView):
-    def get(self, request):
-        ret = {
-            key: getattr(SysOptions, key)
-            for key in [
-                "website_base_url",
-                "website_name",
-                "website_name_shortcut",
-                "website_footer",
-                "allow_register",
-                "submission_list_show_all",
-                "class_list",
-                "enable_maxkb",
-            ]
-        }
+class WebsiteConfigAPI(AsyncAPIView):
+    async def get(self, request):
+        ret = await SysOptions.aget_many(
+            "website_base_url",
+            "website_name",
+            "website_name_shortcut",
+            "website_footer",
+            "allow_register",
+            "submission_list_show_all",
+            "class_list",
+            "enable_maxkb",
+        )
         return self.success(ret)
 
     @super_admin_required
     @validate_serializer(CreateEditWebsiteConfigSerializer)
-    def post(self, request):
-        for k, v in request.data.items():
-            if k == "website_footer":
-                with XSSHtml() as parser:
-                    v = parser.clean(v)
-            setattr(SysOptions, k, v)
+    async def post(self, request):
+        @sync_to_async
+        def _update_config(data):
+            for k, v in data.items():
+                if k == "website_footer":
+                    with XSSHtml() as parser:
+                        v = parser.clean(v)
+                setattr(SysOptions, k, v)
+                push_config_update(k, v)
 
-            # 推送配置更新到所有连接的客户端
-            push_config_update(k, v)
-
+        await _update_config(request.data)
         return self.success()
 
 
@@ -206,6 +208,7 @@ class JudgeServerHeartbeatAPI(CSRFExemptAPIView):
         return self.success()
 
 
+# DEPRECATED: 前端未调用 (2026-05-26)
 class LanguagesAPI(APIView):
     def get(self, request):
         return self.success(
@@ -255,6 +258,7 @@ class TestCasePruneAPI(APIView):
             shutil.rmtree(test_case_dir, ignore_errors=True)
 
 
+# DEPRECATED: 前端未调用 (2026-05-26)
 class ReleaseNotesAPI(APIView):
     def get(self, request):
         try:
@@ -272,24 +276,29 @@ class ReleaseNotesAPI(APIView):
         return self.success(releases)
 
 
-class DashboardInfoAPI(APIView):
-    def get(self, request):
-        today = datetime.today()
-        today_submission_count = Submission.objects.filter(
-            create_time__gte=datetime(today.year, today.month, today.day, 0, 0)
-        ).count()
-        recent_contest_count = Contest.objects.exclude(
-            end_time__lt=timezone.now()
-        ).count()
-        judge_server_count = len(
-            list(filter(lambda x: x.status == "normal", JudgeServer.objects.all()))
+class DashboardInfoAPI(AsyncAPIView):
+    async def get(self, request):
+        now = timezone.now()
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        (
+            user_count,
+            today_submission_count,
+            recent_contest_count,
+            judge_servers,
+        ) = await asyncio.gather(
+            User.objects.acount(),
+            Submission.objects.filter(create_time__gte=today_start).acount(),
+            Contest.objects.exclude(end_time__lt=timezone.now()).acount(),
+            JudgeServer.objects.filter(
+                last_heartbeat__gte=timezone.now() - timedelta(seconds=6)
+            ).acount(),
         )
         return self.success(
             {
-                "user_count": User.objects.count(),
+                "user_count": user_count,
                 "recent_contest_count": recent_contest_count,
                 "today_submission_count": today_submission_count,
-                "judge_server_count": judge_server_count,
+                "judge_server_count": judge_servers,
                 "env": {
                     "FORCE_HTTPS": get_env("FORCE_HTTPS", default=False),
                     "STATIC_CDN_HOST": get_env("STATIC_CDN_HOST", default=""),
@@ -298,24 +307,21 @@ class DashboardInfoAPI(APIView):
         )
 
 
-class RandomUsernameAPI(APIView):
-    def get(self, request):
+class RandomUsernameAPI(AsyncAPIView):
+    async def get(self, request):
         classroom = request.GET.get("classroom", "")
         if not classroom:
             return self.error("需要班级号")
-        usernames = (
-            User.objects.filter(username__istartswith=classroom)
+        usernames = [
+            u async for u in User.objects.filter(username__istartswith=classroom)
             .values_list("username", flat=True)
-            .order_by("?")
-        )
-        if len(usernames) > 10:
-            return self.success(usernames[:10])
-        else:
-            return self.success(usernames)
+            .order_by("?")[:10]
+        ]
+        return self.success(usernames)
 
 
-class HitokotoAPI(APIView):
-    def get(self, request):
+class HitokotoAPI(AsyncAPIView):
+    async def get(self, request):
         try:
             categories = JsonDataLoader.load_data(
                 settings.HITOKOTO_DIR, "categories.json"
@@ -328,20 +334,14 @@ class HitokotoAPI(APIView):
             return self.error("获取一言失败，请稍后再试")
 
 
-class ClassUsernamesAPI(APIView):
-    def get(self, request):
+class ClassUsernamesAPI(AsyncAPIView):
+    async def get(self, request):
         classroom = request.GET.get("classroom", "")
         if not classroom:
             return self.error("需要班级号")
-        users = User.objects.filter(class_name=classroom).order_by("-create_time")
-        names = []
-        for user in users:
-            prefix = f"ks{classroom}"
-            result = (
-                user.username[len(prefix) :]
-                if user.username.startswith(prefix)
-                else user.username
-            )
-            names.append(result)
-
+        prefix = f"ks{classroom}"
+        names = [
+            user.username[len(prefix):] if user.username.startswith(prefix) else user.username
+            async for user in User.objects.filter(class_name=classroom).order_by("-create_time")
+        ]
         return self.success(names)

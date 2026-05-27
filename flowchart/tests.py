@@ -11,6 +11,6 @@ class FlowchartEvaluationPromptTests(TestCase):
         self.assertIn("Mermaid节点ID由系统生成", prompt)
         self.assertIn("不要评价节点ID", prompt)
         self.assertIn("不要因节点ID扣分", prompt)
-        self.assertIn("feedback控制在0字以内", prompt)
+        self.assertIn("feedback控制在100字以内", prompt)
         self.assertIn("suggestions最多3条", prompt)
         self.assertIn("重要建议必须以【重点】开头", prompt)

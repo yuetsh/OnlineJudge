@@ -1,3 +1,4 @@
+import asyncio
 import os
 from datetime import timedelta
 from importlib import import_module
@@ -5,7 +6,6 @@ from importlib import import_module
 import qrcode
 from django.conf import settings
 from django.contrib import auth
-from django.core.cache import cache
 from django.db.models import Count, Q
 from django.template.loader import render_to_string
 from django.utils import timezone
@@ -16,8 +16,9 @@ from otpauth import TOTP
 
 from options.options import SysOptions
 from problem.models import Problem
-from submission.models import JudgeStatus, Submission, is_accepted
-from utils.api import APIView, CSRFExemptAPIView, validate_serializer
+from submission.models import JudgeStatus, Submission
+from utils.api import APIView, AsyncAPIView, CSRFExemptAPIView, validate_serializer
+from utils.async_helpers import async_cache_get, async_cache_set
 from utils.captcha import Captcha
 from utils.constants import CacheKey, ContestRuleType
 from utils.shortcuts import datetime2str, img2base64, rand_str
@@ -58,12 +59,9 @@ def _valid_totp(token, code):
     return _totp(token).verify(code)
 
 
-class UserProfileAPI(APIView):
+class UserProfileAPI(AsyncAPIView):
     @method_decorator(ensure_csrf_cookie)
-    def get(self, request, **kwargs):
-        """
-        判断是否登录， 若登录返回用户信息
-        """
+    async def get(self, request, **kwargs):
         user = request.user
         if not user.is_authenticated:
             return self.success()
@@ -71,52 +69,51 @@ class UserProfileAPI(APIView):
         username = request.GET.get("username")
         try:
             if username:
-                user = User.objects.get(username=username, is_disabled=False)
+                user = await User.objects.aget(username=username, is_disabled=False)
             else:
                 user = request.user
-                # api返回的是自己的信息，可以返real_name
                 show_real_name = True
         except User.DoesNotExist:
             return self.error("User does not exist")
-        return self.success(UserProfileSerializer(user.userprofile, show_real_name=show_real_name).data)
+        profile = await UserProfile.objects.select_related("user").aget(user=user)
+        return self.success(UserProfileSerializer(profile, show_real_name=show_real_name).data)
 
     @validate_serializer(EditUserProfileSerializer)
     @login_required
-    def put(self, request):
+    async def put(self, request):
         data = request.data
-        user_profile = request.user.userprofile
+        user_profile = await UserProfile.objects.select_related("user").aget(user=request.user)
         for k, v in data.items():
             setattr(user_profile, k, v)
-        user_profile.save()
+        await user_profile.asave()
         return self.success(UserProfileSerializer(user_profile, show_real_name=True).data)
 
 
-class Metrics(APIView):
-    def get(self, request):
+class Metrics(AsyncAPIView):
+    async def get(self, request):
         userid = request.GET.get("userid")
-        submissions = Submission.objects.filter(user_id=userid, contest_id__isnull=True)
-        if submissions.count() == 0:
+        qs = Submission.objects.filter(user_id=userid, contest_id__isnull=True)
+        count, latest, first = await asyncio.gather(
+            qs.acount(),
+            qs.order_by("-create_time").afirst(),
+            qs.order_by("create_time").afirst(),
+        )
+        if count == 0 or not latest or not first:
             return self.error("暂无提交")
-        else:
-            latest_submission = submissions.first()
-            last_submission = submissions.last()
-            if last_submission and latest_submission:
-                return self.success(
-                    {
-                        "now": datetime2str(timezone.now()),
-                        "latest": datetime2str(latest_submission.create_time),
-                        "first": datetime2str(last_submission.create_time),
-                    }
-                )
-            else:
-                return self.error("暂无提交")
+        return self.success(
+            {
+                "now": datetime2str(timezone.now()),
+                "latest": datetime2str(latest.create_time),
+                "first": datetime2str(first.create_time),
+            }
+        )
 
 
-class AvatarUploadAPI(APIView):
+class AvatarUploadAPI(AsyncAPIView):
     request_parsers = ()
 
     @login_required
-    def post(self, request):
+    async def post(self, request):
         form = ImageUploadForm(request.POST, request.FILES)
         if form.is_valid():
             avatar = form.cleaned_data["image"]
@@ -132,13 +129,14 @@ class AvatarUploadAPI(APIView):
         with open(os.path.join(settings.AVATAR_UPLOAD_DIR, name), "wb") as img:
             for chunk in avatar:
                 img.write(chunk)
-        user_profile = request.user.userprofile
+        user_profile = await UserProfile.objects.aget(user=request.user)
 
         user_profile.avatar = f"{settings.AVATAR_URI_PREFIX}/{name}"
-        user_profile.save()
+        await user_profile.asave()
         return self.success("Succeeded")
 
 
+# DEPRECATED: 前端未调用 (2026-05-26)
 class TwoFactorAuthAPI(APIView):
     @login_required
     def get(self, request):
@@ -186,6 +184,7 @@ class TwoFactorAuthAPI(APIView):
             return self.error("Invalid code")
 
 
+# DEPRECATED: 前端未调用 (2026-05-26)
 class CheckTFARequiredAPI(APIView):
     @validate_serializer(UsernameOrEmailCheckSerializer)
     def post(self, request):
@@ -203,31 +202,26 @@ class CheckTFARequiredAPI(APIView):
         return self.success({"result": result})
 
 
-class UserLoginAPI(APIView):
+class UserLoginAPI(AsyncAPIView):
     @validate_serializer(UserLoginSerializer)
-    def post(self, request):
-        """
-        User login api
-        """
+    async def post(self, request):
         data = request.data
-        user = auth.authenticate(username=data["username"], password=data["password"])
-        # None is returned if username or password is wrong
+        user = await auth.aauthenticate(username=data["username"], password=data["password"])
         if user:
             if user.is_disabled:
                 return self.error("Your account has been disabled")
             if not user.two_factor_auth:
                 prev_login = user.last_login
-                auth.login(request, user)
+                await auth.alogin(request, user)
                 request.session["prev_login"] = datetime2str(prev_login) if prev_login else ""
                 return self.success("Succeeded")
 
-            # `tfa_code` not in post data
             if user.two_factor_auth and "tfa_code" not in data:
                 return self.error("tfa_required")
 
             if _valid_totp(user.tfa_token, data["tfa_code"]):
                 prev_login = user.last_login
-                auth.login(request, user)
+                await auth.alogin(request, user)
                 request.session["prev_login"] = datetime2str(prev_login) if prev_login else ""
                 return self.success("Succeeded")
             else:
@@ -236,12 +230,13 @@ class UserLoginAPI(APIView):
             return self.error("Invalid username or password")
 
 
-class UserLogoutAPI(APIView):
-    def get(self, request):
-        auth.logout(request)
+class UserLogoutAPI(AsyncAPIView):
+    async def get(self, request):
+        await auth.alogout(request)
         return self.success()
 
 
+# DEPRECATED: 前端未调用 (2026-05-26)
 class UsernameOrEmailCheck(APIView):
     @validate_serializer(UsernameOrEmailCheckSerializer)
     def post(self, request):
@@ -258,13 +253,10 @@ class UsernameOrEmailCheck(APIView):
         return self.success(result)
 
 
-class UserRegisterAPI(APIView):
+class UserRegisterAPI(AsyncAPIView):
     @validate_serializer(UserRegisterSerializer)
-    def post(self, request):
-        """
-        User register api
-        """
-        if not SysOptions.allow_register:
+    async def post(self, request):
+        if not await SysOptions.aget("allow_register"):
             return self.error("Register function has been disabled by admin")
 
         data = request.data
@@ -273,17 +265,18 @@ class UserRegisterAPI(APIView):
         captcha = Captcha(request)
         if not captcha.check(data["captcha"]):
             return self.error("Invalid captcha")
-        if User.objects.filter(username=data["username"]).exists():
+        if await User.objects.filter(username=data["username"]).aexists():
             return self.error("Username already exists")
-        if User.objects.filter(email=data["email"]).exists():
+        if await User.objects.filter(email=data["email"]).aexists():
             return self.error("Email already exists")
-        user = User.objects.create(username=data["username"], email=data["email"])
+        user = await User.objects.acreate(username=data["username"], email=data["email"])
         user.set_password(data["password"])
-        user.save()
-        UserProfile.objects.create(user=user)
+        await user.asave()
+        await UserProfile.objects.acreate(user=user)
         return self.success("Succeeded")
 
 
+# DEPRECATED: 前端未调用 (2026-05-26)
 class UserChangeEmailAPI(APIView):
     @validate_serializer(UserChangeEmailSerializer)
     @login_required
@@ -306,6 +299,7 @@ class UserChangeEmailAPI(APIView):
             return self.error("Wrong password")
 
 
+# DEPRECATED: 前端未调用 (2026-05-26)
 class UserChangePasswordAPI(APIView):
     @validate_serializer(UserChangePasswordSerializer)
     @login_required
@@ -329,6 +323,7 @@ class UserChangePasswordAPI(APIView):
             return self.error("Invalid old password")
 
 
+# DEPRECATED: 前端未调用 (2026-05-26)
 class ApplyResetPasswordAPI(APIView):
     @validate_serializer(ApplyResetPasswordSerializer)
     def post(self, request):
@@ -363,6 +358,7 @@ class ApplyResetPasswordAPI(APIView):
         return self.success("Succeeded")
 
 
+# DEPRECATED: 前端未调用 (2026-05-26)
 class ResetPasswordAPI(APIView):
     @validate_serializer(ResetPasswordSerializer)
     def post(self, request):
@@ -383,6 +379,7 @@ class ResetPasswordAPI(APIView):
         return self.success("Succeeded")
 
 
+# DEPRECATED: 前端未调用 (2026-05-26)
 class SessionManagementAPI(APIView):
     @login_required
     def get(self, request):
@@ -426,8 +423,8 @@ class SessionManagementAPI(APIView):
             return self.error("Invalid session_key")
 
 
-class UserRankAPI(APIView):
-    def get(self, request):
+class UserRankAPI(AsyncAPIView):
+    async def get(self, request):
         rule_type = request.GET.get("rule")
         username = request.GET.get("username", "")
         try:
@@ -448,16 +445,16 @@ class UserRankAPI(APIView):
             profiles = profiles.filter(total_score__gt=0).order_by("-total_score")
         if n > 0:
             profiles = profiles[:n]
-        return self.success(self.paginate_data(request, profiles, RankInfoSerializer))
+        return self.success(await self.async_paginate_data(request, profiles, RankInfoSerializer))
 
 
-class UserActivityRankAPI(APIView):
-    def get(self, request):
+class UserActivityRankAPI(AsyncAPIView):
+    async def get(self, request):
         start = request.GET.get("start")
         if not start:
             return self.error("start time is required")
         cache_key = f"{CacheKey.user_activity_rank}:{start}"
-        cached = cache.get(cache_key)
+        cached = await async_cache_get(cache_key)
         if cached is not None:
             return self.success(cached)
 
@@ -467,35 +464,40 @@ class UserActivityRankAPI(APIView):
             create_time__gte=start,
             result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED],
         ).exclude(username__in=hidden_names)
-        data = list(submissions.values("username").annotate(count=Count("problem_id", distinct=True)).order_by("-count")[:10])
-        cache.set(cache_key, data, 600)
+        data = [
+            row
+            async for row in submissions.values("username")
+            .annotate(count=Count("problem_id", distinct=True))
+            .order_by("-count")[:10]
+        ]
+        await async_cache_set(cache_key, data, 600)
         return self.success(data)
 
 
-class UserProblemRankAPI(APIView):
-    def get(self, request):
+class UserProblemRankAPI(AsyncAPIView):
+    async def get(self, request):
         problem_id = request.GET.get("problem_id")
         user = request.user
         if not user.is_authenticated:
             return self.error("User is not authenticated")
 
-        problem = Problem.objects.get(_id__iexact=problem_id, contest_id__isnull=True, visible=True)
+        problem = await Problem.objects.aget(_id__iexact=problem_id, contest_id__isnull=True, visible=True)
         submissions = Submission.objects.filter(problem=problem, result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED])
 
-        all_ac_count = submissions.values("user_id").distinct().count()
+        all_ac_count = await submissions.values("user_id").distinct().acount()
 
         class_name = user.class_name or ""
         class_ac_count = 0
 
         if class_name:
             users = User.objects.filter(class_name=user.class_name, is_disabled=False).values_list("id", flat=True)
-            user_ids = list(users)
+            user_ids = [user_id async for user_id in users]
             submissions = submissions.filter(user_id__in=user_ids)
-            class_ac_count = submissions.values("user_id").distinct().count()
+            class_ac_count = await submissions.values("user_id").distinct().acount()
 
         my_submissions = submissions.filter(user_id=user.id)
 
-        if len(my_submissions) == 0:
+        if not await my_submissions.aexists():
             return self.success(
                 {
                     "class_name": class_name,
@@ -505,8 +507,8 @@ class UserProblemRankAPI(APIView):
                 }
             )
 
-        my_first_submission = my_submissions.order_by("create_time").first()
-        rank = submissions.filter(create_time__lte=my_first_submission.create_time).count()
+        my_first_submission = await my_submissions.order_by("create_time").afirst()
+        rank = await submissions.filter(create_time__lte=my_first_submission.create_time).acount()
         return self.success(
             {
                 "class_name": class_name,
@@ -517,25 +519,26 @@ class UserProblemRankAPI(APIView):
         )
 
 
-class ProfileProblemDisplayIDRefreshAPI(APIView):
+class ProfileProblemDisplayIDRefreshAPI(AsyncAPIView):
     @login_required
-    def get(self, request):
-        profile = request.user.userprofile
+    async def get(self, request):
+        profile = await UserProfile.objects.aget(user=request.user)
         acm_problems = profile.acm_problems_status.get("problems", {})
         oi_problems = profile.oi_problems_status.get("problems", {})
         ids = list(acm_problems.keys()) + list(oi_problems.keys())
         if not ids:
             return self.success()
-        display_ids = Problem.objects.filter(id__in=ids, visible=True).values_list("_id", flat=True)
+        display_ids = [did async for did in Problem.objects.filter(id__in=ids, visible=True).values_list("_id", flat=True)]
         id_map = dict(zip(ids, display_ids))
         for k, v in acm_problems.items():
             v["_id"] = id_map[k]
         for k, v in oi_problems.items():
             v["_id"] = id_map[k]
-        profile.save(update_fields=["acm_problems_status", "oi_problems_status"])
+        await profile.asave(update_fields=["acm_problems_status", "oi_problems_status"])
         return self.success()
 
 
+# DEPRECATED: 前端未调用 (2026-05-26)
 class OpenAPIAppkeyAPI(APIView):
     @login_required
     def post(self, request):
@@ -548,6 +551,7 @@ class OpenAPIAppkeyAPI(APIView):
         return self.success({"appkey": api_appkey})
 
 
+# DEPRECATED: 前端未调用 (2026-05-26)
 class SSOAPI(CSRFExemptAPIView):
     @login_required
     def get(self, request):

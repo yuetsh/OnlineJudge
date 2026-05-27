@@ -23,6 +23,9 @@ class UserManager(models.Manager):
     def get_by_natural_key(self, username):
         return self.get(**{f"{self.model.USERNAME_FIELD}__iexact": username})
 
+    async def aget_by_natural_key(self, username):
+        return await self.aget(**{f"{self.model.USERNAME_FIELD}__iexact": username})
+
 
 class User(AbstractBaseUser):
     username = models.TextField(unique=True)

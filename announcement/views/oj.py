@@ -1,19 +1,25 @@
 from announcement.models import Announcement
 from announcement.serializers import AnnouncementListSerializer, AnnouncementSerializer
-from utils.api import APIView
+from utils.api import AsyncAPIView
 
 
-class AnnouncementAPI(APIView):
-    def get(self, request):
+class AnnouncementAPI(AsyncAPIView):
+    async def get(self, request):
         id = request.GET.get("id")
         if id:
             try:
-                announcement = Announcement.objects.get(id=id, visible=True)
-                return self.success(AnnouncementSerializer(announcement).data)
+                announcement = await (
+                    Announcement.objects.select_related("created_by")
+                    .filter(id=id, visible=True)
+                    .afirst()
+                )
+                if announcement is None:
+                    raise Announcement.DoesNotExist
+                return self.success(await self.async_serialize_data(AnnouncementSerializer, announcement))
             except Announcement.DoesNotExist:
                 return self.error("Announcement does not exist")
 
         announcements = Announcement.objects.select_related("created_by").filter(visible=True)
         return self.success(
-            self.paginate_data(request, announcements, AnnouncementListSerializer)
+            await self.async_paginate_data(request, announcements, AnnouncementListSerializer)
         )

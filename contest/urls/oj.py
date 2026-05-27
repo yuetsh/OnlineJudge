@@ -6,7 +6,7 @@ urlpatterns = [
     path("contests", ContestListAPI.as_view()),
     path("contest", ContestAPI.as_view()),
     path("contest/password", ContestPasswordVerifyAPI.as_view()),
-    path("contest/announcement", ContestAnnouncementListAPI.as_view()),
+    path("contest/announcement", ContestAnnouncementListAPI.as_view()),  # DEPRECATED: 前端未调用
     path("contest/access", ContestAccessAPI.as_view()),
     path("contest_rank", ContestRankAPI.as_view()),
 ]

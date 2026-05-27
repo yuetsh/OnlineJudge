@@ -7,65 +7,63 @@ from flowchart.serializers import (
 )
 from flowchart.tasks import evaluate_flowchart_task
 from problem.models import Problem
-from utils.api import APIView
+from utils.api import AsyncAPIView
 
 
-class FlowchartSubmissionAPI(APIView):
+class FlowchartSubmissionAPI(AsyncAPIView):
     @login_required
-    def post(self, request):
-        """创建流程图提交"""
+    async def post(self, request):
         serializer = CreateFlowchartSubmissionSerializer(data=request.data)
         if not serializer.is_valid():
             return self.error(serializer.errors)
 
         data = serializer.validated_data
 
-        # 验证题目存在
         try:
-            problem = Problem.objects.get(id=data["problem_id"])
+            problem = await Problem.objects.aget(id=data["problem_id"])
         except Problem.DoesNotExist:
             return self.error("Problem doesn't exist")
 
-        # 验证题目是否允许流程图提交
         if not problem.allow_flowchart:
             return self.error("This problem does not allow flowchart submission")
 
-        # 创建提交记录
-        submission = FlowchartSubmission.objects.create(
+        submission = await FlowchartSubmission.objects.acreate(
             user=request.user,
             problem=problem,
             mermaid_code=data["mermaid_code"],
             flowchart_data=data.get("flowchart_data", {}),
         )
 
-        # 启动AI评分任务
         evaluate_flowchart_task.send(submission.id)
 
         return self.success({"submission_id": submission.id, "status": "pending"})
 
     @login_required
-    def get(self, request):
-        """获取流程图提交详情"""
+    async def get(self, request):
         submission_id = request.GET.get("id")
         if not submission_id:
             return self.error("submission_id is required")
 
         try:
-            submission = FlowchartSubmission.objects.get(id=submission_id)
+            submission = await (
+                FlowchartSubmission.objects.select_related("user", "problem")
+                .filter(id=submission_id)
+                .afirst()
+            )
+            if submission is None:
+                raise FlowchartSubmission.DoesNotExist
         except FlowchartSubmission.DoesNotExist:
             return self.error("Submission doesn't exist")
 
         if not submission.check_user_permission(request.user):
             return self.error("No permission for this submission")
 
-        serializer = FlowchartSubmissionSerializer(submission)
-        return self.success(serializer.data)
+        return self.success(await self.async_serialize_data(FlowchartSubmissionSerializer, submission))
 
 
-class FlowchartSubmissionListAPI(APIView):
+class FlowchartSubmissionListAPI(AsyncAPIView):
     @login_required
-    def get(self, request):
-        """获取流程图提交列表"""
+    async def get(self, request):
         username = request.GET.get("username")
         problem_id = request.GET.get("problem_id")
         myself = request.GET.get("myself")
@@ -74,7 +72,7 @@ class FlowchartSubmissionListAPI(APIView):
 
         if problem_id:
             try:
-                problem = Problem.objects.get(
+                problem = await Problem.objects.aget(
                     _id__iexact=problem_id, contest_id__isnull=True, visible=True
                 )
             except Problem.DoesNotExist:
@@ -88,38 +86,42 @@ class FlowchartSubmissionListAPI(APIView):
         elif request.user.is_regular_user():
             queryset = queryset.filter(user=request.user)
 
-        data = self.paginate_data(request, queryset)
-        data["results"] = FlowchartSubmissionListSerializer(
-            data["results"], many=True
-        ).data
+        data = await self.async_paginate_data(request, queryset)
+        data["results"] = await self.async_serialize_data(
+            FlowchartSubmissionListSerializer,
+            data["results"],
+            many=True,
+        )
         return self.success(data)
 
 
-class FlowchartSubmissionRetryAPI(APIView):
+class FlowchartSubmissionRetryAPI(AsyncAPIView):
     @login_required
-    def post(self, request):
-        """重新触发AI评分"""
+    async def post(self, request):
         submission_id = request.data.get("submission_id")
         if not submission_id:
             return self.error("submission_id is required")
 
         try:
-            submission = FlowchartSubmission.objects.get(id=submission_id)
+            submission = await (
+                FlowchartSubmission.objects.select_related("problem")
+                .filter(id=submission_id)
+                .afirst()
+            )
+            if submission is None:
+                raise FlowchartSubmission.DoesNotExist
         except FlowchartSubmission.DoesNotExist:
             return self.error("Submission doesn't exist")
 
-        # 检查权限
         if not submission.check_user_permission(request.user):
             return self.error("No permission for this submission")
 
-        # 检查是否可以重新评分
         if submission.status not in [
             FlowchartSubmissionStatus.FAILED,
             FlowchartSubmissionStatus.COMPLETED,
         ]:
             return self.error("Submission is not in a state that allows retry")
 
-        # 重置状态并重新启动AI评分
         submission.status = FlowchartSubmissionStatus.PENDING
         submission.ai_score = None
         submission.ai_grade = None
@@ -128,9 +130,8 @@ class FlowchartSubmissionRetryAPI(APIView):
         submission.ai_criteria_details = {}
         submission.processing_time = None
         submission.evaluation_time = None
-        submission.save()
+        await submission.asave()
 
-        # 重新启动AI评分任务
         evaluate_flowchart_task.send(submission.id)
 
         return self.success(
@@ -142,15 +143,14 @@ class FlowchartSubmissionRetryAPI(APIView):
         )
 
 
-class FlowchartSubmissionDetailAPI(APIView):
+class FlowchartSubmissionDetailAPI(AsyncAPIView):
     @login_required
-    def get(self, request):
-        """获取当前用户对指定题目的流程图提交详情"""
+    async def get(self, request):
         problem_id = request.GET.get("problem_id")
         if not problem_id:
             return self.error("problem_id is required")
         try:
-            problem = Problem.objects.get(id=problem_id)
+            problem = await Problem.objects.aget(id=problem_id)
         except Problem.DoesNotExist:
             return self.error("Problem doesn't exist")
 
@@ -158,34 +158,37 @@ class FlowchartSubmissionDetailAPI(APIView):
             page = int(request.GET.get("page", 0))
         except ValueError:
             return self.error("page must be an integer")
-        submissions = FlowchartSubmission.objects.filter(
-            user=request.user,
-            problem=problem,
-            status=FlowchartSubmissionStatus.COMPLETED,
-        ).order_by("create_time")
-        count = submissions.count()
+        submissions = (
+            FlowchartSubmission.objects.select_related("user", "problem")
+            .filter(
+                user=request.user,
+                problem=problem,
+                status=FlowchartSubmissionStatus.COMPLETED,
+            )
+            .order_by("create_time")
+        )
+        count = await submissions.acount()
         if count == 0:
             return self.success({"submission": None, "count": 0})
-        # page=0 means latest; page=N means the Nth submission (1-indexed, chronological)
         if page == 0:
-            submission = submissions.last()
+            submission = await submissions.alast()
         else:
             if page < 0 or page > count:
                 return self.error("Page out of range")
-            submission = submissions[page - 1]
-        serializer = FlowchartSubmissionSerializer(submission)
-        return self.success({"submission": serializer.data, "count": count})
+            result = [s async for s in submissions[page - 1:page]]
+            submission = result[0]
+        data = await self.async_serialize_data(FlowchartSubmissionSerializer, submission)
+        return self.success({"submission": data, "count": count})
 
 
-class FlowchartSubmissionCurrentAPI(APIView):
+class FlowchartSubmissionCurrentAPI(AsyncAPIView):
     @login_required
-    def get(self, request):
-        """获取当前用户对指定题目的最新流程图提交，只返回次数和分数"""
+    async def get(self, request):
         problem_id = request.GET.get("problem_id")
         if not problem_id:
             return self.error("problem_id is required")
         try:
-            problem = Problem.objects.get(id=problem_id)
+            problem = await Problem.objects.aget(id=problem_id)
         except Problem.DoesNotExist:
             return self.error("Problem doesn't exist")
         submissions = (
@@ -197,10 +200,10 @@ class FlowchartSubmissionCurrentAPI(APIView):
             .values("ai_score", "ai_grade")
             .order_by("-create_time")
         )
-        count = submissions.count()
+        count = await submissions.acount()
         if count == 0:
             return self.success({"count": 0, "score": 0, "grade": ""})
-        submission = submissions[0]
+        submission = await submissions.afirst()
         return self.success(
             {
                 "count": count,

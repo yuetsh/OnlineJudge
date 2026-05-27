@@ -1,5 +1,7 @@
 import ipaddress
-from datetime import datetime
+
+from asgiref.sync import sync_to_async
+from django.utils import timezone
 
 from account.decorators import check_contest_permission, login_required
 from contest.models import ContestRuleType, ContestStatus
@@ -8,7 +10,7 @@ from options.options import SysOptions
 
 # from judge.dispatcher import JudgeDispatcher
 from problem.models import Problem, ProblemRuleType
-from utils.api import APIView, validate_serializer
+from utils.api import APIView, AsyncAPIView, validate_serializer
 from utils.cache import cache
 from utils.captcha import Captcha
 from utils.throttling import TokenBucket
@@ -154,8 +156,8 @@ class SubmissionAPI(APIView):
         return self.success()
 
 
-class SubmissionListAPI(APIView):
-    def get(self, request):
+class SubmissionListAPI(AsyncAPIView):
+    async def get(self, request):
         if not request.GET.get("limit"):
             return self.error("Limit is needed")
         if request.GET.get("contest_id"):
@@ -171,14 +173,15 @@ class SubmissionListAPI(APIView):
         language = request.GET.get("language")
         if problem_id:
             try:
-                problem = Problem.objects.get(
+                problem = await Problem.objects.aget(
                     _id__iexact=problem_id, contest_id__isnull=True, visible=True
                 )
             except Problem.DoesNotExist:
                 return self.error("Problem doesn't exist")
             submissions = submissions.filter(problem=problem)
 
-        if not SysOptions.submission_list_show_all and request.user.is_regular_user():
+        show_all = await SysOptions.aget("submission_list_show_all")
+        if not show_all and request.user.is_regular_user():
             return self.success({"results": [], "total": 0})
 
         if myself and myself == "1":
@@ -190,21 +193,25 @@ class SubmissionListAPI(APIView):
         if language:
             submissions = submissions.filter(language=language)
         if request.GET.get("today") == "1":
-            today = datetime.today()
+            now = timezone.now()
             submissions = submissions.filter(
-                create_time__gte=datetime(today.year, today.month, today.day, 0, 0)
+                create_time__gte=now.replace(hour=0, minute=0, second=0, microsecond=0)
             )
 
-        data = self.paginate_data(request, submissions)
+        data = await self.async_paginate_data(request, submissions)
         results = data["results"]
         if request.user.is_authenticated and request.user.is_regular_user():
             problem_ids = list({s.problem_id for s in results})
-            progress_cache = bulk_fetch_problemset_progress(request.user, problem_ids)
+            progress_cache = await sync_to_async(bulk_fetch_problemset_progress)(request.user, problem_ids)
         else:
             progress_cache = {}
-        data["results"] = SubmissionListSerializer(
-            results, many=True, user=request.user, problemset_progress_cache=progress_cache
-        ).data
+        data["results"] = await self.async_serialize_data(
+            SubmissionListSerializer,
+            results,
+            many=True,
+            user=request.user,
+            problemset_progress_cache=progress_cache,
+        )
         return self.success(data)
 
 
@@ -262,6 +269,7 @@ class ContestSubmissionListAPI(APIView):
         return self.success(data)
 
 
+# DEPRECATED: 前端未调用 (2026-05-26)
 class SubmissionExistsAPI(APIView):
     def get(self, request):
         if not request.GET.get("problem_id"):
@@ -274,10 +282,10 @@ class SubmissionExistsAPI(APIView):
         )
 
 
-class SubmissionsTodayCount(APIView):
-    def get(self, request):
-        today = datetime.today()
-        count = Submission.objects.filter(
-            create_time__gte=datetime(today.year, today.month, today.day, 0, 0)
-        ).count()
+class SubmissionsTodayCount(AsyncAPIView):
+    async def get(self, request):
+        now = timezone.now()
+        count = await Submission.objects.filter(
+            create_time__gte=now.replace(hour=0, minute=0, second=0, microsecond=0)
+        ).acount()
         return self.success(count)

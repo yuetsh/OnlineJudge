@@ -12,6 +12,6 @@ urlpatterns = [
     path("submission", SubmissionAPI.as_view()),
     path("submissions", SubmissionListAPI.as_view()),
     path("submissions/today_count", SubmissionsTodayCount.as_view()),
-    path("submission_exists", SubmissionExistsAPI.as_view()),
+    path("submission_exists", SubmissionExistsAPI.as_view()),  # DEPRECATED: 前端未调用
     path("contest_submissions", ContestSubmissionListAPI.as_view()),
 ]

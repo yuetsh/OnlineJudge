@@ -1,3 +1,4 @@
+from asgiref.sync import sync_to_async
 from django.db.models import Avg, Count, Prefetch, Q
 from django.utils import timezone
 
@@ -24,14 +25,14 @@ from problemset.serializers import (
     UpdateProgressSerializer,
     UserBadgeSerializer,
 )
-from submission.models import JudgeStatus, Submission, is_accepted
-from utils.api import APIView, validate_serializer
+from submission.models import Submission, is_accepted
+from utils.api import APIView, AsyncAPIView, validate_serializer
 
 
-class ProblemSetAPI(APIView):
+class ProblemSetAPI(AsyncAPIView):
     """题单API - 用户端"""
 
-    def get(self, request):
+    async def get(self, request):
         """获取题单列表"""
         # 预加载创建者信息
         problem_sets = ProblemSet.objects.filter(visible=True).exclude(status=ProblemSetStatus.DRAFT).select_related("created_by")
@@ -65,16 +66,19 @@ class ProblemSetAPI(APIView):
         user_earned_badge_ids = set()
         if request.user.is_authenticated:
             # 先获取所有题单ID（不应用prefetch_related，只获取ID）
-            problem_set_ids = list(problem_sets.values_list("id", flat=True))
+            problem_set_ids = [problem_set_id async for problem_set_id in problem_sets.values_list("id", flat=True)]
 
             if problem_set_ids:
                 # 批量查询用户在这些题单中的进度
                 user_progresses = ProblemSetProgress.objects.filter(problemset_id__in=problem_set_ids, user=request.user).select_related("problemset")
                 # 构建映射：题单ID -> 进度对象
-                user_progress_map = {progress.problemset_id: progress for progress in user_progresses}
+                user_progress_map = {progress.problemset_id: progress async for progress in user_progresses}
 
                 # 批量查询用户已获得的奖章ID（这些题单相关的）
-                user_earned_badge_ids = set(UserBadge.objects.filter(user=request.user, badge__problemset_id__in=problem_set_ids).values_list("badge_id", flat=True))
+                user_earned_badge_ids = {
+                    badge_id
+                    async for badge_id in UserBadge.objects.filter(user=request.user, badge__problemset_id__in=problem_set_ids).values_list("badge_id", flat=True)
+                }
 
         # 预加载奖章信息（在获取ID之后应用，避免在获取ID时也预加载）
         problem_sets = problem_sets.prefetch_related(Prefetch("problemsetbadge_set", queryset=ProblemSetBadge.objects.all(), to_attr="badges"))
@@ -83,31 +87,35 @@ class ProblemSetAPI(APIView):
         request._user_progress_map = user_progress_map
         request._user_earned_badge_ids = user_earned_badge_ids
 
-        data = self.paginate_data(request, problem_sets, ProblemSetListSerializer)
+        data = await self.async_paginate_data(request, problem_sets, ProblemSetListSerializer)
         return self.success(data)
 
 
-class ProblemSetDetailAPI(APIView):
+class ProblemSetDetailAPI(AsyncAPIView):
     """题单详情API - 用户端"""
 
-    def get(self, request, problem_set_id):
+    async def get(self, request, problem_set_id):
         """获取题单详情"""
         try:
-            problem_set = ProblemSet.objects.filter(id=problem_set_id, visible=True).exclude(status=ProblemSetStatus.DRAFT).get()
+            problem_set = await (
+                ProblemSet.objects.select_related("created_by")
+                .filter(id=problem_set_id, visible=True)
+                .exclude(status=ProblemSetStatus.DRAFT)
+                .aget()
+            )
         except ProblemSet.DoesNotExist:
             return self.error("题单不存在")
 
-        serializer = ProblemSetSerializer(problem_set, context={"request": request})
-        return self.success(serializer.data)
+        return self.success(await self.async_serialize_data(ProblemSetSerializer, problem_set, context={"request": request}))
 
 
-class ProblemSetProblemAPI(APIView):
+class ProblemSetProblemAPI(AsyncAPIView):
     """题单题目API - 用户端"""
 
-    def get(self, request, problem_set_id):
+    async def get(self, request, problem_set_id):
         """获取题单中的题目列表"""
         try:
-            problem_set = ProblemSet.objects.filter(id=problem_set_id, visible=True).exclude(status=ProblemSetStatus.DRAFT).get()
+            problem_set = await ProblemSet.objects.filter(id=problem_set_id, visible=True).exclude(status=ProblemSetStatus.DRAFT).aget()
         except ProblemSet.DoesNotExist:
             return self.error("题单不存在")
 
@@ -115,12 +123,16 @@ class ProblemSetProblemAPI(APIView):
         # 预取当前用户的题单进度，供 get_is_completed 使用，避免 N+1
         user_progress = None
         if request.user.is_authenticated:
-            try:
-                user_progress = ProblemSetProgress.objects.get(problemset=problem_set, user=request.user)
-            except ProblemSetProgress.DoesNotExist:
-                pass
-        serializer = ProblemSetProblemSerializer(problems, many=True, context={"request": request, "user_progress": user_progress})
-        return self.success(serializer.data)
+            user_progress = await ProblemSetProgress.objects.filter(problemset=problem_set, user=request.user).afirst()
+        problem_list = [problem async for problem in problems]
+        return self.success(
+            await self.async_serialize_data(
+                ProblemSetProblemSerializer,
+                problem_list,
+                many=True,
+                context={"request": request, "user_progress": user_progress},
+            )
+        )
 
 
 class ProblemSetProgressAPI(APIView):
@@ -236,6 +248,7 @@ class ProblemSetProgressAPI(APIView):
                     UserBadge.objects.create(user=progress.user, badge=badge)
 
 
+# DEPRECATED: 前端未调用 (2026-05-26)
 class UserProgressAPI(APIView):
     """用户进度API"""
 
@@ -247,10 +260,10 @@ class UserProgressAPI(APIView):
         return self.success(serializer.data)
 
 
-class UserBadgeAPI(APIView):
+class UserBadgeAPI(AsyncAPIView):
     """用户奖章API"""
 
-    def get(self, request):
+    async def get(self, request):
         """获取用户的奖章列表"""
         # 支持通过username参数获取指定用户的徽章
         username = request.GET.get("username")
@@ -258,41 +271,41 @@ class UserBadgeAPI(APIView):
         if username:
             # 获取指定用户的徽章
             try:
-                target_user = User.objects.get(username=username, is_disabled=False)
-                badges = UserBadge.objects.filter(user=target_user).order_by("-earned_time")
+                target_user = await User.objects.aget(username=username, is_disabled=False)
+                badges = UserBadge.objects.select_related("badge").filter(user=target_user).order_by("-earned_time")
             except User.DoesNotExist:
                 return self.error("用户不存在")
         else:
             # 获取当前用户的徽章
-            badges = UserBadge.objects.filter(user=request.user).order_by("-earned_time")
+            badges = UserBadge.objects.select_related("badge").filter(user=request.user).order_by("-earned_time")
 
-        serializer = UserBadgeSerializer(badges, many=True)
-        return self.success(serializer.data)
+        badge_list = [badge async for badge in badges]
+        return self.success(await self.async_serialize_data(UserBadgeSerializer, badge_list, many=True))
 
 
-class ProblemSetBadgeAPI(APIView):
+class ProblemSetBadgeAPI(AsyncAPIView):
     """题单奖章API - 用户端"""
 
-    def get(self, request, problem_set_id):
+    async def get(self, request, problem_set_id):
         """获取题单的奖章列表"""
         try:
-            problem_set = ProblemSet.objects.filter(id=problem_set_id, visible=True).exclude(status=ProblemSetStatus.DRAFT).get()
+            problem_set = await ProblemSet.objects.filter(id=problem_set_id, visible=True).exclude(status=ProblemSetStatus.DRAFT).aget()
         except ProblemSet.DoesNotExist:
             return self.error("题单不存在")
 
         badges = ProblemSetBadge.objects.filter(problemset=problem_set)
-        serializer = ProblemSetBadgeSerializer(badges, many=True)
-        return self.success(serializer.data)
+        badge_list = [badge async for badge in badges]
+        return self.success(await self.async_serialize_data(ProblemSetBadgeSerializer, badge_list, many=True))
 
 
-class ProblemSetUserProgressAPI(APIView):
+class ProblemSetUserProgressAPI(AsyncAPIView):
     """题单用户进度列表API"""
 
     @admin_role_required
-    def get(self, request, problem_set_id: int):
+    async def get(self, request, problem_set_id: int):
         """获取题单的用户进度列表"""
         try:
-            problem_set = ProblemSet.objects.filter(id=problem_set_id, visible=True).exclude(status=ProblemSetStatus.DRAFT).get()
+            problem_set = await ProblemSet.objects.filter(id=problem_set_id, visible=True).exclude(status=ProblemSetStatus.DRAFT).aget()
         except ProblemSet.DoesNotExist:
             return self.error("题单不存在")
 
@@ -321,7 +334,7 @@ class ProblemSetUserProgressAPI(APIView):
 
         # 计算统计数据（基于所有数据，而非分页数据）
         # 使用一次查询获取所有统计数据
-        stats = progresses.aggregate(
+        stats = await sync_to_async(progresses.aggregate, thread_sensitive=True)(
             total=Count("id"),
             completed=Count("id", filter=Q(is_completed=True)),
             avg_progress=Avg("progress_percentage"),
@@ -351,7 +364,7 @@ class ProblemSetUserProgressAPI(APIView):
         # 构建题单所有题目的数据结构和映射
         all_problems_list = []
         all_problems_map = {}
-        for psp in all_problemset_problems:
+        async for psp in all_problemset_problems:
             problem_data = {
                 "id": psp.problem.id,
                 "_id": psp.problem._id,
@@ -362,7 +375,7 @@ class ProblemSetUserProgressAPI(APIView):
             all_problems_map[str(psp.problem.id)] = psp.problem
 
         # 从当前页的数据中收集已完成的问题ID，用于序列化器
-        paginated_progresses = list(progresses[offset : offset + limit])
+        paginated_progresses = [progress async for progress in progresses[offset : offset + limit]]
         completed_problem_ids = set()
         for progress in paginated_progresses:
             if progress.progress_detail:
@@ -376,7 +389,7 @@ class ProblemSetUserProgressAPI(APIView):
         request._problems_dict_cache = problems_dict
 
         # 使用分页
-        data = self.paginate_data(request, progresses, ProblemSetProgressSerializer)
+        data = await self.async_paginate_data(request, progresses, ProblemSetProgressSerializer)
 
         # 添加统计数据
         data["statistics"] = {

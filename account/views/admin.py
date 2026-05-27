@@ -191,6 +191,7 @@ class UserAdminAPI(APIView):
         return self.success()
 
 
+# DEPRECATED: 前端未调用 (2026-05-26)
 class GenerateUserAPI(APIView):
     @super_admin_required
     def get(self, request):

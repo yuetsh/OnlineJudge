@@ -63,7 +63,7 @@ urlpatterns = [
         name="admin_problemset_progress_detail_api",
     ),
     # 题单同步管理API
-    path(
+    path(  # DEPRECATED: 前端未调用
         "problemset/<int:problem_set_id>/sync",
         ProblemSetSyncAPI.as_view(),
         name="admin_problemset_sync_api",

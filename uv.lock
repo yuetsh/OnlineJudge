@@ -550,6 +550,7 @@ name = "onlinejudge"
 version = "2.0.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "asgiref" },
     { name = "channels" },
     { name = "channels-redis" },
     { name = "django" },
@@ -582,6 +583,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "asgiref", specifier = ">=3.11.1" },
     { name = "channels", specifier = ">=4.3.2,<5" },
     { name = "channels-redis", specifier = ">=4.3.0,<5" },
     { name = "django", specifier = ">=6.0.4,<6.1" },

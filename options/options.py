@@ -292,4 +292,15 @@ class _SysOptionsMeta(type):
 
 
 class SysOptions(metaclass=_SysOptionsMeta):
-    pass
+    @classmethod
+    async def aget(cls, key):
+        from asgiref.sync import sync_to_async
+        return await sync_to_async(getattr)(cls, key)
+
+    @classmethod
+    async def aget_many(cls, *keys):
+        from asgiref.sync import sync_to_async
+
+        def _get_all():
+            return {k: getattr(cls, k) for k in keys}
+        return await sync_to_async(_get_all)()

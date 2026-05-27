@@ -12,7 +12,7 @@ from account.decorators import (
 )
 from account.models import AdminType
 from problem.models import Problem
-from utils.api import APIView, validate_serializer
+from utils.api import APIView, AsyncAPIView, validate_serializer
 from utils.constants import CONTEST_PASSWORD_SESSION_KEY, CacheKey, ContestRuleType, ContestStatus
 from utils.shortcuts import check_is_id, datetime2str
 
@@ -20,6 +20,7 @@ from ..models import ACMContestRank, Contest, ContestAnnouncement, OIContestRank
 from ..serializers import ACMContestRankSerializer, ContestAnnouncementSerializer, ContestPasswordVerifySerializer, ContestSerializer, OIContestRankSerializer
 
 
+# DEPRECATED: 前端未调用 (2026-05-26)
 class ContestAnnouncementListAPI(APIView):
     @check_contest_permission(check_type="announcements")
     def get(self, request):
@@ -35,22 +36,28 @@ class ContestAnnouncementListAPI(APIView):
         return self.success(ContestAnnouncementSerializer(data, many=True).data)
 
 
-class ContestAPI(APIView):
-    def get(self, request):
+class ContestAPI(AsyncAPIView):
+    async def get(self, request):
         id = request.GET.get("id")
         if not id or not check_is_id(id):
             return self.error("Invalid parameter, id is required")
         try:
-            contest = Contest.objects.get(id=id, visible=True)
+            contest = await (
+                Contest.objects.select_related("created_by")
+                .filter(id=id, visible=True)
+                .afirst()
+            )
+            if contest is None:
+                raise Contest.DoesNotExist
         except Contest.DoesNotExist:
             return self.error("Contest does not exist")
-        data = ContestSerializer(contest).data
+        data = await self.async_serialize_data(ContestSerializer, contest)
         data["now"] = datetime2str(now())
         return self.success(data)
 
 
-class ContestListAPI(APIView):
-    def get(self, request):
+class ContestListAPI(AsyncAPIView):
+    async def get(self, request):
         contests = Contest.objects.select_related("created_by").filter(visible=True)
         keyword = request.GET.get("keyword")
         rule_type = request.GET.get("rule_type")
@@ -70,7 +77,7 @@ class ContestListAPI(APIView):
                 contests = contests.filter(end_time__lt=cur)
             else:
                 contests = contests.filter(start_time__lte=cur, end_time__gte=cur)
-        return self.success(self.paginate_data(request, contests, ContestSerializer))
+        return self.success(await self.async_paginate_data(request, contests, ContestSerializer))
 
 
 class ContestPasswordVerifyAPI(APIView):

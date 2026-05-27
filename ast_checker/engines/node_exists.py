@@ -1,5 +1,6 @@
-from .base import BaseEngine
 from ast_checker.labels import label
+
+from .base import BaseEngine
 
 
 class MustExistNodeEngine(BaseEngine):

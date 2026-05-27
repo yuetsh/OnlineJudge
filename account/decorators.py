@@ -1,5 +1,6 @@
 import functools
 import hashlib
+import inspect
 import time
 
 from contest.models import Contest, ContestRuleType, ContestStatus, ContestType
@@ -15,47 +16,58 @@ class BasePermissionDecorator(object):
         self.func = func
 
     def __get__(self, obj, obj_type):
+        if inspect.iscoroutinefunction(self.func):
+            return functools.partial(self._async_call, obj)
         return functools.partial(self.__call__, obj)
 
     def error(self, data):
         return JSONResponse.response({"error": "permission-denied", "data": data})
 
     def __call__(self, *args, **kwargs):
-        self.request = args[1]
+        request = args[1]
 
-        if self.check_permission():
-            if self.request.user.is_disabled:
+        if self.check_permission(request):
+            if request.user.is_disabled:
                 return self.error("Your account is disabled")
             return self.func(*args, **kwargs)
         else:
             return self.error("Please login first")
 
-    def check_permission(self):
+    async def _async_call(self, *args, **kwargs):
+        request = args[1]
+
+        if self.check_permission(request):
+            if request.user.is_disabled:
+                return self.error("Your account is disabled")
+            return await self.func(*args, **kwargs)
+        return self.error("Please login first")
+
+    def check_permission(self, request):
         raise NotImplementedError()
 
 
 class login_required(BasePermissionDecorator):
-    def check_permission(self):
-        return self.request.user.is_authenticated
+    def check_permission(self, request):
+        return request.user.is_authenticated
 
 
 class super_admin_required(BasePermissionDecorator):
-    def check_permission(self):
-        user = self.request.user
+    def check_permission(self, request):
+        user = request.user
         return user.is_authenticated and user.is_super_admin()
 
 
 class admin_role_required(BasePermissionDecorator):
-    def check_permission(self):
-        user = self.request.user
+    def check_permission(self, request):
+        user = request.user
         return user.is_authenticated and user.is_admin_role()
 
 
 class problem_permission_required(admin_role_required):
-    def check_permission(self):
-        if not super(problem_permission_required, self).check_permission():
+    def check_permission(self, request):
+        if not super().check_permission(request):
             return False
-        if self.request.user.problem_permission == ProblemPermission.NONE:
+        if request.user.problem_permission == ProblemPermission.NONE:
             return False
         return True
 
