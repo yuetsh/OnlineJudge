@@ -1,6 +1,5 @@
 import random
 
-from asgiref.sync import sync_to_async
 from django.db.models import BooleanField, Case, Count, Q, Value, When
 from django.db.models.functions import ExtractYear
 from django.utils import timezone
@@ -203,14 +202,11 @@ class ProblemSolvedPeopleCount(AsyncAPIView):
         years_ago = now.replace(year=now.year - 2, hour=0, minute=0, second=0, microsecond=0)
         total_count = await User.objects.filter(is_disabled=False, last_login__gte=years_ago).acount()
         accepted_count = (
-            await sync_to_async(
-                Submission.objects.filter(
-                    problem_id=problem_id,
-                    result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED],
-                    create_time__gte=years_ago,
-                ).aggregate,
-                thread_sensitive=True,
-            )(user_count=Count("user_id", distinct=True))
+            await Submission.objects.filter(
+                problem_id=problem_id,
+                result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED],
+                create_time__gte=years_ago,
+            ).aaggregate(user_count=Count("user_id", distinct=True))
         )["user_count"]
         if total_count and accepted_count < total_count:
             rate = "%.2f" % ((total_count - accepted_count) / total_count * 100)
