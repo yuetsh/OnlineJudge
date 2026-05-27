@@ -1,4 +1,3 @@
-from asgiref.sync import sync_to_async
 from django.db.models import Avg, Count, Prefetch, Q
 from django.utils import timezone
 
@@ -334,7 +333,7 @@ class ProblemSetUserProgressAPI(AsyncAPIView):
 
         # 计算统计数据（基于所有数据，而非分页数据）
         # 使用一次查询获取所有统计数据
-        stats = await sync_to_async(progresses.aggregate, thread_sensitive=True)(
+        stats = await progresses.aaggregate(
             total=Count("id"),
             completed=Count("id", filter=Q(is_completed=True)),
             avg_progress=Avg("progress_percentage"),
