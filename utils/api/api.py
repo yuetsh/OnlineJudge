@@ -215,9 +215,12 @@ class AsyncAPIView(APIView):
             offset = 0
         if offset < 0:
             offset = 0
+        async def _slice():
+            return [item async for item in query_set[offset:offset + limit]]
+
         count, results = await asyncio.gather(
             query_set.acount(),
-            sync_to_async(lambda: list(query_set[offset:offset + limit]), thread_sensitive=True)(),
+            _slice(),
         )
         if object_serializer:
             results = await self.async_serialize_data(
