@@ -73,10 +73,7 @@ class CommentStatisticsAPI(AsyncAPIView):
         if cached is not None:
             return self.success(cached)
 
-        from asgiref.sync import sync_to_async
-        agg = await sync_to_async(
-            Comment.objects.filter(problem_id=problem_id).aggregate
-        )(
+        agg = await Comment.objects.filter(problem_id=problem_id).aaggregate(
             count=Count("id"),
             description=Round(Avg("description_rating"), 2),
             difficulty=Round(Avg("difficulty_rating"), 2),
