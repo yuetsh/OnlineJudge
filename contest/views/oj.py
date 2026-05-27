@@ -1,7 +1,6 @@
 import io
 
 import xlsxwriter
-from django.core.cache import cache
 from django.http import HttpResponse
 from django.utils.timezone import now
 
@@ -13,11 +12,11 @@ from account.decorators import (
 from account.models import AdminType
 from problem.models import Problem
 from utils.api import APIView, AsyncAPIView, validate_serializer
-from utils.constants import CONTEST_PASSWORD_SESSION_KEY, CacheKey, ContestRuleType, ContestStatus
+from utils.constants import CONTEST_PASSWORD_SESSION_KEY, ContestStatus
 from utils.shortcuts import check_is_id, datetime2str
 
-from ..models import ACMContestRank, Contest, ContestAnnouncement, OIContestRank
-from ..serializers import ACMContestRankSerializer, ContestAnnouncementSerializer, ContestPasswordVerifySerializer, ContestSerializer, OIContestRankSerializer
+from ..models import ACMContestRank, Contest, ContestAnnouncement
+from ..serializers import ACMContestRankSerializer, ContestAnnouncementSerializer, ContestPasswordVerifySerializer, ContestSerializer
 
 
 # DEPRECATED: 前端未调用 (2026-05-26)
@@ -60,13 +59,10 @@ class ContestListAPI(AsyncAPIView):
     async def get(self, request):
         contests = Contest.objects.select_related("created_by").filter(visible=True)
         keyword = request.GET.get("keyword")
-        rule_type = request.GET.get("rule_type")
         status = request.GET.get("status")
         tag = request.GET.get("tag")
         if keyword:
             contests = contests.filter(title__icontains=keyword)
-        if rule_type:
-            contests = contests.filter(rule_type=rule_type)
         if tag:
             contests = contests.filter(tag=tag)
         if status:
@@ -125,26 +121,15 @@ class ContestAccessAPI(APIView):
 
 class ContestRankAPI(APIView):
     def get_rank(self):
-        if self.contest.rule_type == ContestRuleType.ACM:
-            return (
-                ACMContestRank.objects.filter(
-                    contest=self.contest,
-                    user__admin_type=AdminType.REGULAR_USER,
-                    user__is_disabled=False,
-                )
-                .select_related("user")
-                .order_by("-accepted_number", "total_time")
+        return (
+            ACMContestRank.objects.filter(
+                contest=self.contest,
+                user__admin_type=AdminType.REGULAR_USER,
+                user__is_disabled=False,
             )
-        else:
-            return (
-                OIContestRank.objects.filter(
-                    contest=self.contest,
-                    user__admin_type=AdminType.REGULAR_USER,
-                    user__is_disabled=False,
-                )
-                .select_related("user")
-                .order_by("-total_score")
-            )
+            .select_related("user")
+            .order_by("-accepted_number", "total_time")
+        )
 
     def column_string(self, n):
         string = ""
@@ -156,28 +141,15 @@ class ContestRankAPI(APIView):
     @check_contest_permission(check_type="ranks")
     def get(self, request):
         download_csv = request.GET.get("download_csv")
-        force_refresh = request.GET.get("force_refresh")
         is_contest_admin = (
             request.user.is_authenticated
             and request.user.is_contest_admin(self.contest)
         )
-        if self.contest.rule_type == ContestRuleType.OI:
-            serializer = OIContestRankSerializer
-        else:
-            serializer = ACMContestRankSerializer
 
-        # if force_refresh == "1" and is_contest_admin:
-        if force_refresh == "1":
-            qs = self.get_rank()
-        else:
-            cache_key = f"{CacheKey.contest_rank_cache}:{self.contest.id}"
-            qs = cache.get(cache_key)
-            if not qs:
-                qs = list(self.get_rank())
-                cache.set(cache_key, qs)
+        qs = self.get_rank()
 
         if download_csv:
-            data = serializer(qs, many=True, is_contest_admin=is_contest_admin).data
+            data = ACMContestRankSerializer(qs, many=True, is_contest_admin=is_contest_admin).data
             contest_problems = list(Problem.objects.filter(
                 contest=self.contest, visible=True
             ).order_by("_id"))
@@ -190,41 +162,25 @@ class ContestRankAPI(APIView):
             worksheet.write("A1", "User ID")
             worksheet.write("B1", "Username")
             worksheet.write("C1", "Real Name")
-            if self.contest.rule_type == ContestRuleType.OI:
-                worksheet.write("D1", "Total Score")
-                for i, p in enumerate(contest_problems):
-                    worksheet.write(self.column_string(5 + i) + "1", p.title)
-                for index, item in enumerate(data):
-                    worksheet.write_string(index + 1, 0, str(item["user"]["id"]))
-                    worksheet.write_string(index + 1, 1, item["user"]["username"])
-                    worksheet.write_string(
-                        index + 1, 2, item["user"]["real_name"] or ""
-                    )
-                    worksheet.write_string(index + 1, 3, str(item["total_score"]))
-                    for k, v in item["submission_info"].items():
-                        worksheet.write_string(
-                            index + 1, 4 + problem_id_to_col[int(k)], str(v)
-                        )
-            else:
-                worksheet.write("D1", "AC")
-                worksheet.write("E1", "Total Submission")
-                worksheet.write("F1", "Total Time")
-                for i, p in enumerate(contest_problems):
-                    worksheet.write(self.column_string(7 + i) + "1", p.title)
+            worksheet.write("D1", "AC")
+            worksheet.write("E1", "Total Submission")
+            worksheet.write("F1", "Total Time")
+            for i, p in enumerate(contest_problems):
+                worksheet.write(self.column_string(7 + i) + "1", p.title)
 
-                for index, item in enumerate(data):
-                    worksheet.write_string(index + 1, 0, str(item["user"]["id"]))
-                    worksheet.write_string(index + 1, 1, item["user"]["username"])
+            for index, item in enumerate(data):
+                worksheet.write_string(index + 1, 0, str(item["user"]["id"]))
+                worksheet.write_string(index + 1, 1, item["user"]["username"])
+                worksheet.write_string(
+                    index + 1, 2, item["user"]["real_name"] or ""
+                )
+                worksheet.write_string(index + 1, 3, str(item["accepted_number"]))
+                worksheet.write_string(index + 1, 4, str(item["submission_number"]))
+                worksheet.write_string(index + 1, 5, str(item["total_time"]))
+                for k, v in item["submission_info"].items():
                     worksheet.write_string(
-                        index + 1, 2, item["user"]["real_name"] or ""
+                        index + 1, 6 + problem_id_to_col[int(k)], str(v["is_ac"])
                     )
-                    worksheet.write_string(index + 1, 3, str(item["accepted_number"]))
-                    worksheet.write_string(index + 1, 4, str(item["submission_number"]))
-                    worksheet.write_string(index + 1, 5, str(item["total_time"]))
-                    for k, v in item["submission_info"].items():
-                        worksheet.write_string(
-                            index + 1, 6 + problem_id_to_col[int(k)], str(v["is_ac"])
-                        )
 
             workbook.close()
             f.seek(0)
@@ -236,7 +192,7 @@ class ContestRankAPI(APIView):
             return response
 
         page_qs = self.paginate_data(request, qs)
-        page_qs["results"] = serializer(
+        page_qs["results"] = ACMContestRankSerializer(
             page_qs["results"], many=True, is_contest_admin=is_contest_admin
         ).data
         return self.success(page_qs)

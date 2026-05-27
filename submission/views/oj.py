@@ -4,7 +4,7 @@ from asgiref.sync import sync_to_async
 from django.utils import timezone
 
 from account.decorators import check_contest_permission, login_required
-from contest.models import ContestRuleType, ContestStatus
+from contest.models import ContestStatus
 from judge.tasks import judge_task
 from options.options import SysOptions
 
@@ -249,12 +249,6 @@ class ContestSubmissionListAPI(APIView):
         if contest.status != ContestStatus.CONTEST_NOT_START:
             submissions = submissions.filter(create_time__gte=contest.start_time)
 
-        # 封榜的时候只能看到自己的提交
-        if contest.rule_type == ContestRuleType.ACM:
-            if not contest.real_time_rank and not request.user.is_contest_admin(
-                contest
-            ):
-                submissions = submissions.filter(user_id=request.user.id)
 
         data = self.paginate_data(request, submissions)
         results = data["results"]

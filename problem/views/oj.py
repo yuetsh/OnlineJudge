@@ -6,7 +6,6 @@ from django.utils import timezone
 
 from account.decorators import check_contest_permission
 from account.models import User
-from contest.models import ContestRuleType
 from submission.models import JudgeStatus, Submission
 from utils.api import APIView, AsyncAPIView
 from utils.async_helpers import async_cache_get, async_cache_set
@@ -149,10 +148,7 @@ class ContestProblemAPI(APIView):
     def _add_problem_status(self, request, queryset_values):
         if request.user.is_authenticated:
             profile = request.user.userprofile
-            if self.contest.rule_type == ContestRuleType.ACM:
-                problems_status = profile.acm_problems_status.get("contest_problems", {})
-            else:
-                problems_status = profile.oi_problems_status.get("contest_problems", {})
+            problems_status = profile.acm_problems_status.get("contest_problems", {})
             for problem in queryset_values:
                 problem["my_status"] = problems_status.get(str(problem["id"]), {}).get("status")
 

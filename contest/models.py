@@ -1,4 +1,3 @@
-from utils.constants import ContestRuleType  # noqa
 from django.db import models
 from django.utils.timezone import now
 from utils.models import JSONField
@@ -12,10 +11,7 @@ class Contest(models.Model):
     title = models.TextField()
     description = RichTextField()
     tag = models.TextField()
-    # show real time rank or cached rank
-    real_time_rank = models.BooleanField()
     password = models.TextField(null=True)
-    rule_type = models.TextField(choices=ContestRuleType.choices)
     start_time = models.DateTimeField()
     end_time = models.DateTimeField()
     create_time = models.DateTimeField(auto_now_add=True)
@@ -45,7 +41,7 @@ class Contest(models.Model):
 
     # 是否有权查看problem 的一些统计信息 诸如submission_number, accepted_number 等
     def problem_details_permission(self, user):
-        return self.rule_type == ContestRuleType.ACM or self.status == ContestStatus.CONTEST_ENDED or user.is_authenticated and user.is_contest_admin(self) or self.real_time_rank
+        return self.status == ContestStatus.CONTEST_ENDED or user.is_authenticated and user.is_contest_admin(self)
 
     class Meta:
         db_table = "contest"
@@ -79,22 +75,6 @@ class ACMContestRank(AbstractContestRank):
             models.Index(fields=["contest", "user"], name="acm_rank_contest_user_idx"),
         ]
 
-
-class OIContestRank(AbstractContestRank):
-    total_score = models.IntegerField(default=0, db_default=0)
-    # {"23": 333}
-    # key is problem id, value is current score
-    submission_info = JSONField(default=dict, db_default=models.Value({}, output_field=models.JSONField()))
-
-    class Meta:
-        db_table = "oi_contest_rank"
-        constraints = [
-            models.UniqueConstraint(fields=["user", "contest"], name="unique_oi_rank_user_contest"),
-        ]
-        indexes = [
-            models.Index(fields=["contest", "total_score"], name="oi_rank_order_idx"),
-            models.Index(fields=["contest", "user"], name="oi_rank_contest_user_idx"),
-        ]
 
 
 class ContestAnnouncement(models.Model):

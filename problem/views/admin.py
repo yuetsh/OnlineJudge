@@ -292,9 +292,6 @@ class ContestProblemAPI(ProblemBase):
         except Contest.DoesNotExist:
             return self.error("Contest does not exist")
 
-        if data["rule_type"] != contest.rule_type:
-            return self.error("Invalid rule type")
-
         _id = data["_id"]
         if not _id:
             return self.error("Display ID is required")
@@ -359,9 +356,6 @@ class ContestProblemAPI(ProblemBase):
             ensure_created_by(contest, user)
         except Contest.DoesNotExist:
             return self.error("Contest does not exist")
-
-        if data["rule_type"] != contest.rule_type:
-            return self.error("Invalid rule type")
 
         problem_id = data.pop("id")
 

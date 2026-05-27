@@ -1,6 +1,6 @@
 from utils.api import UsernameSerializer, serializers
 
-from .models import ACMContestRank, Contest, ContestAnnouncement, ContestRuleType, OIContestRank
+from .models import ACMContestRank, Contest, ContestAnnouncement
 
 
 class CreateConetestSeriaizer(serializers.Serializer):
@@ -9,10 +9,8 @@ class CreateConetestSeriaizer(serializers.Serializer):
     tag = serializers.CharField()
     start_time = serializers.DateTimeField()
     end_time = serializers.DateTimeField()
-    rule_type = serializers.ChoiceField(choices=ContestRuleType.choices)
     password = serializers.CharField(allow_blank=True, max_length=32)
     visible = serializers.BooleanField()
-    real_time_rank = serializers.BooleanField()
     allowed_ip_ranges = serializers.ListField(child=serializers.CharField(max_length=32), allow_empty=True)
 
 
@@ -25,7 +23,6 @@ class EditConetestSeriaizer(serializers.Serializer):
     end_time = serializers.DateTimeField()
     password = serializers.CharField(allow_blank=True, allow_null=True, max_length=32)
     visible = serializers.BooleanField()
-    real_time_rank = serializers.BooleanField()
     allowed_ip_ranges = serializers.ListField(child=serializers.CharField(max_length=32))
 
 
@@ -86,20 +83,6 @@ class ACMContestRankSerializer(serializers.ModelSerializer):
     def get_user(self, obj):
         return UsernameSerializer(obj.user, need_real_name=self.is_contest_admin).data
 
-
-class OIContestRankSerializer(serializers.ModelSerializer):
-    user = serializers.SerializerMethodField()
-
-    class Meta:
-        model = OIContestRank
-        fields = "__all__"
-
-    def __init__(self, *args, **kwargs):
-        self.is_contest_admin = kwargs.pop("is_contest_admin", False)
-        super().__init__(*args, **kwargs)
-
-    def get_user(self, obj):
-        return UsernameSerializer(obj.user, need_real_name=self.is_contest_admin).data
 
 
 class ACMContesHelperSerializer(serializers.Serializer):

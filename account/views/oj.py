@@ -20,7 +20,7 @@ from submission.models import JudgeStatus, Submission
 from utils.api import APIView, AsyncAPIView, CSRFExemptAPIView, validate_serializer
 from utils.async_helpers import async_cache_get, async_cache_set
 from utils.captcha import Captcha
-from utils.constants import CacheKey, ContestRuleType
+from utils.constants import CacheKey
 from utils.shortcuts import datetime2str, img2base64, rand_str
 
 from ..decorators import login_required
@@ -425,24 +425,17 @@ class SessionManagementAPI(APIView):
 
 class UserRankAPI(AsyncAPIView):
     async def get(self, request):
-        rule_type = request.GET.get("rule")
         username = request.GET.get("username", "")
         try:
             n = int(request.GET.get("n", "0"))
         except ValueError:
             n = 0
-        if rule_type not in ContestRuleType.values:
-            rule_type = ContestRuleType.ACM
 
         profiles = UserProfile.objects.filter(
             user__admin_type__in=[AdminType.REGULAR_USER, AdminType.ADMIN],
             user__is_disabled=False,
             user__username__icontains=username,
-        ).select_related("user")
-        if rule_type == ContestRuleType.ACM:
-            profiles = profiles.filter(accepted_number__gte=0).order_by("-accepted_number", "submission_number")
-        else:
-            profiles = profiles.filter(total_score__gt=0).order_by("-total_score")
+        ).select_related("user").filter(accepted_number__gte=0).order_by("-accepted_number", "submission_number")
         if n > 0:
             profiles = profiles[:n]
         return self.success(await self.async_paginate_data(request, profiles, RankInfoSerializer))

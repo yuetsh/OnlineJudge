@@ -13,8 +13,6 @@ from account.models import User
 from problem.models import Problem
 from submission.models import JudgeStatus, Submission
 from utils.api import APIView, validate_serializer
-from utils.cache import cache
-from utils.constants import CacheKey
 from utils.shortcuts import rand_str
 from utils.tasks import delete_files
 
@@ -70,10 +68,6 @@ class ContestAPI(APIView):
                 ip_network(ip_range, strict=False)
             except ValueError:
                 return self.error(f"{ip_range} is not a valid cidr network")
-        if not contest.real_time_rank and data.get("real_time_rank"):
-            cache_key = f"{CacheKey.contest_rank_cache}:{contest.id}"
-            cache.delete(cache_key)
-
         for k, v in data.items():
             setattr(contest, k, v)
         contest.save()
@@ -279,9 +273,7 @@ class ContestCloneAPI(APIView):
             title=original.title,
             description=original.description,
             tag=original.tag,
-            rule_type=original.rule_type,
             password=original.password,
-            real_time_rank=original.real_time_rank,
             visible=False,
             allowed_ip_ranges=original.allowed_ip_ranges,
             start_time=new_start,
