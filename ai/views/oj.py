@@ -18,7 +18,7 @@ from flowchart.models import FlowchartSubmission, FlowchartSubmissionStatus
 from problem.models import Problem
 from submission.models import JudgeStatus, Submission
 from utils.api import APIView
-from utils.openai import get_ai_client
+from utils.openai import get_ai_client, get_async_ai_client
 from utils.shortcuts import datetime2str
 
 CACHE_TIMEOUT = 300
@@ -163,10 +163,15 @@ def get_user_first_ac_submissions(
     return user_first_ac, by_problem, problem_ids
 
 
-def stream_ai_response(client, system_prompt, user_prompt, on_complete=None):
-    """SSE 流式响应生成器，on_complete(full_text) 在流结束时调用"""
+async def stream_ai_response(client, system_prompt, user_prompt, on_complete=None):
+    """SSE 流式响应异步生成器，on_complete(full_text) 在流结束时调用。
+
+    必须是异步生成器：在 ASGI 下，同步生成器会被 Django 的
+    StreamingHttpResponse 通过 sync_to_async(list) 一次性消费完才发送，
+    导致整段内容生成完毕后才返回，失去流式效果。
+    """
     try:
-        stream = client.chat.completions.create(
+        stream = await client.chat.completions.create(
             model="deepseek-v4-flash",
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -183,13 +188,13 @@ def stream_ai_response(client, system_prompt, user_prompt, on_complete=None):
     yield "event: start\n\n"
     chunks = []
     try:
-        for chunk in stream:
+        async for chunk in stream:
             if not chunk.choices:
                 continue
             choice = chunk.choices[0]
             if choice.finish_reason:
                 if on_complete:
-                    on_complete("".join(chunks).strip())
+                    await on_complete("".join(chunks).strip())
                 yield f"data: {json.dumps({'type': 'done'})}\n\n"
                 break
             content = choice.delta.content
@@ -209,6 +214,8 @@ def make_sse_response(generator):
         content_type="text/event-stream",
     )
     response["Cache-Control"] = "no-cache"
+    # 关闭反向代理（如 nginx）对流式响应的缓冲
+    response["X-Accel-Buffering"] = "no"
     return response
 
 
@@ -667,7 +674,7 @@ class AIAnalysisAPI(APIView):
         details = request.data.get("details")
         duration = request.data.get("duration")
 
-        client = get_ai_client()
+        client = get_async_ai_client()
 
         system_prompt = (
             "你是一个风趣的编程老师，学生使用判题狗平台进行编程练习。"
@@ -676,9 +683,11 @@ class AIAnalysisAPI(APIView):
         )
         user_prompt = f"这段时间内的详细数据: {details}\n(其中部分字段含义是 flowcharts:流程图的提交,solved:代码的提交)\n每周或每月的数据: {duration}"
 
-        def on_complete(full_text):
-            AIAnalysis.objects.create(
-                user=request.user,
+        user = request.user
+
+        async def on_complete(full_text):
+            await AIAnalysis.objects.acreate(
+                user=user,
                 provider="deepseek",
                 model="deepseek-v4-flash",
                 data={"details": details, "duration": duration},
@@ -705,7 +714,7 @@ class AIHintAPI(APIView):
             return self.error("Submission not found")
 
         problem = submission.problem
-        client = get_ai_client()
+        client = get_async_ai_client()
 
         # 获取参考答案（同语言优先，否则取第一个）
         answers = problem.answers or []
