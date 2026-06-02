@@ -11,7 +11,7 @@ from django.http import StreamingHttpResponse
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
-from account.decorators import login_required
+from account.decorators import login_required, super_admin_required
 from account.models import User
 from ai.models import AIAnalysis
 from flowchart.models import FlowchartSubmission, FlowchartSubmissionStatus
@@ -699,6 +699,105 @@ class AIAnalysisAPI(APIView):
         return make_sse_response(
             stream_ai_response(client, system_prompt, user_prompt, on_complete)
         )
+
+
+class ClassPKAnalysisAPI(APIView):
+    @super_admin_required
+    def post(self, request):
+        comparisons = request.data.get("comparisons")
+        time_range_label = request.data.get("time_range_label", "全部时间")
+
+        if not comparisons or len(comparisons) < 2:
+            return self.error("至少需要2个班级的数据")
+
+        client = get_async_ai_client()
+
+        system_prompt = (
+            "你是一位经验丰富的编程教育数据分析专家，专注于职业院校计算机编程教学效果评估。"
+            "请根据在线评测系统（OJ）提供的班级对比数据，给出深入、专业的分析报告。"
+            "请使用 markdown 格式输出，不要在代码块中输出。"
+        )
+        user_prompt = self._build_prompt(comparisons, time_range_label)
+
+        return make_sse_response(stream_ai_response(client, system_prompt, user_prompt))
+
+    def _build_prompt(self, comparisons, time_range_label):
+        def fmt_class(name):
+            return f"{name[:2]}计算机{name[2:]}班"
+
+        lines = [
+            f"时间范围：{time_range_label}",
+            "",
+            "## 指标说明",
+            "- 总AC数：班级累计通过的题目总数",
+            '- 平均AC / 中位数AC：平均受尖子生影响，中位数反映"典型学生"的真实水平',
+            "- 前10%/中间80%/后10%均值：梯队分层，判断是尖子班还是均衡班",
+            "- 优秀率 / 及格率：达到优秀线、及格线的学生比例",
+            "- 参与度：有过任意提交的学生比例（反映主动性）",
+            "- AC率：提交通过率（反映代码编写质量）",
+            "- 综合分：综合多项指标计算的总评分（满分100）",
+            "",
+            "## 班级数据",
+        ]
+
+        for i, c in enumerate(comparisons):
+            class_display = fmt_class(c["class_name"])
+            lines.append(f"\n### 第{i + 1}名：{class_display}（综合分 {c['composite_score']:.1f}）")
+            lines.append(f"- 人数：{c['user_count']}")
+            lines.append(
+                f"- 总AC数：{c['total_ac']}，总提交数：{c['total_submission']}，AC率：{c['ac_rate']:.1f}%"
+            )
+            lines.append(
+                f"- 平均AC：{c['avg_ac']:.2f}，中位数AC：{c['median_ac']:.2f}"
+            )
+            lines.append(
+                f"- Q1：{c['q1_ac']:.2f}，Q3：{c['q3_ac']:.2f}，"
+                f"IQR（四分位距）：{c['iqr']:.2f}，标准差：{c['std_dev']:.2f}"
+            )
+            lines.append(
+                f"- 前10%均值：{c['top_10_avg']:.2f}，中间80%均值：{c['middle_80_avg']:.2f}，"
+                f"后10%均值：{c['bottom_10_avg']:.2f}"
+            )
+            lines.append(
+                f"- 优秀率：{c['excellent_rate']:.1f}%，及格率：{c['pass_rate']:.1f}%，"
+                f"参与度：{c['active_rate']:.1f}%"
+            )
+
+            if c.get("recent_total_ac") is not None:
+                lines.append(
+                    f"- 时间段内新增：总AC {c['recent_total_ac']}，"
+                    f"平均AC {c.get('recent_avg_ac', 0):.2f}，"
+                    f"中位数AC {c.get('recent_median_ac', 0):.2f}，"
+                    f"前10%平均 {c.get('recent_top_10_avg', 0):.2f}，"
+                    f"活跃学生数 {c.get('recent_active_count', 0)}"
+                )
+
+        lines += [
+            "",
+            "## 请从以下7个维度分析，输出中文报告：",
+            "",
+            "**1. 总体排名**：直接给出排名，说明各班综合分差距大小。",
+            "",
+            "**2. 参与积极性**：对比参与度和总提交数，谁的班学生更积极主动？",
+            "",
+            '**3. 典型学生水平**：重点用中位数AC数对比（而非平均值），'
+            '分析谁班的"普通学生"更强。若均值明显高于中位数，说明均值被少数强者拉高，需指出。',
+            "",
+            '**4. 班级内部均衡性**：结合标准差、IQR、前10%与后10%差距，'
+            '判断哪个班是"均衡型"，哪个班是"两极型"。',
+            "",
+            "**5. 梯队深度对比**：对比各班前10%均值（尖子生天花板）和后10%均值（薄弱学生水平），"
+            "分析各班在培养尖子生和帮扶后进生上的差异。",
+            "",
+            '**6. 代码提交质量**：对比AC率，是否有班级存在"凑提交次数但不思考"的问题？',
+            "",
+            "**7. 综合结论与建议**：用1句话明确说明胜负；"
+            "对落后班级给出2~3条具体可操作的改进建议；点出领先班级1条值得借鉴的做法。",
+            "",
+            "分析对象是班级任课教师，语言专业但不过分学术。",
+        ]
+
+        return "\n".join(lines)
 
 
 class AIHintAPI(APIView):
