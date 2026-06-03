@@ -213,6 +213,9 @@ idna==3.13 \
     #   anyio
     #   httpx
     #   requests
+jieba==0.42.1 \
+    --hash=sha256:055ca12f62674fafed09427f176506079bc135638a14e23e25be909131928db2
+    # via onlinejudge
 jiter==0.14.0 \
     --hash=sha256:004df5fdb8ecbd6d99f3227df18ba1a259254c4359736a2e6f036c944e02d7c5 \
     --hash=sha256:14c0cb10337c49f5eafe8e7364daca5e29a020ea03580b8f8e6c597fed4e1588 \
