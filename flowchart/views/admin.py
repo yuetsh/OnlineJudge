@@ -94,12 +94,12 @@ class FlowchartStatisticsAPI(APIView):
         criteria_counts = Counter()
         criteria_max = {}
 
-        suggestions_texts = []
+        feedback_texts = []
 
         for row in submissions.values_list(
-            "ai_criteria_details", "ai_suggestions"
+            "ai_criteria_details", "ai_feedback"
         ).iterator():
-            details, suggestions = row
+            details, feedback = row
             if details and isinstance(details, dict):
                 for key, val in details.items():
                     if isinstance(val, dict) and "score" in val:
@@ -107,8 +107,8 @@ class FlowchartStatisticsAPI(APIView):
                         criteria_counts[key] += 1
                         if key not in criteria_max:
                             criteria_max[key] = val.get("max", 100)
-            if suggestions:
-                suggestions_texts.append(suggestions)
+            if feedback:
+                feedback_texts.append(feedback)
 
         criteria_averages = {}
         for key in criteria_totals:
@@ -131,8 +131,8 @@ class FlowchartStatisticsAPI(APIView):
                 real_name = get_real_name(uname, class_name)
                 unaccepted.append({"username": uname, "real_name": real_name})
 
-        # 5. Word cloud from suggestions
-        word_freq = self._build_word_frequencies(suggestions_texts)
+        # 5. Word cloud from feedback
+        word_freq = self._build_word_frequencies(feedback_texts)
 
         return self.success({
             "total_count": total_count,
