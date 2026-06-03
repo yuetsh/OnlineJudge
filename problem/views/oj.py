@@ -145,9 +145,11 @@ class ProblemAPI(AsyncAPIView):
 
 
 class ContestProblemAPI(AsyncAPIView):
-    def _add_problem_status(self, request, queryset_values):
+    async def _add_problem_status(self, request, queryset_values):
         if request.user.is_authenticated:
-            profile = request.user.userprofile
+            from account.models import UserProfile
+
+            profile = await UserProfile.objects.aget(user=request.user)
             problems_status = profile.acm_problems_status.get("contest_problems", {})
             for problem in queryset_values:
                 problem["my_status"] = problems_status.get(str(problem["id"]), {}).get("status")
@@ -162,7 +164,7 @@ class ContestProblemAPI(AsyncAPIView):
                 return self.error("Problem does not exist.")
             if self.contest.problem_details_permission(request.user):
                 problem_data = await self.async_serialize_data(ProblemSerializer, problem)
-                self._add_problem_status(request, [problem_data])
+                await self._add_problem_status(request, [problem_data])
             else:
                 problem_data = await self.async_serialize_data(ProblemSafeSerializer, problem)
             return self.success(problem_data)
@@ -170,7 +172,7 @@ class ContestProblemAPI(AsyncAPIView):
         contest_problems = Problem.objects.select_related("created_by").prefetch_related("tags").filter(contest=self.contest, visible=True)
         if self.contest.problem_details_permission(request.user):
             data = await self.async_serialize_data(ProblemListSerializer, [p async for p in contest_problems], many=True)
-            self._add_problem_status(request, data)
+            await self._add_problem_status(request, data)
         else:
             data = await self.async_serialize_data(ProblemSafeSerializer, [p async for p in contest_problems], many=True)
         return self.success(data)

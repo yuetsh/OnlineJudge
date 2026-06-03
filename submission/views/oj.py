@@ -102,7 +102,7 @@ class SubmissionAPI(AsyncAPIView):
         if not submission_id:
             return self.error("Parameter id doesn't exist")
         try:
-            submission = await Submission.objects.select_related("problem").aget(
+            submission = await Submission.objects.select_related("problem", "contest").aget(
                 id=submission_id
             )
         except Submission.DoesNotExist:
@@ -126,7 +126,7 @@ class SubmissionAPI(AsyncAPIView):
     @login_required
     async def put(self, request):
         try:
-            submission = await Submission.objects.select_related("problem").aget(
+            submission = await Submission.objects.select_related("problem", "contest").aget(
                 id=request.data["id"]
             )
         except Submission.DoesNotExist:
