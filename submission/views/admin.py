@@ -1,6 +1,6 @@
 from django.db.models import Count, Q
 
-from account.decorators import super_admin_required
+from account.decorators import super_admin_required, teacher_admin_required
 from account.models import AdminType, User
 from judge.tasks import judge_task
 from problem.models import Problem
@@ -35,7 +35,7 @@ class SubmissionRejudgeAPI(APIView):
 
 
 class SubmissionStatisticsAPI(APIView):
-    @super_admin_required
+    @teacher_admin_required
     def get(self, request):
         start = request.GET.get("start")
         end = request.GET.get("end")

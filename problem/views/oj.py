@@ -7,7 +7,7 @@ from django.utils import timezone
 from account.decorators import check_contest_permission
 from account.models import User
 from submission.models import JudgeStatus, Submission
-from utils.api import APIView, AsyncAPIView
+from utils.api import AsyncAPIView
 from utils.async_helpers import async_cache_get, async_cache_set
 from utils.constants import CacheKey
 
@@ -144,7 +144,7 @@ class ProblemAPI(AsyncAPIView):
         return self.success(data)
 
 
-class ContestProblemAPI(APIView):
+class ContestProblemAPI(AsyncAPIView):
     def _add_problem_status(self, request, queryset_values):
         if request.user.is_authenticated:
             profile = request.user.userprofile
@@ -153,31 +153,26 @@ class ContestProblemAPI(APIView):
                 problem["my_status"] = problems_status.get(str(problem["id"]), {}).get("status")
 
     @check_contest_permission(check_type="problems")
-    def get(self, request):
+    async def get(self, request):
         problem_id = request.GET.get("problem_id")
         if problem_id:
             try:
-                problem = Problem.objects.select_related("created_by").get(_id__iexact=problem_id, contest=self.contest, visible=True)
+                problem = await Problem.objects.select_related("created_by").aget(_id__iexact=problem_id, contest=self.contest, visible=True)
             except Problem.DoesNotExist:
                 return self.error("Problem does not exist.")
             if self.contest.problem_details_permission(request.user):
-                problem_data = ProblemSerializer(problem).data
-                self._add_problem_status(
-                    request,
-                    [
-                        problem_data,
-                    ],
-                )
+                problem_data = await self.async_serialize_data(ProblemSerializer, problem)
+                self._add_problem_status(request, [problem_data])
             else:
-                problem_data = ProblemSafeSerializer(problem).data
+                problem_data = await self.async_serialize_data(ProblemSafeSerializer, problem)
             return self.success(problem_data)
 
         contest_problems = Problem.objects.select_related("created_by").prefetch_related("tags").filter(contest=self.contest, visible=True)
         if self.contest.problem_details_permission(request.user):
-            data = ProblemListSerializer(contest_problems, many=True).data
+            data = await self.async_serialize_data(ProblemListSerializer, [p async for p in contest_problems], many=True)
             self._add_problem_status(request, data)
         else:
-            data = ProblemSafeSerializer(contest_problems, many=True).data
+            data = await self.async_serialize_data(ProblemSafeSerializer, [p async for p in contest_problems], many=True)
         return self.success(data)
 
 

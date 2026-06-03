@@ -1,6 +1,7 @@
 import io
 
 import xlsxwriter
+from asgiref.sync import sync_to_async
 from django.http import HttpResponse
 from django.utils.timezone import now
 
@@ -11,7 +12,7 @@ from account.decorators import (
 )
 from account.models import AdminType
 from problem.models import Problem
-from utils.api import APIView, AsyncAPIView, validate_serializer
+from utils.api import AsyncAPIView, validate_serializer
 from utils.constants import CONTEST_PASSWORD_SESSION_KEY, ContestStatus
 from utils.shortcuts import check_is_id, datetime2str
 
@@ -20,19 +21,20 @@ from ..serializers import ACMContestRankSerializer, ContestAnnouncementSerialize
 
 
 # DEPRECATED: 前端未调用 (2026-05-26)
-class ContestAnnouncementListAPI(APIView):
+class ContestAnnouncementListAPI(AsyncAPIView):
     @check_contest_permission(check_type="announcements")
-    def get(self, request):
+    async def get(self, request):
         contest_id = request.GET.get("contest_id")
         if not contest_id:
             return self.error("Invalid parameter, contest_id is required")
-        data = ContestAnnouncement.objects.select_related("created_by").filter(
+        qs = ContestAnnouncement.objects.select_related("created_by").filter(
             contest_id=contest_id, visible=True
         )
         max_id = request.GET.get("max_id")
         if max_id:
-            data = data.filter(id__gt=max_id)
-        return self.success(ContestAnnouncementSerializer(data, many=True).data)
+            qs = qs.filter(id__gt=max_id)
+        data = await self.async_serialize_data(ContestAnnouncementSerializer, [item async for item in qs], many=True)
+        return self.success(data)
 
 
 class ContestAPI(AsyncAPIView):
@@ -76,13 +78,13 @@ class ContestListAPI(AsyncAPIView):
         return self.success(await self.async_paginate_data(request, contests, ContestSerializer))
 
 
-class ContestPasswordVerifyAPI(APIView):
+class ContestPasswordVerifyAPI(AsyncAPIView):
     @validate_serializer(ContestPasswordVerifySerializer)
     @login_required
-    def post(self, request):
+    async def post(self, request):
         data = request.data
         try:
-            contest = Contest.objects.get(
+            contest = await Contest.objects.aget(
                 id=data["contest_id"], visible=True, password__isnull=False
             )
         except Contest.DoesNotExist:
@@ -90,23 +92,21 @@ class ContestPasswordVerifyAPI(APIView):
         if not check_contest_password(data["password"], contest.password):
             return self.error("Wrong password or password expired")
 
-        # password verify OK.
         if CONTEST_PASSWORD_SESSION_KEY not in request.session:
             request.session[CONTEST_PASSWORD_SESSION_KEY] = {}
         request.session[CONTEST_PASSWORD_SESSION_KEY][contest.id] = data["password"]
-        # https://docs.djangoproject.com/en/dev/topics/http/sessions/#when-sessions-are-saved
         request.session.modified = True
         return self.success(True)
 
 
-class ContestAccessAPI(APIView):
+class ContestAccessAPI(AsyncAPIView):
     @login_required
-    def get(self, request):
+    async def get(self, request):
         contest_id = request.GET.get("contest_id")
         if not contest_id:
             return self.error()
         try:
-            contest = Contest.objects.get(
+            contest = await Contest.objects.aget(
                 id=contest_id, visible=True, password__isnull=False
             )
         except Contest.DoesNotExist:
@@ -119,7 +119,7 @@ class ContestAccessAPI(APIView):
         )
 
 
-class ContestRankAPI(APIView):
+class ContestRankAPI(AsyncAPIView):
     def get_rank(self):
         return (
             ACMContestRank.objects.filter(
@@ -138,8 +138,40 @@ class ContestRankAPI(APIView):
             string = chr(65 + remainder) + string
         return string
 
+    def _build_xlsx(self, data, contest_problems):
+        problem_id_to_col = {p.id: i for i, p in enumerate(contest_problems)}
+        f = io.BytesIO()
+        workbook = xlsxwriter.Workbook(f)
+        worksheet = workbook.add_worksheet()
+        worksheet.write("A1", "User ID")
+        worksheet.write("B1", "Username")
+        worksheet.write("C1", "Real Name")
+        worksheet.write("D1", "AC")
+        worksheet.write("E1", "Total Submission")
+        worksheet.write("F1", "Total Time")
+        for i, p in enumerate(contest_problems):
+            worksheet.write(self.column_string(7 + i) + "1", p.title)
+
+        for index, item in enumerate(data):
+            worksheet.write_string(index + 1, 0, str(item["user"]["id"]))
+            worksheet.write_string(index + 1, 1, item["user"]["username"])
+            worksheet.write_string(
+                index + 1, 2, item["user"]["real_name"] or ""
+            )
+            worksheet.write_string(index + 1, 3, str(item["accepted_number"]))
+            worksheet.write_string(index + 1, 4, str(item["submission_number"]))
+            worksheet.write_string(index + 1, 5, str(item["total_time"]))
+            for k, v in item["submission_info"].items():
+                worksheet.write_string(
+                    index + 1, 6 + problem_id_to_col[int(k)], str(v["is_ac"])
+                )
+
+        workbook.close()
+        f.seek(0)
+        return f.read()
+
     @check_contest_permission(check_type="ranks")
-    def get(self, request):
+    async def get(self, request):
         download_csv = request.GET.get("download_csv")
         is_contest_admin = (
             request.user.is_authenticated
@@ -149,50 +181,24 @@ class ContestRankAPI(APIView):
         qs = self.get_rank()
 
         if download_csv:
-            data = ACMContestRankSerializer(qs, many=True, is_contest_admin=is_contest_admin).data
-            contest_problems = list(Problem.objects.filter(
-                contest=self.contest, visible=True
-            ).order_by("_id"))
-            # 预建 problem_id → 列索引 的字典，避免循环中 O(n) list.index()
-            problem_id_to_col = {p.id: i for i, p in enumerate(contest_problems)}
-
-            f = io.BytesIO()
-            workbook = xlsxwriter.Workbook(f)
-            worksheet = workbook.add_worksheet()
-            worksheet.write("A1", "User ID")
-            worksheet.write("B1", "Username")
-            worksheet.write("C1", "Real Name")
-            worksheet.write("D1", "AC")
-            worksheet.write("E1", "Total Submission")
-            worksheet.write("F1", "Total Time")
-            for i, p in enumerate(contest_problems):
-                worksheet.write(self.column_string(7 + i) + "1", p.title)
-
-            for index, item in enumerate(data):
-                worksheet.write_string(index + 1, 0, str(item["user"]["id"]))
-                worksheet.write_string(index + 1, 1, item["user"]["username"])
-                worksheet.write_string(
-                    index + 1, 2, item["user"]["real_name"] or ""
-                )
-                worksheet.write_string(index + 1, 3, str(item["accepted_number"]))
-                worksheet.write_string(index + 1, 4, str(item["submission_number"]))
-                worksheet.write_string(index + 1, 5, str(item["total_time"]))
-                for k, v in item["submission_info"].items():
-                    worksheet.write_string(
-                        index + 1, 6 + problem_id_to_col[int(k)], str(v["is_ac"])
-                    )
-
-            workbook.close()
-            f.seek(0)
-            response = HttpResponse(f.read())
+            rank_list = [item async for item in qs]
+            data = await self.async_serialize_data(
+                ACMContestRankSerializer, rank_list, many=True, is_contest_admin=is_contest_admin
+            )
+            contest_problems = await sync_to_async(
+                lambda: list(Problem.objects.filter(contest=self.contest, visible=True).order_by("_id"))
+            )()
+            xlsx_bytes = await sync_to_async(self._build_xlsx)(data, contest_problems)
+            response = HttpResponse(xlsx_bytes)
             response["Content-Disposition"] = (
                 f"attachment; filename=content-{self.contest.id}-rank.xlsx"
             )
             response["Content-Type"] = "application/xlsx"
             return response
 
-        page_qs = self.paginate_data(request, qs)
-        page_qs["results"] = ACMContestRankSerializer(
+        page_qs = await self.async_paginate_data(request, qs)
+        page_qs["results"] = await self.async_serialize_data(
+            ACMContestRankSerializer,
             page_qs["results"], many=True, is_contest_admin=is_contest_admin
-        ).data
+        )
         return self.success(page_qs)

@@ -10,7 +10,7 @@ from options.options import SysOptions
 
 # from judge.dispatcher import JudgeDispatcher
 from problem.models import Problem, ProblemRuleType
-from utils.api import APIView, AsyncAPIView, validate_serializer
+from utils.api import AsyncAPIView, validate_serializer
 from utils.cache import cache
 from utils.captcha import Captcha
 from utils.throttling import TokenBucket
@@ -26,9 +26,8 @@ from ..serializers import (
 )
 
 
-class SubmissionAPI(APIView):
+class SubmissionAPI(AsyncAPIView):
     def throttling(self, request):
-        # 使用 open_api 的请求暂不做限制
         auth_method = getattr(request, "auth_method", "")
         if auth_method == "api_key":
             return
@@ -39,14 +38,8 @@ class SubmissionAPI(APIView):
         if not can_consume:
             return "Please wait %d seconds" % (int(wait))
 
-        # ip_bucket = TokenBucket(key=request.session["ip"],
-        #                         redis_conn=cache, **SysOptions.throttling["ip"])
-        # can_consume, wait = ip_bucket.consume()
-        # if not can_consume:
-        #     return "Captcha is required"
-
     @check_contest_permission(check_type="problems")
-    def check_contest_permission(self, request):
+    async def check_contest_permission(self, request):
         contest = self.contest
         if contest.status == ContestStatus.CONTEST_ENDED:
             return self.error("The contest have ended")
@@ -61,11 +54,11 @@ class SubmissionAPI(APIView):
 
     @validate_serializer(CreateSubmissionSerializer)
     @login_required
-    def post(self, request):
+    async def post(self, request):
         data = request.data
         hide_id = False
         if data.get("contest_id"):
-            error = self.check_contest_permission(request)
+            error = await self.check_contest_permission(request)
             if error:
                 return error
             contest = self.contest
@@ -75,19 +68,19 @@ class SubmissionAPI(APIView):
         if data.get("captcha"):
             if not Captcha(request).check(data["captcha"]):
                 return self.error("Invalid captcha")
-        error = self.throttling(request)
+        error = await sync_to_async(self.throttling)(request)
         if error:
             return self.error(error)
 
         try:
-            problem = Problem.objects.get(
+            problem = await Problem.objects.aget(
                 id=data["problem_id"], contest_id=data.get("contest_id"), visible=True
             )
         except Problem.DoesNotExist:
             return self.error("Problem not exist")
         if data["language"] not in problem.languages:
             return self.error(f"{data['language']} is not allowed in the problem")
-        submission = Submission.objects.create(
+        submission = await Submission.objects.acreate(
             user_id=request.user.id,
             username=request.user.username,
             language=data["language"],
@@ -97,8 +90,6 @@ class SubmissionAPI(APIView):
             contest_id=data.get("contest_id"),
         )
 
-        # use this for debug
-        # JudgeDispatcher(submission.id, problem.id).judge()
         judge_task.send(submission.id, problem.id)
         if hide_id:
             return self.success()
@@ -106,12 +97,12 @@ class SubmissionAPI(APIView):
             return self.success({"submission_id": submission.id})
 
     @login_required
-    def get(self, request):
+    async def get(self, request):
         submission_id = request.GET.get("id")
         if not submission_id:
             return self.error("Parameter id doesn't exist")
         try:
-            submission = Submission.objects.select_related("problem").get(
+            submission = await Submission.objects.select_related("problem").aget(
                 id=submission_id
             )
         except Submission.DoesNotExist:
@@ -123,10 +114,9 @@ class SubmissionAPI(APIView):
             submission.problem.rule_type == ProblemRuleType.OI
             or request.user.is_admin_role()
         ):
-            submission_data = SubmissionModelSerializer(submission).data
+            submission_data = await self.async_serialize_data(SubmissionModelSerializer, submission)
         else:
-            submission_data = SubmissionSafeModelSerializer(submission).data
-        # 是否有权限取消共享
+            submission_data = await self.async_serialize_data(SubmissionSafeModelSerializer, submission)
         submission_data["can_unshare"] = submission.check_user_permission(
             request.user, check_share=False
         )
@@ -134,12 +124,9 @@ class SubmissionAPI(APIView):
 
     @validate_serializer(ShareSubmissionSerializer)
     @login_required
-    def put(self, request):
-        """
-        share submission
-        """
+    async def put(self, request):
         try:
-            submission = Submission.objects.select_related("problem").get(
+            submission = await Submission.objects.select_related("problem").aget(
                 id=request.data["id"]
             )
         except Submission.DoesNotExist:
@@ -152,7 +139,7 @@ class SubmissionAPI(APIView):
         ):
             return self.error("Can not share submission now")
         submission.shared = request.data["shared"]
-        submission.save(update_fields=["shared"])
+        await submission.asave(update_fields=["shared"])
         return self.success()
 
 
@@ -215,9 +202,9 @@ class SubmissionListAPI(AsyncAPIView):
         return self.success(data)
 
 
-class ContestSubmissionListAPI(APIView):
+class ContestSubmissionListAPI(AsyncAPIView):
     @check_contest_permission(check_type="submissions")
-    def get(self, request):
+    async def get(self, request):
         if not request.GET.get("limit"):
             return self.error("Limit is needed")
 
@@ -231,7 +218,7 @@ class ContestSubmissionListAPI(APIView):
         username = request.GET.get("username")
         if problem_id:
             try:
-                problem = Problem.objects.get(
+                problem = await Problem.objects.aget(
                     _id__iexact=problem_id, contest_id=contest.id, visible=True
                 )
             except Problem.DoesNotExist:
@@ -245,35 +232,35 @@ class ContestSubmissionListAPI(APIView):
         if result:
             submissions = submissions.filter(result=result)
 
-        # filter the test submissions submitted before contest start
         if contest.status != ContestStatus.CONTEST_NOT_START:
             submissions = submissions.filter(create_time__gte=contest.start_time)
 
-
-        data = self.paginate_data(request, submissions)
+        data = await self.async_paginate_data(request, submissions)
         results = data["results"]
         if request.user.is_authenticated and request.user.is_regular_user():
             problem_ids = list({s.problem_id for s in results})
-            progress_cache = bulk_fetch_problemset_progress(request.user, problem_ids)
+            progress_cache = await sync_to_async(bulk_fetch_problemset_progress)(request.user, problem_ids)
         else:
             progress_cache = {}
-        data["results"] = SubmissionListSerializer(
+        data["results"] = await self.async_serialize_data(
+            SubmissionListSerializer,
             results, many=True, user=request.user, problemset_progress_cache=progress_cache
-        ).data
+        )
         return self.success(data)
 
 
 # DEPRECATED: 前端未调用 (2026-05-26)
-class SubmissionExistsAPI(APIView):
-    def get(self, request):
+class SubmissionExistsAPI(AsyncAPIView):
+    async def get(self, request):
         if not request.GET.get("problem_id"):
             return self.error("Parameter error, problem_id is required")
-        return self.success(
+        exists = (
             request.user.is_authenticated
-            and Submission.objects.filter(
+            and await Submission.objects.filter(
                 problem_id=request.GET["problem_id"], user_id=request.user.id
-            ).exists()
+            ).aexists()
         )
+        return self.success(exists)
 
 
 class SubmissionsTodayCount(AsyncAPIView):
