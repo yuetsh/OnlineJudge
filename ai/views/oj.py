@@ -11,7 +11,7 @@ from django.http import StreamingHttpResponse
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
-from account.decorators import login_required, super_admin_required
+from account.decorators import login_required, teacher_admin_required
 from account.models import User
 from ai.models import AIAnalysis
 from flowchart.models import FlowchartSubmission, FlowchartSubmissionStatus
@@ -702,7 +702,7 @@ class AIAnalysisAPI(APIView):
 
 
 class ClassPKAnalysisAPI(APIView):
-    @super_admin_required
+    @teacher_admin_required
     def post(self, request):
         comparisons = request.data.get("comparisons")
         time_range_label = request.data.get("time_range_label", "全部时间")
