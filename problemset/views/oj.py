@@ -1,7 +1,7 @@
 from django.db.models import Avg, Count, Prefetch, Q
 from django.utils import timezone
 
-from account.decorators import admin_role_required, login_required
+from account.decorators import login_required, teacher_admin_required
 from account.models import User
 from problem.models import Problem
 from problemset.models import (
@@ -300,7 +300,7 @@ class ProblemSetBadgeAPI(AsyncAPIView):
 class ProblemSetUserProgressAPI(AsyncAPIView):
     """题单用户进度列表API"""
 
-    @admin_role_required
+    @teacher_admin_required
     async def get(self, request, problem_set_id: int):
         """获取题单的用户进度列表"""
         try:

@@ -234,7 +234,7 @@ class AIDetailDataAPI(APIView):
             return self.error("end 格式无效，请使用 ISO 8601 格式")
 
         user = request.user
-        if username and request.user.is_super_admin():
+        if username and request.user.is_teacher_or_above():
             try:
                 user = User.objects.get(username=username)
             except User.DoesNotExist:
@@ -444,7 +444,7 @@ class AIDurationDataAPI(APIView):
         username = request.GET.get("username")
 
         user = request.user
-        if username and request.user.is_super_admin():
+        if username and request.user.is_teacher_or_above():
             try:
                 user = User.objects.get(username=username)
             except User.DoesNotExist:
@@ -856,7 +856,7 @@ class AIHeatmapDataAPI(APIView):
     def get(self, request):
         username = request.GET.get("username")
         user = request.user
-        if username and request.user.is_super_admin():
+        if username and request.user.is_teacher_or_above():
             try:
                 user = User.objects.get(username=username)
             except User.DoesNotExist:

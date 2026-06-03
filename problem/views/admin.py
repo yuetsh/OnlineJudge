@@ -11,7 +11,7 @@ from django.db.models import Count, Q
 from django.db.models.functions import ExtractYear
 from django.http import StreamingHttpResponse
 
-from account.decorators import ensure_created_by, problem_permission_required, super_admin_required
+from account.decorators import ensure_created_by, problem_permission_required, teacher_admin_required
 from contest.models import Contest, ContestStatus
 from submission.models import Submission
 from utils.api import APIError, APIView, CSRFExemptAPIView, validate_serializer
@@ -508,7 +508,7 @@ class ProblemFlowchartAIGen(APIView):
 
 
 class StuckProblemsAPI(APIView):
-    @super_admin_required
+    @teacher_admin_required
     def get(self, request):
         from submission.models import JudgeStatus
 
@@ -545,7 +545,7 @@ class StuckProblemsAPI(APIView):
 
 
 class TopACTrendAPI(APIView):
-    @super_admin_required
+    @teacher_admin_required
     def get(self, request):
         import datetime
         from collections import defaultdict
