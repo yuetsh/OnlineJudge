@@ -15,7 +15,7 @@ from account.models import User, UserProfile, AdminType, ProblemPermission
 from problem.models import Problem, ProblemTag, ProblemRuleType
 from utils.constants import Difficulty
 
-admin_type_map = {0: AdminType.REGULAR_USER, 1: AdminType.ADMIN, 2: AdminType.SUPER_ADMIN}
+admin_type_map = {0: AdminType.REGULAR_USER, 1: AdminType.STUDENT_ADMIN, 2: AdminType.SUPER_ADMIN}
 languages_map = {1: "C", 2: "C++", 3: "Java"}
 email_regex = re.compile(r"(^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$)")
 
@@ -95,7 +95,7 @@ def import_users():
             user.email = data["email"]
             admin_type = admin_type_map[data["admin_type"]]
             user.admin_type = admin_type
-            if admin_type == AdminType.ADMIN:
+            if admin_type == AdminType.STUDENT_ADMIN:
                 user.problem_permission = ProblemPermission.OWN
             elif admin_type == AdminType.SUPER_ADMIN:
                 user.problem_permission = ProblemPermission.ALL

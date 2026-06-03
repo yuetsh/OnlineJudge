@@ -432,7 +432,7 @@ class UserRankAPI(AsyncAPIView):
             n = 0
 
         profiles = UserProfile.objects.filter(
-            user__admin_type__in=[AdminType.REGULAR_USER, AdminType.ADMIN],
+            user__admin_type__in=[AdminType.REGULAR_USER, AdminType.STUDENT_ADMIN],
             user__is_disabled=False,
             user__username__icontains=username,
         ).select_related("user").filter(accepted_number__gte=0).order_by("-accepted_number", "submission_number")

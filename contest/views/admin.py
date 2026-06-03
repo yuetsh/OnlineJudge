@@ -8,7 +8,7 @@ import dateutil.parser
 from django.http import FileResponse
 from django.utils.timezone import now
 
-from account.decorators import super_admin_required
+from account.decorators import ensure_created_by, super_admin_required, teacher_admin_required
 from account.models import User
 from problem.models import Problem
 from submission.models import JudgeStatus, Submission
@@ -31,7 +31,7 @@ from ..serializers import (
 
 class ContestAPI(APIView):
     @validate_serializer(CreateConetestSeriaizer)
-    @super_admin_required
+    @teacher_admin_required
     def post(self, request):
         data = request.data
         data["start_time"] = dateutil.parser.parse(data["start_time"])
@@ -50,13 +50,14 @@ class ContestAPI(APIView):
         return self.success(ContestAdminSerializer(contest).data)
 
     @validate_serializer(EditConetestSeriaizer)
-    @super_admin_required
+    @teacher_admin_required
     def put(self, request):
         data = request.data
         try:
             contest = Contest.objects.get(id=data.pop("id"))
         except Contest.DoesNotExist:
             return self.error("Contest does not exist")
+        ensure_created_by(contest, request.user)
         data["start_time"] = dateutil.parser.parse(data["start_time"])
         data["end_time"] = dateutil.parser.parse(data["end_time"])
         if data["end_time"] <= data["start_time"]:
@@ -73,17 +74,20 @@ class ContestAPI(APIView):
         contest.save()
         return self.success(ContestAdminSerializer(contest).data)
 
-    @super_admin_required
+    @teacher_admin_required
     def get(self, request):
         contest_id = request.GET.get("id")
         if contest_id:
             try:
                 contest = Contest.objects.get(id=contest_id)
+                ensure_created_by(contest, request.user)
                 return self.success(ContestAdminSerializer(contest).data)
             except Contest.DoesNotExist:
                 return self.error("Contest does not exist")
 
         contests = Contest.objects.all().order_by("-create_time")
+        if not request.user.is_super_admin():
+            contests = contests.filter(created_by=request.user)
 
         keyword = request.GET.get("keyword")
         if keyword:
@@ -159,7 +163,7 @@ class ContestAnnouncementAPI(APIView):
 
 
 class ACMContestHelper(APIView):
-    @super_admin_required
+    @teacher_admin_required
     def get(self, request):
         contest_id = request.GET.get("contest_id")
         if not contest_id:
@@ -168,6 +172,7 @@ class ACMContestHelper(APIView):
             contest = Contest.objects.get(id=contest_id, visible=True)
         except Contest.DoesNotExist:
             return self.error("Contest does not exist")
+        ensure_created_by(contest, request.user)
 
         problems = Problem.objects.filter(contest=contest).values("id", "_id")
         problem_id_map = {str(p["id"]): p["_id"] for p in problems}
@@ -191,7 +196,7 @@ class ACMContestHelper(APIView):
         results.sort(key=lambda x: -x["ac_info"]["ac_time"])
         return self.success(results)
 
-    @super_admin_required
+    @teacher_admin_required
     @validate_serializer(ACMContesHelperSerializer)
     def put(self, request):
         data = request.data
@@ -258,7 +263,7 @@ class DownloadContestSubmissions(APIView):
 
 class ContestCloneAPI(APIView):
     @validate_serializer(ContestCloneSerializer)
-    @super_admin_required
+    @teacher_admin_required
     def post(self, request):
         try:
             original = Contest.objects.get(id=request.data["contest_id"])

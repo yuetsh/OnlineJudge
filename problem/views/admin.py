@@ -337,7 +337,7 @@ class ContestProblemAPI(ProblemBase):
         except Contest.DoesNotExist:
             return self.error("Contest does not exist")
         problems = Problem.objects.filter(contest=contest).order_by("-create_time")
-        if user.is_admin():
+        if not user.is_super_admin():
             problems = problems.filter(contest__created_by=user)
         keyword = request.GET.get("keyword")
         if keyword:

@@ -7,7 +7,8 @@ from utils.models import JSONField
 
 class AdminType(models.TextChoices):
     REGULAR_USER = "Regular User", "Regular User"
-    ADMIN = "Admin", "Admin"
+    STUDENT_ADMIN = "Student Admin", "Student Admin"
+    TEACHER_ADMIN = "Teacher Admin", "Teacher Admin"
     SUPER_ADMIN = "Super Admin", "Super Admin"
 
 
@@ -56,14 +57,24 @@ class User(AbstractBaseUser):
     def is_regular_user(self):
         return self.admin_type == AdminType.REGULAR_USER
 
-    def is_admin(self):
-        return self.admin_type == AdminType.ADMIN
+    def is_student_admin(self):
+        return self.admin_type == AdminType.STUDENT_ADMIN
+
+    def is_teacher_admin(self):
+        return self.admin_type == AdminType.TEACHER_ADMIN
 
     def is_super_admin(self):
         return self.admin_type == AdminType.SUPER_ADMIN
 
     def is_admin_role(self):
-        return self.admin_type in [AdminType.ADMIN, AdminType.SUPER_ADMIN]
+        return self.admin_type in [
+            AdminType.STUDENT_ADMIN,
+            AdminType.TEACHER_ADMIN,
+            AdminType.SUPER_ADMIN,
+        ]
+
+    def is_teacher_or_above(self):
+        return self.admin_type in [AdminType.TEACHER_ADMIN, AdminType.SUPER_ADMIN]
 
     def can_mgmt_all_problem(self):
         return self.problem_permission == ProblemPermission.ALL

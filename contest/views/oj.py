@@ -124,7 +124,7 @@ class ContestRankAPI(APIView):
         return (
             ACMContestRank.objects.filter(
                 contest=self.contest,
-                user__admin_type=AdminType.REGULAR_USER,
+                user__admin_type__in=[AdminType.REGULAR_USER, AdminType.STUDENT_ADMIN],
                 user__is_disabled=False,
             )
             .select_related("user")

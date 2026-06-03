@@ -22,7 +22,7 @@ class ClassRankAPI(APIView):
             User.objects.filter(
                 class_name__isnull=False,
                 is_disabled=False,
-                admin_type__in=[AdminType.REGULAR_USER, AdminType.ADMIN],
+                admin_type__in=[AdminType.REGULAR_USER, AdminType.STUDENT_ADMIN],
                 class_name__startswith=str(grade),
             )
             .values("class_name")
@@ -35,7 +35,7 @@ class ClassRankAPI(APIView):
             users = User.objects.filter(
                 class_name=class_name,
                 is_disabled=False,
-                admin_type__in=[AdminType.REGULAR_USER, AdminType.ADMIN],
+                admin_type__in=[AdminType.REGULAR_USER, AdminType.STUDENT_ADMIN],
             )
             user_ids = list(users.values_list("id", flat=True))
 
@@ -99,7 +99,7 @@ class UserClassRankAPI(APIView):
         class_users = User.objects.filter(
             class_name=user.class_name,
             is_disabled=False,
-            admin_type__in=[AdminType.REGULAR_USER, AdminType.ADMIN],
+            admin_type__in=[AdminType.REGULAR_USER, AdminType.STUDENT_ADMIN],
         ).select_related("userprofile")
 
         user_ranks = []
@@ -187,7 +187,7 @@ class ClassPKAPI(APIView):
             User.objects.filter(
                 class_name__in=class_names,
                 is_disabled=False,
-                admin_type__in=[AdminType.REGULAR_USER, AdminType.ADMIN],
+                admin_type__in=[AdminType.REGULAR_USER, AdminType.STUDENT_ADMIN],
             ).values_list("id", flat=True)
         )
         all_ac_list = sorted(
@@ -206,7 +206,7 @@ class ClassPKAPI(APIView):
             users = User.objects.filter(
                 class_name=class_name,
                 is_disabled=False,
-                admin_type__in=[AdminType.REGULAR_USER, AdminType.ADMIN],
+                admin_type__in=[AdminType.REGULAR_USER, AdminType.STUDENT_ADMIN],
             )
             user_ids = list(users.values_list("id", flat=True))
 

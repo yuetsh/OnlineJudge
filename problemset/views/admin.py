@@ -1,6 +1,6 @@
 from django.db.models import Count, Q
 
-from account.decorators import ensure_created_by, super_admin_required
+from account.decorators import ensure_created_by, teacher_admin_required
 from problem.models import Problem
 from problemset.models import (
     ProblemSet,
@@ -29,10 +29,12 @@ from utils.api import APIView, validate_serializer
 class ProblemSetAdminAPI(APIView):
     """题单管理API"""
 
-    @super_admin_required
+    @teacher_admin_required
     def get(self, request):
         """获取题单列表（管理员）"""
         problem_sets = ProblemSet.objects.filter(visible=True).annotate(problems_count=Count("problemsetproblem", distinct=True)).order_by("-create_time")
+        if not request.user.is_super_admin():
+            problem_sets = problem_sets.filter(created_by=request.user)
 
         # 过滤条件
         keyword = request.GET.get("keyword", "").strip()
@@ -51,7 +53,7 @@ class ProblemSetAdminAPI(APIView):
         data = self.paginate_data(request, problem_sets, ProblemSetListSerializer)
         return self.success(data)
 
-    @super_admin_required
+    @teacher_admin_required
     @validate_serializer(CreateProblemSetSerializer)
     def post(self, request):
         """创建题单"""
@@ -60,7 +62,7 @@ class ProblemSetAdminAPI(APIView):
         problem_set = ProblemSet.objects.create(**data)
         return self.success(ProblemSetSerializer(problem_set).data)
 
-    @super_admin_required
+    @teacher_admin_required
     @validate_serializer(EditProblemSetSerializer)
     def put(self, request):
         """编辑题单"""
@@ -79,7 +81,7 @@ class ProblemSetAdminAPI(APIView):
 
         return self.success(ProblemSetSerializer(problem_set).data)
 
-    @super_admin_required
+    @teacher_admin_required
     def delete(self, request):
         """删除题单"""
         problem_set_id = request.GET.get("id")
@@ -99,7 +101,7 @@ class ProblemSetAdminAPI(APIView):
 class ProblemSetDetailAdminAPI(APIView):
     """题单详情管理API"""
 
-    @super_admin_required
+    @teacher_admin_required
     def get(self, request, problem_set_id):
         """获取题单详情（管理员）"""
         try:
@@ -115,7 +117,7 @@ class ProblemSetDetailAdminAPI(APIView):
 class ProblemSetProblemAdminAPI(APIView):
     """题单题目管理API（管理员）"""
 
-    @super_admin_required
+    @teacher_admin_required
     def get(self, request, problem_set_id):
         """获取题单中的题目列表（管理员）"""
         try:
@@ -128,7 +130,7 @@ class ProblemSetProblemAdminAPI(APIView):
         serializer = ProblemSetProblemSerializer(problems, many=True, context={"request": request})
         return self.success(serializer.data)
 
-    @super_admin_required
+    @teacher_admin_required
     @validate_serializer(AddProblemToSetSerializer)
     def post(self, request, problem_set_id):
         """添加题目到题单（管理员）"""
@@ -163,7 +165,7 @@ class ProblemSetProblemAdminAPI(APIView):
 
         return self.success("题目已添加到题单")
 
-    @super_admin_required
+    @teacher_admin_required
     @validate_serializer(EditProblemInSetSerializer)
     def put(self, request, problem_set_id, problem_set_problem_id):
         """编辑题单中的题目（管理员）"""
@@ -193,7 +195,7 @@ class ProblemSetProblemAdminAPI(APIView):
 
         return self.success("题目已更新")
 
-    @super_admin_required
+    @teacher_admin_required
     def delete(self, request, problem_set_id, problem_set_problem_id):
         """从题单中移除题目（管理员）"""
         try:
@@ -213,7 +215,7 @@ class ProblemSetProblemAdminAPI(APIView):
 class ProblemSetBadgeAdminAPI(APIView):
     """题单奖章管理API（管理员）"""
 
-    @super_admin_required
+    @teacher_admin_required
     def get(self, request, problem_set_id):
         """获取题单的奖章列表（管理员）"""
         try:
@@ -226,7 +228,7 @@ class ProblemSetBadgeAdminAPI(APIView):
         serializer = ProblemSetBadgeSerializer(badges, many=True)
         return self.success(serializer.data)
 
-    @super_admin_required
+    @teacher_admin_required
     @validate_serializer(CreateProblemSetBadgeSerializer)
     def post(self, request, problem_set_id):
         """创建题单奖章（管理员）"""
@@ -242,7 +244,7 @@ class ProblemSetBadgeAdminAPI(APIView):
 
         return self.success(ProblemSetBadgeSerializer(badge).data)
 
-    @super_admin_required
+    @teacher_admin_required
     @validate_serializer(EditProblemSetBadgeSerializer)
     def put(self, request, problem_set_id, badge_id):
         """编辑题单奖章（管理员）"""
@@ -282,7 +284,7 @@ class ProblemSetBadgeAdminAPI(APIView):
             return self.success("奖章已更新，并重新计算了所有用户的徽章资格")
         return self.success("奖章已更新")
 
-    @super_admin_required
+    @teacher_admin_required
     def delete(self, request, problem_set_id, badge_id):
         """删除题单奖章（管理员）"""
         try:
@@ -302,7 +304,7 @@ class ProblemSetBadgeAdminAPI(APIView):
 class ProblemSetProgressAdminAPI(APIView):
     """题单进度管理API（管理员）"""
 
-    @super_admin_required
+    @teacher_admin_required
     def get(self, request, problem_set_id):
         """获取题单的所有用户进度（管理员）"""
         try:
@@ -315,7 +317,7 @@ class ProblemSetProgressAdminAPI(APIView):
         serializer = ProblemSetProgressSerializer(progress_list, many=True)
         return self.success(serializer.data)
 
-    @super_admin_required
+    @teacher_admin_required
     def delete(self, request, problem_set_id, user_id):
         """移除用户从题单（管理员）"""
         try:
@@ -336,7 +338,7 @@ class ProblemSetProgressAdminAPI(APIView):
 class ProblemSetSyncAPI(APIView):
     """题单同步管理API"""
 
-    @super_admin_required
+    @teacher_admin_required
     def post(self, request, problem_set_id):
         """手动同步题单的所有用户进度（管理员）"""
         try:
@@ -354,7 +356,7 @@ class ProblemSetSyncAPI(APIView):
 class ProblemSetVisibleAPI(APIView):
     """题单可见性管理API"""
 
-    @super_admin_required
+    @teacher_admin_required
     @validate_serializer(ProblemSetVisibleSerializer)
     def put(self, request):
         """切换题单可见性"""
@@ -373,7 +375,7 @@ class ProblemSetVisibleAPI(APIView):
 class ProblemSetStatusAPI(APIView):
     """题单状态管理API"""
 
-    @super_admin_required
+    @teacher_admin_required
     @validate_serializer(ProblemSetUpdateStatusSerializer)
     def put(self, request):
         """更新题单状态"""

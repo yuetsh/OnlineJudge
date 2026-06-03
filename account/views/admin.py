@@ -105,7 +105,9 @@ class UserAdminAPI(APIView):
         user.admin_type = data["admin_type"]
         user.is_disabled = data["is_disabled"]
 
-        if data["admin_type"] == AdminType.ADMIN:
+        if data["admin_type"] == AdminType.STUDENT_ADMIN:
+            user.problem_permission = data["problem_permission"] or ProblemPermission.OWN
+        elif data["admin_type"] == AdminType.TEACHER_ADMIN:
             user.problem_permission = data["problem_permission"] or ProblemPermission.OWN
         elif data["admin_type"] == AdminType.SUPER_ADMIN:
             user.problem_permission = ProblemPermission.ALL
