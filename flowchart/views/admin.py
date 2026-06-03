@@ -14,9 +14,26 @@ from ..models import FlowchartSubmission, FlowchartSubmissionStatus
 STOPWORDS = frozenset(
     "的 了 是 在 和 有 就 不 也 都 要 会 这 那 到 说 上 为 与 及 等 "
     "把 被 从 而 所 但 如 又 或 很 更 还 让 对 已 向 只 能 以 中 可以 "
-    "可能 需要 没有 使用 进行 注意 建议 应该 考虑 "
-    "一个 一些 一下 一定 一种 这个 所有 其他 ".split()
+    "可能 需要 没有 使用 进行 注意 建议 应该 考虑 整体 基本 部分 "
+    "一个 一些 一下 一定 一种 这个 所有 其他 比较 存在 明确 "
+    "正确 良好 清晰 合理 较好 不错 符合 标准 ".split()
 )
+
+CUSTOM_WORDS = [
+    "循环结构", "条件判断", "判断条件", "结束条件", "循环条件",
+    "异常处理", "边界条件", "输入输出", "输入验证",
+    "开始结束", "结束节点", "开始节点", "判断节点",
+    "流程走向", "逻辑错误", "逻辑缺陷", "逻辑不清",
+    "缺少分支", "缺少步骤", "缺少判断", "缺少循环",
+    "死循环", "无限循环", "循环出口", "循环体",
+    "条件分支", "分支结构", "分支不全", "分支缺失",
+    "符号使用", "符号不规范", "连线混乱",
+    "变量初始化", "赋值操作", "累加操作",
+    "终止条件", "退出条件", "返回值",
+]
+
+for _w in CUSTOM_WORDS:
+    jieba.add_word(_w, freq=9999)
 
 
 def get_real_name(username, class_name):
@@ -94,12 +111,12 @@ class FlowchartStatisticsAPI(APIView):
         criteria_counts = Counter()
         criteria_max = {}
 
-        feedback_texts = []
+        wordcloud_texts = []
 
         for row in submissions.values_list(
-            "ai_criteria_details", "ai_feedback"
+            "ai_criteria_details", "ai_feedback", "ai_suggestions"
         ).iterator():
-            details, feedback = row
+            details, feedback, suggestions = row
             if details and isinstance(details, dict):
                 for key, val in details.items():
                     if isinstance(val, dict) and "score" in val:
@@ -107,8 +124,12 @@ class FlowchartStatisticsAPI(APIView):
                         criteria_counts[key] += 1
                         if key not in criteria_max:
                             criteria_max[key] = val.get("max", 100)
+                        if val.get("comment"):
+                            wordcloud_texts.append(val["comment"])
             if feedback:
-                feedback_texts.append(feedback)
+                wordcloud_texts.append(feedback)
+            if suggestions:
+                wordcloud_texts.append(suggestions)
 
         criteria_averages = {}
         for key in criteria_totals:
@@ -131,8 +152,8 @@ class FlowchartStatisticsAPI(APIView):
                 real_name = get_real_name(uname, class_name)
                 unaccepted.append({"username": uname, "real_name": real_name})
 
-        # 5. Word cloud from feedback
-        word_freq = self._build_word_frequencies(feedback_texts)
+        # 5. Word cloud from feedback + suggestions + criteria comments
+        word_freq = self._build_word_frequencies(wordcloud_texts)
 
         return self.success({
             "total_count": total_count,
