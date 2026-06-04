@@ -52,8 +52,8 @@ class SubmissionAPI(AsyncAPIView):
                 ):
                     return self.error("Your IP is not allowed in this contest")
 
-    @validate_serializer(CreateSubmissionSerializer)
     @login_required
+    @validate_serializer(CreateSubmissionSerializer)
     async def post(self, request):
         data = request.data
         hide_id = False
@@ -122,8 +122,8 @@ class SubmissionAPI(AsyncAPIView):
         )
         return self.success(submission_data)
 
-    @validate_serializer(ShareSubmissionSerializer)
     @login_required
+    @validate_serializer(ShareSubmissionSerializer)
     async def put(self, request):
         try:
             submission = await Submission.objects.select_related("problem", "contest").aget(

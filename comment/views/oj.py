@@ -13,8 +13,8 @@ from utils.constants import CacheKey
 
 
 class CommentAPI(AsyncAPIView):
-    @validate_serializer(CreateCommentSerializer)
     @login_required
+    @validate_serializer(CreateCommentSerializer)
     async def post(self, request):
         data = request.data
         try:

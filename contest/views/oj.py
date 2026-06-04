@@ -79,8 +79,8 @@ class ContestListAPI(AsyncAPIView):
 
 
 class ContestPasswordVerifyAPI(AsyncAPIView):
-    @validate_serializer(ContestPasswordVerifySerializer)
     @login_required
+    @validate_serializer(ContestPasswordVerifySerializer)
     async def post(self, request):
         data = request.data
         try:

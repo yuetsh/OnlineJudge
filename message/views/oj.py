@@ -15,8 +15,8 @@ class MessageAPI(AsyncAPIView):
         ).filter(recipient=request.user)
         return self.success(await self.async_paginate_data(request, messages, MessageSerializer))
 
-    @validate_serializer(CreateMessageSerializer)
     @super_admin_required
+    @validate_serializer(CreateMessageSerializer)
     async def post(self, request):
         data = request.data
         if data["recipient"] == request.user.id:

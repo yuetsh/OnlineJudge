@@ -78,8 +78,8 @@ class UserProfileAPI(AsyncAPIView):
         profile = await UserProfile.objects.select_related("user").aget(user=user)
         return self.success(UserProfileSerializer(profile, show_real_name=show_real_name).data)
 
-    @validate_serializer(EditUserProfileSerializer)
     @login_required
+    @validate_serializer(EditUserProfileSerializer)
     async def put(self, request):
         data = request.data
         user_profile = await UserProfile.objects.select_related("user").aget(user=request.user)
