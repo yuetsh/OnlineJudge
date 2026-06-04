@@ -27,4 +27,4 @@ class AIAnalysisAdminAPI(APIView):
                 return self.error("User not found")
             qs = qs.filter(user=user)
 
-        return self.paginate_data(request, qs, AIAnalysisListSerializer)
+        return self.success(self.paginate_data(request, qs, AIAnalysisListSerializer))
