@@ -20,6 +20,7 @@ urlpatterns = [
     path("api/", include("tutorial.urls.tutorial")),
     path("api/admin/", include("tutorial.urls.admin")),
     path("api/", include("ai.urls.oj")),
+    path("api/admin/", include("ai.urls.admin")),
     path("api/", include("flowchart.urls.oj")),
     path("api/admin/", include("flowchart.urls.admin")),
     path("api/", include("problemset.urls.oj")),
