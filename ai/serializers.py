@@ -1,4 +1,4 @@
-from rest_framework import serializers
+from utils.api import serializers
 
 from .models import AIAnalysis
 
