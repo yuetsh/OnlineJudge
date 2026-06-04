@@ -14,6 +14,7 @@ from .models import ProblemPermission
 class BasePermissionDecorator(object):
     def __init__(self, func):
         self.func = func
+        functools.update_wrapper(self, func)
 
     def __get__(self, obj, obj_type):
         if inspect.iscoroutinefunction(self.func):

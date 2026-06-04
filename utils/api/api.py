@@ -252,10 +252,13 @@ def validate_serializer(serializer):
                 self = args[0]
                 request = args[1]
                 s = serializer(data=request.data)
-                if s.is_valid():
+                if await sync_to_async(s.is_valid)():
                     request.data = s.data
                     request.serializer = s
-                    return await view_method(*args, **kwargs)
+                    response = view_method(*args, **kwargs)
+                    if asyncio.iscoroutine(response):
+                        return await response
+                    return response
                 else:
                     return self.invalid_serializer(s)
             return async_handle
