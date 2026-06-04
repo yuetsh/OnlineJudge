@@ -7,6 +7,7 @@ from ..views.oj import (
     AIHeatmapDataAPI,
     AIHintAPI,
     AILoginSummaryAPI,
+    AIPinnedReportAPI,
     ClassPKAnalysisAPI,
 )
 
@@ -17,5 +18,6 @@ urlpatterns = [
     path("ai/hint", AIHintAPI.as_view()),
     path("ai/heatmap", AIHeatmapDataAPI.as_view()),
     path("ai/login_summary", AILoginSummaryAPI.as_view()),
+    path("ai/pinned", AIPinnedReportAPI.as_view()),
     path("ai/class_pk", ClassPKAnalysisAPI.as_view()),
 ]

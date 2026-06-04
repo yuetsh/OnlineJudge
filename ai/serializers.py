@@ -9,7 +9,7 @@ class AIAnalysisListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = AIAnalysis
-        fields = ["id", "create_time", "username", "class_name"]
+        fields = ["id", "create_time", "username", "class_name", "is_pinned"]
 
 
 class AIAnalysisDetailSerializer(serializers.ModelSerializer):

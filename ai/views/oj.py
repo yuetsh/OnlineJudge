@@ -14,6 +14,7 @@ from django.utils.dateparse import parse_datetime
 from account.decorators import login_required, teacher_admin_required
 from account.models import User
 from ai.models import AIAnalysis
+from ai.serializers import AIAnalysisDetailSerializer
 from flowchart.models import FlowchartSubmission, FlowchartSubmissionStatus
 from problem.models import Problem
 from submission.models import JudgeStatus, Submission
@@ -798,6 +799,16 @@ class ClassPKAnalysisAPI(APIView):
         ]
 
         return "\n".join(lines)
+
+
+class AIPinnedReportAPI(APIView):
+    @login_required
+    def get(self, request):
+        try:
+            report = AIAnalysis.objects.get(user=request.user, is_pinned=True)
+        except AIAnalysis.DoesNotExist:
+            return self.success(None)
+        return self.success(AIAnalysisDetailSerializer(report).data)
 
 
 class AIHintAPI(APIView):

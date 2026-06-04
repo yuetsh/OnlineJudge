@@ -1,5 +1,4 @@
 from account.decorators import teacher_admin_required
-from account.models import User
 from utils.api import APIView
 
 from ..models import AIAnalysis
@@ -21,10 +20,26 @@ class AIAnalysisAdminAPI(APIView):
 
         username = request.GET.get("username")
         if username:
-            try:
-                user = User.objects.get(username=username)
-            except User.DoesNotExist:
-                return self.error("User not found")
-            qs = qs.filter(user=user)
+            qs = qs.filter(user__username__icontains=username)
+
+        if request.GET.get("pinned_only") == "true":
+            pinned = qs.filter(is_pinned=True)
+            return self.success(AIAnalysisListSerializer(pinned, many=True).data)
 
         return self.success(self.paginate_data(request, qs, AIAnalysisListSerializer))
+
+    @teacher_admin_required
+    def post(self, request):
+        report_id = request.data.get("id")
+        try:
+            report = AIAnalysis.objects.select_related("user").get(id=report_id)
+        except AIAnalysis.DoesNotExist:
+            return self.error("AIAnalysis not found")
+
+        if report.is_pinned:
+            report.is_pinned = False
+        else:
+            AIAnalysis.objects.filter(user=report.user, is_pinned=True).update(is_pinned=False)
+            report.is_pinned = True
+        report.save(update_fields=["is_pinned"])
+        return self.success({"is_pinned": report.is_pinned})

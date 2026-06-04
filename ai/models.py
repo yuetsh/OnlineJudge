@@ -11,6 +11,7 @@ class AIAnalysis(models.Model):
     system_prompt = models.TextField()
     user_prompt = models.TextField()
     analysis = models.TextField()
+    is_pinned = models.BooleanField(default=False)
     create_time = models.DateTimeField(auto_now_add=True)
 
     class Meta:
