@@ -1,3 +1,5 @@
+from django.utils import timezone
+
 from account.decorators import login_required
 from flowchart.models import FlowchartSubmission, FlowchartSubmissionStatus
 from flowchart.serializers import (
@@ -85,6 +87,12 @@ class FlowchartSubmissionListAPI(AsyncAPIView):
             queryset = queryset.filter(user__username__icontains=username)
         elif request.user.is_regular_user():
             queryset = queryset.filter(user=request.user)
+
+        if request.GET.get("today") == "1":
+            now = timezone.now()
+            queryset = queryset.filter(
+                create_time__gte=now.replace(hour=0, minute=0, second=0, microsecond=0)
+            )
 
         data = await self.async_paginate_data(request, queryset)
         data["results"] = await self.async_serialize_data(

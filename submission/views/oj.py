@@ -5,6 +5,7 @@ from django.utils import timezone
 
 from account.decorators import check_contest_permission, login_required
 from contest.models import ContestStatus
+from flowchart.models import FlowchartSubmission
 from judge.tasks import judge_task
 from options.options import SysOptions
 
@@ -266,7 +267,13 @@ class SubmissionExistsAPI(AsyncAPIView):
 class SubmissionsTodayCount(AsyncAPIView):
     async def get(self, request):
         now = timezone.now()
-        count = await Submission.objects.filter(
-            create_time__gte=now.replace(hour=0, minute=0, second=0, microsecond=0)
-        ).acount()
+        start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        if request.GET.get("language") == "Flowchart":
+            count = await FlowchartSubmission.objects.filter(
+                create_time__gte=start
+            ).acount()
+        else:
+            count = await Submission.objects.filter(
+                contest_id__isnull=True, create_time__gte=start
+            ).acount()
         return self.success(count)
