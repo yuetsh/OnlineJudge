@@ -1,10 +1,9 @@
 from django.db import models
 from django.utils.timezone import now
-from utils.models import JSONField
 
-from utils.constants import ContestStatus, ContestType
 from account.models import User
-from utils.models import RichTextField
+from utils.constants import ContestStatus, ContestType
+from utils.models import JSONField, RichTextField
 
 
 class Contest(models.Model):

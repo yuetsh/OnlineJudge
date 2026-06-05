@@ -124,13 +124,9 @@ class TestCaseAPI(CSRFExemptAPIView, TestCaseZipProcessor):
         with zipfile.ZipFile(file_name, "w") as file:
             for test_case in name_list:
                 file.write(f"{test_case_dir}/{test_case}", test_case)
-        response = StreamingHttpResponse(
-            FileWrapper(open(file_name, "rb")), content_type="application/octet-stream"
-        )
+        response = StreamingHttpResponse(FileWrapper(open(file_name, "rb")), content_type="application/octet-stream")
 
-        response["Content-Disposition"] = (
-            f"attachment; filename=problem_{problem.id}_test_cases.zip"
-        )
+        response["Content-Disposition"] = f"attachment; filename=problem_{problem.id}_test_cases.zip"
         response["Content-Length"] = os.path.getsize(file_name)
         return response
 
@@ -203,9 +199,7 @@ class ProblemAPI(ProblemBase):
             except Problem.DoesNotExist:
                 return self.error("Problem does not exist")
 
-        problems = Problem.objects.filter(contest_id__isnull=True).order_by(
-            "-create_time"
-        )
+        problems = Problem.objects.filter(contest_id__isnull=True).order_by("-create_time")
 
         author = request.GET.get("author", "")
         if author:
@@ -213,14 +207,10 @@ class ProblemAPI(ProblemBase):
 
         keyword = request.GET.get("keyword", "").strip()
         if keyword:
-            problems = problems.filter(
-                Q(title__icontains=keyword) | Q(_id__icontains=keyword)
-            )
+            problems = problems.filter(Q(title__icontains=keyword) | Q(_id__icontains=keyword))
         if not user.can_mgmt_all_problem():
             problems = problems.filter(created_by=user)
-        return self.success(
-            self.paginate_data(request, problems, ProblemAdminListSerializer)
-        )
+        return self.success(self.paginate_data(request, problems, ProblemAdminListSerializer))
 
     @problem_permission_required
     @validate_serializer(EditProblemSerializer)
@@ -237,11 +227,7 @@ class ProblemAPI(ProblemBase):
         _id = data["_id"]
         if not _id:
             return self.error("Display ID is required")
-        if (
-            Problem.objects.exclude(id=problem_id)
-            .filter(_id=_id, contest_id__isnull=True)
-            .exists()
-        ):
+        if Problem.objects.exclude(id=problem_id).filter(_id=_id, contest_id__isnull=True).exists():
             return self.error("Display ID already exists")
 
         error_info = self.common_checks(request)
@@ -342,9 +328,7 @@ class ContestProblemAPI(ProblemBase):
         keyword = request.GET.get("keyword")
         if keyword:
             problems = problems.filter(title__contains=keyword)
-        return self.success(
-            self.paginate_data(request, problems, ProblemAdminListSerializer)
-        )
+        return self.success(self.paginate_data(request, problems, ProblemAdminListSerializer))
 
     @validate_serializer(EditContestProblemSerializer)
     def put(self, request):
@@ -367,11 +351,7 @@ class ContestProblemAPI(ProblemBase):
         _id = data["_id"]
         if not _id:
             return self.error("Display ID is required")
-        if (
-            Problem.objects.exclude(id=problem_id)
-            .filter(_id=_id, contest=contest)
-            .exists()
-        ):
+        if Problem.objects.exclude(id=problem_id).filter(_id=_id, contest=contest).exists():
             return self.error("Display ID already exists")
 
         error_info = self.common_checks(request)
@@ -500,7 +480,8 @@ class ProblemFlowchartAIGen(APIView):
                 },
                 {"role": "user", "content": python_code},
             ],
-            temperature=1.0,
+            temperature=0,
+            extra_body={"thinking": {"type": "disabled"}},
         )
 
         mermaid_code = response.choices[0].message.content
@@ -512,11 +493,13 @@ class StuckProblemsAPI(APIView):
     def get(self, request):
         from submission.models import JudgeStatus
 
-        failed_q = Q(result__in=[
-            JudgeStatus.WRONG_ANSWER,
-            JudgeStatus.COMPILE_ERROR,
-            JudgeStatus.RUNTIME_ERROR,
-        ])
+        failed_q = Q(
+            result__in=[
+                JudgeStatus.WRONG_ANSWER,
+                JudgeStatus.COMPILE_ERROR,
+                JudgeStatus.RUNTIME_ERROR,
+            ]
+        )
         rows = (
             Submission.objects.values("problem_id", "problem___id", "problem__title")
             .annotate(
@@ -535,9 +518,7 @@ class StuckProblemsAPI(APIView):
                 "total": r["total"],
                 "failed": r["failed"],
                 "failed_users": r["failed_users"],
-                "ac_rate": round(r["accepted"] / r["total"] * 100, 1)
-                if r["total"]
-                else 0,
+                "ac_rate": round(r["accepted"] / r["total"] * 100, 1) if r["total"] else 0,
             }
             for r in rows
         ]
