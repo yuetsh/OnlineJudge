@@ -94,6 +94,10 @@ class FlowchartSubmissionListAPI(AsyncAPIView):
                 create_time__gte=now.replace(hour=0, minute=0, second=0, microsecond=0)
             )
 
+        grade = request.GET.get("grade")
+        if grade in ("S", "A", "B", "C"):
+            queryset = queryset.filter(ai_grade=grade)
+
         data = await self.async_paginate_data(request, queryset)
         data["results"] = await self.async_serialize_data(
             FlowchartSubmissionListSerializer,
