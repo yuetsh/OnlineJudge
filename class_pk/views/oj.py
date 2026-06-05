@@ -151,8 +151,8 @@ class ClassPKAPI(APIView):
 
     def post(self, request):
         class_names = request.data.get("class_name", [])
-        if not class_names or len(class_names) < 2:
-            return self.error("至少需要选择2个班级进行比较")
+        if not class_names or len(class_names) < 1:
+            return self.error("至少需要选择1个班级")
 
         # 获取时间段参数
         start_time = request.data.get("start_time")
