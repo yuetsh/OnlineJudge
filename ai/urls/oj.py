@@ -9,6 +9,7 @@ from ..views.oj import (
     AILoginSummaryAPI,
     AIPinnedReportAPI,
     ClassPKAnalysisAPI,
+    SingleClassAnalysisAPI,
 )
 
 urlpatterns = [
@@ -20,4 +21,5 @@ urlpatterns = [
     path("ai/login_summary", AILoginSummaryAPI.as_view()),
     path("ai/pinned", AIPinnedReportAPI.as_view()),
     path("ai/class_pk", ClassPKAnalysisAPI.as_view()),
+    path("ai/class_single", SingleClassAnalysisAPI.as_view()),
 ]

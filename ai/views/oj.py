@@ -801,6 +801,65 @@ class ClassPKAnalysisAPI(APIView):
         return "\n".join(lines)
 
 
+class SingleClassAnalysisAPI(APIView):
+    @login_required
+    def post(self, request):
+        comparison = request.data.get("comparison")
+        if not comparison:
+            return self.error("缺少班级数据")
+
+        client = get_async_ai_client()
+
+        class_name = comparison.get("class_name", "")
+        class_display = f"{class_name[:2]}计算机{class_name[2:]}班"
+
+        system_prompt = (
+            "你是一位经验丰富的编程教育数据分析专家，专注于职业院校计算机编程教学效果评估。"
+            "请根据在线评测系统（OJ）提供的班级数据，给出深入、专业的分析报告。"
+            "请使用 markdown 格式输出，不要在代码块中输出。"
+        )
+
+        lines = [
+            f"## 班级：{class_display}",
+            "",
+            "## 指标说明",
+            "- 总AC数：班级累计通过的题目总数",
+            '- 平均AC / 中位数AC：平均受尖子生影响，中位数反映"典型学生"的真实水平',
+            "- 前10%/中间80%/后10%均值：梯队分层",
+            "- 优秀率 / 及格率：分别基于班级内部Q3/Q1阈值统计",
+            "- 参与度：有过任意提交的学生比例",
+            "- AC率：提交通过率",
+            "- 综合分：综合多项指标计算的总评分（满分100）",
+            "",
+            "## 班级数据",
+            f"- 人数：{comparison['user_count']}",
+            f"- 总AC数：{comparison['total_ac']}，总提交数：{comparison['total_submission']}，AC率：{comparison['ac_rate']:.1f}%",
+            f"- 平均AC：{comparison['avg_ac']:.2f}，中位数AC：{comparison['median_ac']:.2f}",
+            f"- Q1：{comparison['q1_ac']:.2f}，Q3：{comparison['q3_ac']:.2f}，IQR：{comparison['iqr']:.2f}，标准差：{comparison['std_dev']:.2f}",
+            f"- 前10%均值：{comparison['top_10_avg']:.2f}，中间80%均值：{comparison['middle_80_avg']:.2f}，后10%均值：{comparison['bottom_10_avg']:.2f}",
+            f"- 优秀率：{comparison['excellent_rate']:.1f}%，及格率：{comparison['pass_rate']:.1f}%，参与度：{comparison['active_rate']:.1f}%",
+            f"- 综合分：{comparison['composite_score']:.1f}",
+            "",
+            "## 请从以下5个维度分析，输出中文报告：",
+            "",
+            "**1. 整体水平**：基于总AC数、均值与中位数，评价班级的整体编程水平。若均值明显高于中位数，需指出被少数强者拉高的情况。",
+            "",
+            "**2. 参与积极性**：结合参与度和AC率，评价学生的学习主动性和代码质量。",
+            "",
+            '**3. 班级内部均衡性**：结合标准差、IQR、前10%与后10%差距，判断是"均衡型"还是"两极型"班级。',
+            "",
+            "**4. 梯队分析**：分析前10%（尖子生）、中间80%（中坚力量）、后10%（需帮扶学生）的水平差异，给出针对性建议。",
+            "",
+            "**5. 改进建议**：结合优秀率、及格率等数据，给出3条具体可操作的教学改进建议。最后用一句话鼓励这个班级。",
+            "",
+            "分析对象是班级任课教师，语言专业但不过分学术。",
+        ]
+
+        user_prompt = "\n".join(lines)
+
+        return make_sse_response(stream_ai_response(client, system_prompt, user_prompt))
+
+
 class AIPinnedReportAPI(APIView):
     @login_required
     def get(self, request):
