@@ -35,9 +35,8 @@ pip install -r /app/deploy/requirements.txt
 rm -rf /var/lib/apt/lists/*
 EOS
 
-COPY ./ /app/
+COPY --chmod=755 ./ /app/
 RUN mkdir -p /app/dist/
-RUN chmod -R u=rwX,go=rX ./ && chmod +x ./deploy/entrypoint.sh
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD python3 /app/deploy/health_check.py
