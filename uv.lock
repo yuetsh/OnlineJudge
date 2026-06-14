@@ -575,17 +575,13 @@ dependencies = [
     { name = "psycopg-binary" },
     { name = "python-dateutil" },
     { name = "qrcode" },
+    { name = "ruff" },
     { name = "sentry-sdk", extra = ["django"] },
     { name = "tree-sitter" },
     { name = "tree-sitter-c" },
     { name = "tree-sitter-python" },
     { name = "uvicorn", extra = ["standard"] },
     { name = "xlsxwriter" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "ruff" },
 ]
 
 [package.metadata]
@@ -609,6 +605,7 @@ requires-dist = [
     { name = "psycopg-binary", specifier = ">=3.3.4,<4" },
     { name = "python-dateutil", specifier = ">=2.9.0.post0,<3" },
     { name = "qrcode", specifier = ">=8.2,<9" },
+    { name = "ruff", specifier = ">=0.15.11" },
     { name = "sentry-sdk", extras = ["django"], specifier = ">=2.0.0,<3" },
     { name = "tree-sitter", specifier = ">=0.25.2" },
     { name = "tree-sitter-c", specifier = ">=0.24.2" },
@@ -616,9 +613,6 @@ requires-dist = [
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.34.0,<1" },
     { name = "xlsxwriter", specifier = ">=3.2.9,<4" },
 ]
-
-[package.metadata.requires-dev]
-dev = [{ name = "ruff", specifier = ">=0.15.11" }]
 
 [[package]]
 name = "openai"
