@@ -1,4 +1,5 @@
 import ipaddress
+import logging
 
 from asgiref.sync import sync_to_async
 from django.utils import timezone
@@ -11,7 +12,7 @@ from options.options import SysOptions
 
 # from judge.dispatcher import JudgeDispatcher
 from problem.models import Problem, ProblemRuleType
-from utils.api import AsyncAPIView, validate_serializer
+from utils.api import APIView, AsyncAPIView, validate_serializer
 from utils.cache import cache
 from utils.captcha import Captcha
 from utils.throttling import TokenBucket
@@ -19,12 +20,16 @@ from utils.throttling import TokenBucket
 from ..models import Submission
 from ..serializers import (
     CreateSubmissionSerializer,
+    FormatCodeSerializer,
     ShareSubmissionSerializer,
     SubmissionListSerializer,
     SubmissionModelSerializer,
     SubmissionSafeModelSerializer,
     bulk_fetch_problemset_progress,
 )
+from ..utils import FormatSyntaxError, FormatToolError, format_code
+
+logger = logging.getLogger(__name__)
 
 
 class SubmissionAPI(AsyncAPIView):
@@ -277,3 +282,19 @@ class SubmissionsTodayCount(AsyncAPIView):
                 contest_id__isnull=True, create_time__gte=start
             ).acount()
         return self.success(count)
+
+
+class FormatCodeAPI(APIView):
+    @login_required
+    @validate_serializer(FormatCodeSerializer)
+    def post(self, request):
+        code = request.data["code"]
+        language = request.data["language"]
+        try:
+            formatted = format_code(code, language)
+        except FormatSyntaxError as e:
+            return self.error(msg=str(e), err="format-error")
+        except FormatToolError as e:
+            logger.exception("format_code tool error: %s", e)
+            return self.error(msg="format failed", err="server-error")
+        return self.success({"code": formatted})
