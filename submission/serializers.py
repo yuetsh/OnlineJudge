@@ -119,3 +119,8 @@ class SubmissionListSerializer(serializers.ModelSerializer):
                 .first()
             )
         return self._problemset_progress_cache[problem_id]
+
+
+class FormatCodeSerializer(serializers.Serializer):
+    code = serializers.CharField(max_length=1024 * 1024)
+    language = serializers.ChoiceField(choices=("python", "c", "cpp"))
