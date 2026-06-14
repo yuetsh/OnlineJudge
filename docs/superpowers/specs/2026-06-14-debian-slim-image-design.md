@@ -25,6 +25,7 @@ Replace Alpine `apk` commands with Debian `apt-get` commands. Install only runti
 - `libpq5`
 - `nginx`
 - `openssl`
+- `passwd`
 - `supervisor`
 - `unzip`
 - `zlib1g`
