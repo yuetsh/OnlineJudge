@@ -20,7 +20,8 @@ apk add --no-cache \
   libjpeg-turbo libjpeg-turbo-dev \
   zlib zlib-dev \
   freetype freetype-dev \
-  supervisor openssl nginx curl unzip
+  supervisor openssl nginx curl unzip \
+  clang-extra-tools
 pip install --no-cache-dir -r /app/deploy/requirements.txt
 apk del gcc libc-dev python3-dev libpq-dev libjpeg-turbo-dev zlib-dev freetype-dev
 EOS
