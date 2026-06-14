@@ -2,6 +2,7 @@ from django.urls import path
 
 from ..views.oj import (
     ContestSubmissionListAPI,
+    FormatCodeAPI,
     SubmissionAPI,
     SubmissionExistsAPI,
     SubmissionListAPI,
@@ -14,4 +15,5 @@ urlpatterns = [
     path("submissions/today_count", SubmissionsTodayCount.as_view()),
     path("submission_exists", SubmissionExistsAPI.as_view()),  # DEPRECATED: 前端未调用
     path("contest_submissions", ContestSubmissionListAPI.as_view()),
+    path("format_code", FormatCodeAPI.as_view()),
 ]

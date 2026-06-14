@@ -12,7 +12,7 @@ from options.options import SysOptions
 
 # from judge.dispatcher import JudgeDispatcher
 from problem.models import Problem, ProblemRuleType
-from utils.api import APIView, AsyncAPIView, validate_serializer
+from utils.api import APIView, AsyncAPIView, CSRFExemptAPIView, validate_serializer
 from utils.cache import cache
 from utils.captcha import Captcha
 from utils.throttling import TokenBucket
@@ -284,7 +284,7 @@ class SubmissionsTodayCount(AsyncAPIView):
         return self.success(count)
 
 
-class FormatCodeAPI(APIView):
+class FormatCodeAPI(CSRFExemptAPIView):
     @login_required
     @validate_serializer(FormatCodeSerializer)
     def post(self, request):
