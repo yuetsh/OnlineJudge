@@ -11,7 +11,7 @@ from django.utils import timezone
 
 from account.models import User
 from conf.models import JudgeServer
-from contest.models import ACMContestRank, ContestStatus
+from contest.models import ACMContestRank
 from options.options import SysOptions
 from problem.models import Problem, ProblemRuleType
 from problem.utils import parse_problem_template
@@ -238,7 +238,10 @@ class JudgeDispatcher(DispatcherBase):
             logger.error(f"Failed to push submission update: {str(e)}")
 
         if self.contest_id:
-            if self.contest.status != ContestStatus.CONTEST_UNDERWAY or \
+            # 以提交时刻（而非判题时刻）是否落在比赛时间窗内为准，
+            # 避免临界提交因判题排队延迟到比赛结束后才处理而被丢弃
+            in_contest = self.contest.start_time <= self.submission.create_time <= self.contest.end_time
+            if not in_contest or \
                     User.objects.get(id=self.submission.user_id).is_contest_admin(self.contest):
                 logger.info(
                     "Contest debug mode, id: " + str(self.contest_id) + ", submission id: " + self.submission.id)
@@ -397,7 +400,7 @@ class JudgeDispatcher(DispatcherBase):
             if is_accepted(self.submission.result):
                 rank.accepted_number += 1
                 info["is_ac"] = True
-                info["ac_time"] = (self.submission.create_time - self.contest.start_time).total_seconds()
+                info["ac_time"] = int((self.submission.create_time - self.contest.start_time).total_seconds())
                 rank.total_time += info["ac_time"] + info["error_number"] * 20 * 60
 
                 if problem.accepted_number == 1:
@@ -412,7 +415,7 @@ class JudgeDispatcher(DispatcherBase):
             if is_accepted(self.submission.result):
                 rank.accepted_number += 1
                 info["is_ac"] = True
-                info["ac_time"] = (self.submission.create_time - self.contest.start_time).total_seconds()
+                info["ac_time"] = int((self.submission.create_time - self.contest.start_time).total_seconds())
                 rank.total_time += info["ac_time"]
 
                 if problem.accepted_number == 1:

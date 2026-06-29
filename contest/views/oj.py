@@ -94,7 +94,7 @@ class ContestPasswordVerifyAPI(AsyncAPIView):
 
         if CONTEST_PASSWORD_SESSION_KEY not in request.session:
             request.session[CONTEST_PASSWORD_SESSION_KEY] = {}
-        request.session[CONTEST_PASSWORD_SESSION_KEY][contest.id] = data["password"]
+        request.session[CONTEST_PASSWORD_SESSION_KEY][str(contest.id)] = data["password"]
         request.session.modified = True
         return self.success(True)
 
@@ -112,7 +112,7 @@ class ContestAccessAPI(AsyncAPIView):
         except Contest.DoesNotExist:
             return self.error("Contest does not exist")
         session_pass = request.session.get(CONTEST_PASSWORD_SESSION_KEY, {}).get(
-            contest.id
+            str(contest.id)
         )
         return self.success(
             {"access": check_contest_password(session_pass, contest.password)}

@@ -127,7 +127,7 @@ def check_contest_permission(check_type="details"):
             return None
 
         if self.contest.contest_type == ContestType.PASSWORD_PROTECTED_CONTEST:
-            if not check_contest_password(request.session.get(CONTEST_PASSWORD_SESSION_KEY, {}).get(self.contest.id), self.contest.password):
+            if not check_contest_password(request.session.get(CONTEST_PASSWORD_SESSION_KEY, {}).get(str(self.contest.id)), self.contest.password):
                 return self.error("Wrong password or password expired")
 
         if self.contest.status == ContestStatus.CONTEST_NOT_START and check_type != "details":
