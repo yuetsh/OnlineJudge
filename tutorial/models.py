@@ -12,6 +12,10 @@ class ExerciseType(models.TextChoices):
     MCQ = "mcq", "选择题"
     SORT = "sort", "代码排序"
     FILL = "fill", "代码填空"
+    MATCH = "match", "连线匹配"
+    PREDICT = "predict", "输出预测"
+    DEBUG = "debug", "代码找错"
+    GROUP = "group", "归类分组"
 
 
 class Tutorial(models.Model):
