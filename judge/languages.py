@@ -174,4 +174,6 @@ languages = [
     {"config": _py3_lang_config, "name": "Python3", "description": "Python 3.12", "content_type": "text/x-python"},
     {"config": _go_lang_config, "name": "Golang", "description": "Golang 1.22", "content_type": "text/x-go"},
     {"config": _node_lang_config, "name": "JavaScript", "description": "Node.js 20", "content_type": "text/javascript"},
+    # SQL 题不走外部 judger 沙箱（judge/sql_dispatcher.py 在 worker 内用 sqlite3 判题），config 仅占位
+    {"config": {"template": ""}, "name": "SQL", "description": "SQLite 3", "content_type": "text/x-sql"},
 ]

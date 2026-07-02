@@ -37,6 +37,11 @@ class CreateProblemCodeTemplateSerializer(serializers.Serializer):
     pass
 
 
+class SQLConfigSerializer(serializers.Serializer):
+    mode = serializers.ChoiceField(choices=["query", "modify"])
+    order_sensitive = serializers.BooleanField(default=False)
+
+
 class ProblemIOModeSerializer(serializers.Serializer):
     io_mode = serializers.ChoiceField(choices=ProblemIOMode.choices)
     input = serializers.CharField()
@@ -88,6 +93,9 @@ class CreateOrEditProblemSerializer(serializers.Serializer):
 
     # AST 规则
     ast_rules = serializers.JSONField(required=False, allow_null=True, default=None)
+
+    # SQL 题配置
+    sql_config = SQLConfigSerializer(required=False, allow_null=True, default=None)
 
 
 class CreateProblemSerializer(CreateOrEditProblemSerializer):

@@ -86,6 +86,9 @@ class Problem(models.Model):
     # AST 代码结构检查规则
     ast_rules = models.JSONField(null=True, blank=True, default=None)
 
+    # SQL 题配置: {"mode": "query"|"modify", "order_sensitive": bool}，非 SQL 题为 None
+    sql_config = models.JSONField(null=True, blank=True, default=None)
+
     class Meta:
         db_table = "problem"
         constraints = [

@@ -28,6 +28,7 @@ def process_pending_task():
     if cache.llen(CacheKey.waiting_queue):
         # 防止循环引入
         from judge.tasks import judge_task
+
         tmp_data = cache.rpop(CacheKey.waiting_queue)
         if tmp_data:
             data = json.loads(tmp_data.decode("utf-8"))
@@ -42,8 +43,7 @@ class ChooseJudgeServer:
         with transaction.atomic():
             cutoff = timezone.now() - timedelta(seconds=6)
             server = (
-                JudgeServer.objects
-                .select_for_update(skip_locked=True)
+                JudgeServer.objects.select_for_update(skip_locked=True)
                 .filter(
                     is_disabled=False,
                     last_heartbeat__gte=cutoff,
@@ -78,8 +78,6 @@ class DispatcherBase(object):
             logger.exception(e)
 
 
-
-
 class JudgeDispatcher(DispatcherBase):
     def __init__(self, submission_id, problem_id):
         super().__init__()
@@ -92,6 +90,24 @@ class JudgeDispatcher(DispatcherBase):
             self.contest = self.problem.contest
         else:
             self.problem = Problem.objects.get(id=problem_id)
+
+    def _push_status(self, result, status, extra=None):
+        data = {
+            "type": "submission_update",
+            "submission_id": str(self.submission.id),
+            "result": result,
+            "status": status,
+        }
+        if extra:
+            data.update(extra)
+        try:
+            push_submission_update(
+                submission_id=str(self.submission.id),
+                user_id=self.submission.user_id,
+                data=data,
+            )
+        except Exception as e:
+            logger.error(f"Failed to push submission update: {str(e)}")
 
     def _compute_statistic_info(self, resp_data):
         # 用时和内存占用保存为多个测试点中最长的那个
@@ -131,7 +147,7 @@ class JudgeDispatcher(DispatcherBase):
             "max_memory": 1024 * 1024 * self.problem.memory_limit,
             "test_case_id": self.problem.test_case_id,
             "output": False,
-            "io_mode": self.problem.io_mode
+            "io_mode": self.problem.io_mode,
         }
 
         with ChooseJudgeServer() as server:
@@ -139,57 +155,30 @@ class JudgeDispatcher(DispatcherBase):
                 data = {"submission_id": self.submission.id, "problem_id": self.problem.id}
                 cache.lpush(CacheKey.waiting_queue, json.dumps(data))
                 # 推送排队状态
-                try:
-                    push_submission_update(
-                        submission_id=str(self.submission.id),
-                        user_id=self.submission.user_id,
-                        data={
-                            "type": "submission_update",
-                            "submission_id": str(self.submission.id),
-                            "result": JudgeStatus.PENDING,
-                            "status": "pending",
-                        }
-                    )
-                except Exception as e:
-                    logger.error(f"Failed to push submission update: {str(e)}")
+                self._push_status(JudgeStatus.PENDING, "pending")
                 return
             Submission.objects.filter(id=self.submission.id).update(result=JudgeStatus.JUDGING)
-            
+
             # 推送判题中状态
-            try:
-                push_submission_update(
-                    submission_id=str(self.submission.id),
-                    user_id=self.submission.user_id,
-                    data={
-                        "type": "submission_update",
-                        "submission_id": str(self.submission.id),
-                        "result": JudgeStatus.JUDGING,
-                        "status": "judging",
-                    }
-                )
-            except Exception as e:
-                logger.error(f"Failed to push submission update: {str(e)}")
-            
+            self._push_status(JudgeStatus.JUDGING, "judging")
+
             resp = self._request(urljoin(server.service_url, "/judge"), data=data)
 
         if not resp:
             Submission.objects.filter(id=self.submission.id).update(result=JudgeStatus.SYSTEM_ERROR)
             # 推送系统错误状态
-            try:
-                push_submission_update(
-                    submission_id=str(self.submission.id),
-                    user_id=self.submission.user_id,
-                    data={
-                        "type": "submission_update",
-                        "submission_id": str(self.submission.id),
-                        "result": JudgeStatus.SYSTEM_ERROR,
-                        "status": "error",
-                    }
-                )
-            except Exception as e:
-                logger.error(f"Failed to push submission update: {str(e)}")
+            self._push_status(JudgeStatus.SYSTEM_ERROR, "error")
             return
 
+        self._process_judge_result(resp)
+
+    def _process_judge_result(self, resp):
+        """判题结果的统一后处理：状态聚合、AST 钩子、统计、排名、WebSocket 推送。
+
+        resp 结构与外部 judger 返回一致：{"err": "CompileError"|None, "data": ...}；
+        SQLJudgeDispatcher 组装同构 resp 后也走这里。
+        """
+        language = self.submission.language
         if resp["err"]:
             self.submission.result = JudgeStatus.COMPILE_ERROR
             self.submission.statistic_info["err_info"] = resp["data"]
@@ -220,31 +209,22 @@ class JudgeDispatcher(DispatcherBase):
         self.submission.save(update_fields=["result", "info", "statistic_info"])
 
         # 推送判题完成状态
-        try:
-            push_submission_update(
-                submission_id=str(self.submission.id),
-                user_id=self.submission.user_id,
-                data={
-                    "type": "submission_update",
-                    "submission_id": str(self.submission.id),
-                    "result": self.submission.result,
-                    "status": "finished",
-                    "time_cost": self.submission.statistic_info.get("time_cost"),
-                    "memory_cost": self.submission.statistic_info.get("memory_cost"),
-                    "score": self.submission.statistic_info.get("score", 0),
-                }
-            )
-        except Exception as e:
-            logger.error(f"Failed to push submission update: {str(e)}")
+        self._push_status(
+            self.submission.result,
+            "finished",
+            extra={
+                "time_cost": self.submission.statistic_info.get("time_cost"),
+                "memory_cost": self.submission.statistic_info.get("memory_cost"),
+                "score": self.submission.statistic_info.get("score", 0),
+            },
+        )
 
         if self.contest_id:
             # 以提交时刻（而非判题时刻）是否落在比赛时间窗内为准，
             # 避免临界提交因判题排队延迟到比赛结束后才处理而被丢弃
             in_contest = self.contest.start_time <= self.submission.create_time <= self.contest.end_time
-            if not in_contest or \
-                    User.objects.get(id=self.submission.user_id).is_contest_admin(self.contest):
-                logger.info(
-                    "Contest debug mode, id: " + str(self.contest_id) + ", submission id: " + self.submission.id)
+            if not in_contest or User.objects.get(id=self.submission.user_id).is_contest_admin(self.contest):
+                logger.info("Contest debug mode, id: " + str(self.contest_id) + ", submission id: " + self.submission.id)
                 return
             with transaction.atomic():
                 self.update_contest_problem_status()
@@ -286,8 +266,7 @@ class JudgeDispatcher(DispatcherBase):
                 score = self.submission.statistic_info["score"]
                 if not is_accepted(oi_problems_status[problem_id]["status"]):
                     # minus last time score, add this tim score
-                    profile.add_score(this_time_score=score,
-                                      last_time_score=oi_problems_status[problem_id]["score"])
+                    profile.add_score(this_time_score=score, last_time_score=oi_problems_status[problem_id]["score"])
                     oi_problems_status[problem_id]["score"] = score
                     oi_problems_status[problem_id]["status"] = JudgeStatus.ACCEPTED if is_accepted(self.submission.result) else self.submission.result
                     if is_accepted(self.submission.result):
@@ -331,15 +310,12 @@ class JudgeDispatcher(DispatcherBase):
                 score = self.submission.statistic_info["score"]
                 if problem_id not in oi_problems_status:
                     user_profile.add_score(score)
-                    oi_problems_status[problem_id] = {"status": profile_status,
-                                                      "_id": self.problem._id,
-                                                      "score": score}
+                    oi_problems_status[problem_id] = {"status": profile_status, "_id": self.problem._id, "score": score}
                     if is_accepted(self.submission.result):
                         user_profile.accepted_number += 1
                 elif not is_accepted(oi_problems_status[problem_id]["status"]):
                     # minus last time score, add this time score
-                    user_profile.add_score(this_time_score=score,
-                                           last_time_score=oi_problems_status[problem_id]["score"])
+                    user_profile.add_score(this_time_score=score, last_time_score=oi_problems_status[problem_id]["score"])
                     oi_problems_status[problem_id]["score"] = score
                     oi_problems_status[problem_id]["status"] = profile_status
                     if is_accepted(self.submission.result):
@@ -425,4 +401,3 @@ class JudgeDispatcher(DispatcherBase):
                 info["error_number"] = 1
         rank.submission_info[str(self.submission.problem_id)] = info
         rank.save(update_fields=["submission_info", "total_time", "accepted_number", "submission_number"])
-

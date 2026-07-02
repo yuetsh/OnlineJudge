@@ -33,13 +33,16 @@ from ..serializers import (
 
 
 class TestCaseZipProcessor(object):
-    def process_zip(self, uploaded_zip_file, dir=""):
+    def process_zip(self, uploaded_zip_file, dir="", sql=False):
         try:
             zip_file = zipfile.ZipFile(uploaded_zip_file, "r")
         except zipfile.BadZipFile:
             raise APIError("Bad zip file")
         name_list = zip_file.namelist()
-        test_case_list = self.filter_name_list(name_list, dir=dir)
+        if sql:
+            test_case_list = self.filter_sql_name_list(name_list, dir=dir)
+        else:
+            test_case_list = self.filter_name_list(name_list, dir=dir)
         if not test_case_list:
             raise APIError("Empty file")
 
@@ -62,18 +65,33 @@ class TestCaseZipProcessor(object):
 
         info = []
 
-        # ["1.in", "1.out", "2.in", "2.out"] => [("1.in", "1.out"), ("2.in", "2.out")]
-        test_case_list = zip(*[test_case_list[i::2] for i in range(2)])
-        for index, item in enumerate(test_case_list):
-            data = {
-                "stripped_output_md5": md5_cache[item[1]],
-                "input_size": size_cache[item[0]],
-                "output_size": size_cache[item[1]],
-                "input_name": item[0],
-                "output_name": item[1],
-            }
-            info.append(data)
-            test_case_info["test_cases"][str(index + 1)] = data
+        if sql:
+            # SQL 题：每个 N.sql 是一个测试点的建表+数据脚本，没有期望输出（判题时跑标准答案生成）。
+            # output_name 复用同名、md5 置空，以兼容 CreateTestCaseScoreSerializer 和前端测试点表格。
+            test_case_info["sql"] = True
+            for index, item in enumerate(test_case_list):
+                data = {
+                    "stripped_output_md5": "",
+                    "input_size": size_cache[item],
+                    "output_size": 0,
+                    "input_name": item,
+                    "output_name": item,
+                }
+                info.append(data)
+                test_case_info["test_cases"][str(index + 1)] = data
+        else:
+            # ["1.in", "1.out", "2.in", "2.out"] => [("1.in", "1.out"), ("2.in", "2.out")]
+            test_case_list = zip(*[test_case_list[i::2] for i in range(2)])
+            for index, item in enumerate(test_case_list):
+                data = {
+                    "stripped_output_md5": md5_cache[item[1]],
+                    "input_size": size_cache[item[0]],
+                    "output_size": size_cache[item[1]],
+                    "input_name": item[0],
+                    "output_name": item[1],
+                }
+                info.append(data)
+                test_case_info["test_cases"][str(index + 1)] = data
 
         with open(os.path.join(test_case_dir, "info"), "w", encoding="utf-8") as f:
             f.write(json.dumps(test_case_info, indent=4))
@@ -92,6 +110,19 @@ class TestCaseZipProcessor(object):
             if f"{dir}{in_name}" in name_list and f"{dir}{out_name}" in name_list:
                 ret.append(in_name)
                 ret.append(out_name)
+                prefix += 1
+                continue
+            else:
+                return sorted(ret, key=natural_sort_key)
+
+    def filter_sql_name_list(self, name_list, dir=""):
+        # SQL 题测试点：连续编号的 1.sql, 2.sql, ...
+        ret = []
+        prefix = 1
+        while True:
+            name = f"{prefix}.sql"
+            if f"{dir}{name}" in name_list:
+                ret.append(name)
                 prefix += 1
                 continue
             else:
@@ -118,7 +149,19 @@ class TestCaseAPI(CSRFExemptAPIView, TestCaseZipProcessor):
         test_case_dir = os.path.join(settings.TEST_CASE_DIR, problem.test_case_id)
         if not os.path.isdir(test_case_dir):
             return self.error("Test case does not exists")
-        name_list = self.filter_name_list(os.listdir(test_case_dir))
+        # SQL 题的测试点是 N.sql，需按 info 里的类型标记选择文件列表
+        is_sql = False
+        info_path = os.path.join(test_case_dir, "info")
+        if os.path.isfile(info_path):
+            try:
+                with open(info_path, encoding="utf-8") as f:
+                    is_sql = bool(json.load(f).get("sql"))
+            except (OSError, json.JSONDecodeError):
+                pass
+        if is_sql:
+            name_list = self.filter_sql_name_list(os.listdir(test_case_dir))
+        else:
+            name_list = self.filter_name_list(os.listdir(test_case_dir))
         name_list.append("info")
         file_name = os.path.join(test_case_dir, problem.test_case_id + ".zip")
         with zipfile.ZipFile(file_name, "w") as file:
@@ -140,7 +183,8 @@ class TestCaseAPI(CSRFExemptAPIView, TestCaseZipProcessor):
         with open(zip_file, "wb") as f:
             for chunk in file:
                 f.write(chunk)
-        info, test_case_id = self.process_zip(zip_file)
+        sql = request.POST.get("sql") in ("1", "true", "True")
+        info, test_case_id = self.process_zip(zip_file, sql=sql)
         os.remove(zip_file)
         return self.success({"id": test_case_id, "info": info})
 
@@ -157,6 +201,19 @@ class ProblemBase(APIView):
                     total_score += item["score"]
             data["total_score"] = total_score
         data["languages"] = list(data["languages"])
+
+        # SQL 题校验：.sql 测试点与 .in/.out 沙箱判题互斥，SQL 必须是唯一语言
+        if "SQL" in data["languages"]:
+            if data["languages"] != ["SQL"]:
+                return "SQL problem cannot be mixed with other languages"
+            if not data.get("sql_config"):
+                return "SQL problem requires sql_config"
+            has_sql_answer = any(item.get("language") == "SQL" and item.get("code", "").strip() for item in (data.get("answers") or []))
+            if not has_sql_answer:
+                return "SQL problem requires a SQL reference answer"
+        else:
+            # 防脏数据：非 SQL 题不应携带 SQL 配置
+            data["sql_config"] = None
 
 
 class ProblemAPI(ProblemBase):
