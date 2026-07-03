@@ -13,7 +13,6 @@ from django.http import StreamingHttpResponse
 
 from account.decorators import ensure_created_by, problem_permission_required, teacher_admin_required
 from contest.models import Contest, ContestStatus
-from judge.sql_runner import SQLCaseError, build_display
 from submission.models import Submission
 from utils.api import APIError, APIView, CSRFExemptAPIView, validate_serializer
 from utils.openai import get_ai_client
@@ -31,6 +30,7 @@ from ..serializers import (
     ProblemAdminSerializer,
     TestCaseUploadForm,
 )
+from ..utils import generate_sql_display
 
 
 class TestCaseZipProcessor(object):
@@ -224,32 +224,11 @@ class ProblemBase(APIView):
             data["sql_display"] = None
 
     def _build_sql_display(self, data):
-        """SQL 题：用测试点1的初始化脚本 + 标准答案生成题目页展示数据。返回错误信息字符串，成功返回 None。"""
-        test_case_dir = os.path.join(settings.TEST_CASE_DIR, data["test_case_id"])
-        try:
-            with open(os.path.join(test_case_dir, "info"), encoding="utf-8") as f:
-                info = json.load(f)
-        except (OSError, json.JSONDecodeError):
-            return "测试点信息读取失败，请重新上传测试点"
-        if not info.get("sql"):
-            return "测试点不是 SQL 类型，请重新上传 SQL 测试点压缩包"
-        try:
-            keys = sorted(info["test_cases"].keys(), key=natural_sort_key)
-            if not keys:
-                return "题目没有任何测试点"
-            input_name = info["test_cases"][keys[0]]["input_name"]
-        except (KeyError, AttributeError, TypeError):
-            return "测试点信息损坏，请重新上传测试点"
-        try:
-            with open(os.path.join(test_case_dir, input_name), encoding="utf-8") as f:
-                init_sql = f.read()
-        except OSError:
-            return f"测试点脚本 {input_name} 读取失败"
-        ref_sql = next(item["code"] for item in data["answers"] if item.get("language") == "SQL" and item.get("code", "").strip())
-        try:
-            data["sql_display"] = build_display(init_sql, ref_sql, data["sql_config"]["mode"])
-        except SQLCaseError as e:
-            return f"SQL 展示数据生成失败: {e.message}"
+        """SQL 题：生成题目页展示数据。返回错误信息字符串，成功返回 None。"""
+        display, error = generate_sql_display(data["test_case_id"], data["answers"], data["sql_config"])
+        if error:
+            return error
+        data["sql_display"] = display
 
 
 class ProblemAPI(ProblemBase):
