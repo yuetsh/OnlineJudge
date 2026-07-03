@@ -233,10 +233,13 @@ class ProblemBase(APIView):
             return "测试点信息读取失败，请重新上传测试点"
         if not info.get("sql"):
             return "测试点不是 SQL 类型，请重新上传 SQL 测试点压缩包"
-        keys = sorted(info["test_cases"].keys(), key=natural_sort_key)
-        if not keys:
-            return "题目没有任何测试点"
-        input_name = info["test_cases"][keys[0]]["input_name"]
+        try:
+            keys = sorted(info["test_cases"].keys(), key=natural_sort_key)
+            if not keys:
+                return "题目没有任何测试点"
+            input_name = info["test_cases"][keys[0]]["input_name"]
+        except (KeyError, AttributeError):
+            return "测试点信息损坏，请重新上传测试点"
         try:
             with open(os.path.join(test_case_dir, input_name), encoding="utf-8") as f:
                 init_sql = f.read()
