@@ -238,7 +238,7 @@ class ProblemBase(APIView):
             if not keys:
                 return "题目没有任何测试点"
             input_name = info["test_cases"][keys[0]]["input_name"]
-        except (KeyError, AttributeError):
+        except (KeyError, AttributeError, TypeError):
             return "测试点信息损坏，请重新上传测试点"
         try:
             with open(os.path.join(test_case_dir, input_name), encoding="utf-8") as f:

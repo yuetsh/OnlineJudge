@@ -63,7 +63,7 @@ class CreateOrEditProblemSerializer(serializers.Serializer):
     input_description = serializers.CharField(allow_blank=True)
     output_description = serializers.CharField(allow_blank=True)
     samples = serializers.ListField(child=CreateSampleSerializer(), allow_empty=True)
-    test_case_id = serializers.CharField(max_length=32)
+    test_case_id = serializers.RegexField(regex=r"^[a-zA-Z0-9]+$", max_length=32)
     test_case_score = serializers.ListField(child=CreateTestCaseScoreSerializer(), allow_empty=True)
     time_limit = serializers.IntegerField(min_value=1, max_value=1000 * 60)
     memory_limit = serializers.IntegerField(min_value=1, max_value=1024)

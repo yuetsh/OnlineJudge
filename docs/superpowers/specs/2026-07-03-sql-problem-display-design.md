@@ -44,6 +44,8 @@ SQL 题目前沿用传统题的展示结构：「输入/输出」两段富文本
 
 - query 模式：`expected` 为 `{columns, rows}` 结果集
 - modify 模式：`expected` 为 `{"changed_tables": [{name, columns, rows, total_rows, truncated}]}`，只含有变化的表
+- modify 模式中被标准答案 DROP 的表以 `{"name", "columns"(原结构), "rows": [], "total_rows": 0, "truncated": false, "dropped": true}` 条目出现，前端渲染为「XX 表已被删除」
+- modify 模式若标准答案未改动任何表，保存时报错（视为出题配置问题）
 
 ### 生成逻辑
 

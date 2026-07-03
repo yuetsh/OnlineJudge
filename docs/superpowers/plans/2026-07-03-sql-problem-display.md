@@ -33,6 +33,7 @@
   - `TableDump = {"name": str, "columns": [{"name": str, "type": str}], "rows": [[原始值]], "total_rows": int, "truncated": bool}`
   - `ExpectedQuery = {"columns": [str], "rows": [[原始值]], "total_rows": int, "truncated": bool}`（query 模式）
   - `ExpectedModify = {"changed_tables": [TableDump, ...]}`（modify 模式，只含执行标准答案后内容有变化的表）
+  - 被标准答案 DROP 的表以 `{"dropped": true, "rows": [], "total_rows": 0}` 条目出现（columns 取初始结构）；标准答案未改任何表时抛 SQLCaseError
 
 - [ ] **Step 1: 在 `sql_runner.py` 末尾追加展示数据生成代码**
 
