@@ -324,7 +324,13 @@ def build_display(init_sql, ref_sql, mode, *, memory_limit_mb=64):
             _execute_trusted(conn, ref_sql, time.monotonic() + trusted_limit_s, "标准答案执行失败")
             after = _dump_tables(conn)
             changed = {name for name in set(before) | set(after) if before.get(name) != after.get(name)}
-            expected = {"changed_tables": _dump_display_tables(conn, only=changed)}
+            changed_tables = _dump_display_tables(conn, only=changed)
+            # 被标准答案 DROP 的表已不在库中，用初始展示数据补齐条目（前端据 dropped 提示“表已删除”）
+            existing = {t["name"] for t in changed_tables}
+            for t in tables:
+                if t["name"] in changed and t["name"] not in existing:
+                    changed_tables.append({"name": t["name"], "columns": t["columns"], "rows": [], "total_rows": 0, "truncated": False, "dropped": True})
+            expected = {"changed_tables": changed_tables}
         return {"tables": tables, "expected": expected}
     finally:
         conn.close()
