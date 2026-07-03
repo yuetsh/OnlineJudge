@@ -89,6 +89,9 @@ class Problem(models.Model):
     # SQL 题配置: {"mode": "query"|"modify", "order_sensitive": bool}，非 SQL 题为 None
     sql_config = models.JSONField(null=True, blank=True, default=None)
 
+    # SQL 题展示数据（保存题目时由测试点1+标准答案自动生成，见 judge/sql_runner.build_display），非 SQL 题为 None
+    sql_display = models.JSONField(null=True, blank=True, default=None)
+
     class Meta:
         db_table = "problem"
         constraints = [

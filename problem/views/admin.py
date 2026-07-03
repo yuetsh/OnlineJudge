@@ -13,6 +13,7 @@ from django.http import StreamingHttpResponse
 
 from account.decorators import ensure_created_by, problem_permission_required, teacher_admin_required
 from contest.models import Contest, ContestStatus
+from judge.sql_runner import SQLCaseError, build_display
 from submission.models import Submission
 from utils.api import APIError, APIView, CSRFExemptAPIView, validate_serializer
 from utils.openai import get_ai_client
@@ -211,9 +212,41 @@ class ProblemBase(APIView):
             has_sql_answer = any(item.get("language") == "SQL" and item.get("code", "").strip() for item in (data.get("answers") or []))
             if not has_sql_answer:
                 return "SQL problem requires a SQL reference answer"
+            return self._build_sql_display(data)
         else:
+            # 序列化器已放宽（SQL 题不填这些），非 SQL 题在此保持原有强校验
+            if not data["input_description"] or not data["output_description"]:
+                return "Input and output description are required"
+            if not data["samples"]:
+                return "Samples are required"
             # 防脏数据：非 SQL 题不应携带 SQL 配置
             data["sql_config"] = None
+            data["sql_display"] = None
+
+    def _build_sql_display(self, data):
+        """SQL 题：用测试点1的初始化脚本 + 标准答案生成题目页展示数据。返回错误信息字符串，成功返回 None。"""
+        test_case_dir = os.path.join(settings.TEST_CASE_DIR, data["test_case_id"])
+        try:
+            with open(os.path.join(test_case_dir, "info"), encoding="utf-8") as f:
+                info = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            return "测试点信息读取失败，请重新上传测试点"
+        if not info.get("sql"):
+            return "测试点不是 SQL 类型，请重新上传 SQL 测试点压缩包"
+        keys = sorted(info["test_cases"].keys(), key=natural_sort_key)
+        if not keys:
+            return "题目没有任何测试点"
+        input_name = info["test_cases"][keys[0]]["input_name"]
+        try:
+            with open(os.path.join(test_case_dir, input_name), encoding="utf-8") as f:
+                init_sql = f.read()
+        except OSError:
+            return f"测试点脚本 {input_name} 读取失败"
+        ref_sql = next(item["code"] for item in data["answers"] if item.get("language") == "SQL" and item.get("code", "").strip())
+        try:
+            data["sql_display"] = build_display(init_sql, ref_sql, data["sql_config"]["mode"])
+        except SQLCaseError as e:
+            return f"SQL 展示数据生成失败: {e.message}"
 
 
 class ProblemAPI(ProblemBase):
