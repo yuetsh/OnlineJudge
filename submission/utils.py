@@ -1,5 +1,7 @@
 import subprocess
 
+import sqlparse
+
 CLANG_FORMAT_STYLE = "{BasedOnStyle: LLVM, IndentWidth: 4, BreakBeforeBraces: Attach}"
 
 
@@ -14,14 +16,21 @@ class FormatToolError(Exception):
 def format_code(code, language):
     """
     :param code: 用户代码
-    :param language: "python" | "c" | "cpp"
+    :param language: "python" | "c" | "cpp" | "sql"
     :return: 格式化后的代码字符串
     :raises FormatSyntaxError: 代码语法错误导致格式化失败（仅 python）
     :raises FormatToolError: 格式化工具本身执行失败
     """
     if language == "python":
         return _format_with_ruff(code)
+    if language == "sql":
+        return _format_with_sql(code)
     return _format_with_clang(code, language)
+
+
+def _format_with_sql(code):
+    # sqlparse 对语法错误宽容，不会抛异常，语法问题留给判题阶段反馈
+    return sqlparse.format(code, reindent=True, keyword_case="upper")
 
 
 def _format_with_ruff(code):

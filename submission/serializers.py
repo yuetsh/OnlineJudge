@@ -123,4 +123,4 @@ class SubmissionListSerializer(serializers.ModelSerializer):
 
 class FormatCodeSerializer(serializers.Serializer):
     code = serializers.CharField(max_length=1024 * 1024)
-    language = serializers.ChoiceField(choices=("python", "c", "cpp"))
+    language = serializers.ChoiceField(choices=("python", "c", "cpp", "sql"))
