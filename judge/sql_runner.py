@@ -17,6 +17,9 @@ ROW_LIMIT = 10_000
 PROGRESS_STEP = 1_000
 ERROR_MESSAGE_MAX_LEN = 200
 
+# 题目页展示的行数上限（示例数据/期望结果）
+DISPLAY_ROW_LIMIT = 20
+
 # prepare 阶段的语法类错误，映射为 COMPILE_ERROR
 _SYNTAX_ERROR_MARKERS = ("syntax error", "unrecognized token", "incomplete input")
 
@@ -244,3 +247,84 @@ def run_case(init_sql, ref_sql, student_sql, *, mode, order_sensitive, time_limi
     elif not _compare(expected, actual, mode, order_sensitive):
         case["result"] = JudgeStatus.WRONG_ANSWER
     return case
+
+
+def _display_value(v):
+    """转为 JSON 可序列化的展示值；bytes 转 hex，None/数值/字符串原样。"""
+    if isinstance(v, bytes):
+        return v.hex()
+    return v
+
+
+def _dump_display_tables(conn, only=None):
+    """按建表顺序 dump 用户表的原始行用于展示（区别于 _dump_tables 的归一化判题态）。
+
+    only 为表名集合时只导出这些表。
+    """
+    cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
+    tables = [r[0] for r in cursor.fetchall()]
+    result = []
+    for table in tables:
+        if only is not None and table not in only:
+            continue
+        quoted = table.replace('"', '""')
+        columns = [{"name": r[1], "type": r[2] or ""} for r in conn.execute(f'PRAGMA table_info("{quoted}")').fetchall()]
+        total = conn.execute(f'SELECT COUNT(*) FROM "{quoted}"').fetchone()[0]
+        rows = conn.execute(f'SELECT * FROM "{quoted}" LIMIT {DISPLAY_ROW_LIMIT}').fetchall()
+        result.append(
+            {
+                "name": table,
+                "columns": columns,
+                "rows": [[_display_value(v) for v in row] for row in rows],
+                "total_rows": total,
+                "truncated": total > DISPLAY_ROW_LIMIT,
+            }
+        )
+    return result
+
+
+def build_display(init_sql, ref_sql, mode, *, memory_limit_mb=64):
+    """生成题目页展示数据：初始数据表 + 期望结果。
+
+    供管理端保存题目时调用；任何失败抛 SQLCaseError（出题配置问题，调用方转为报错信息）。
+    """
+    trusted_limit_s = 10
+    conn = _new_db(memory_limit_mb)
+    try:
+        _execute_trusted(conn, init_sql, time.monotonic() + trusted_limit_s, "初始化脚本执行失败")
+        tables = _dump_display_tables(conn)
+        if mode == "query":
+            expected = None
+            deadline = time.monotonic() + trusted_limit_s
+            conn.set_progress_handler(lambda: 1 if time.monotonic() > deadline else 0, PROGRESS_STEP)
+            try:
+                for stmt in split_statements(ref_sql):
+                    cursor = conn.execute(stmt)
+                    if cursor.description is not None:
+                        columns = [d[0] for d in cursor.description]
+                        rows = cursor.fetchmany(ROW_LIMIT + 1)
+                        if len(rows) > ROW_LIMIT:
+                            raise SQLCaseError(JudgeStatus.SYSTEM_ERROR, f"标准答案结果超过 {ROW_LIMIT} 行")
+                        expected = {
+                            "columns": columns,
+                            "rows": [[_display_value(v) for v in row] for row in rows[:DISPLAY_ROW_LIMIT]],
+                            "total_rows": len(rows),
+                            "truncated": len(rows) > DISPLAY_ROW_LIMIT,
+                        }
+                    cursor.close()
+            except sqlite3.Error as e:
+                msg = "超时" if "interrupted" in str(e) else _truncate(e)
+                raise SQLCaseError(JudgeStatus.SYSTEM_ERROR, f"标准答案执行失败: {msg}")
+            finally:
+                conn.set_progress_handler(None, PROGRESS_STEP)
+            if expected is None:
+                raise SQLCaseError(JudgeStatus.SYSTEM_ERROR, "标准答案未产生查询结果集")
+        else:
+            before = _dump_tables(conn)
+            _execute_trusted(conn, ref_sql, time.monotonic() + trusted_limit_s, "标准答案执行失败")
+            after = _dump_tables(conn)
+            changed = {name for name in set(before) | set(after) if before.get(name) != after.get(name)}
+            expected = {"changed_tables": _dump_display_tables(conn, only=changed)}
+        return {"tables": tables, "expected": expected}
+    finally:
+        conn.close()
