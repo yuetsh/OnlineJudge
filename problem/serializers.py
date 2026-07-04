@@ -42,6 +42,12 @@ class SQLConfigSerializer(serializers.Serializer):
     order_sensitive = serializers.BooleanField(default=False)
 
 
+class SQLTestCasePreviewSerializer(serializers.Serializer):
+    init_sql = serializers.CharField(trim_whitespace=False)
+    ref_sql = serializers.CharField(trim_whitespace=False)
+    mode = serializers.ChoiceField(choices=["query", "modify"])
+
+
 class ProblemIOModeSerializer(serializers.Serializer):
     io_mode = serializers.ChoiceField(choices=ProblemIOMode.choices)
     input = serializers.CharField()

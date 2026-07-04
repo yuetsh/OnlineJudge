@@ -13,6 +13,7 @@ from django.http import StreamingHttpResponse
 
 from account.decorators import ensure_created_by, problem_permission_required, teacher_admin_required
 from contest.models import Contest, ContestStatus
+from judge.sql_runner import SQLCaseError, build_display
 from submission.models import Submission
 from utils.api import APIError, APIView, CSRFExemptAPIView, validate_serializer
 from utils.openai import get_ai_client
@@ -28,6 +29,7 @@ from ..serializers import (
     EditProblemSerializer,
     ProblemAdminListSerializer,
     ProblemAdminSerializer,
+    SQLTestCasePreviewSerializer,
     TestCaseUploadForm,
 )
 from ..utils import generate_sql_display
@@ -676,3 +678,15 @@ class TopACTrendAPI(APIView):
             )
 
         return self.success(result)
+
+
+class SQLTestCasePreviewAPI(APIView):
+    @validate_serializer(SQLTestCasePreviewSerializer)
+    @problem_permission_required
+    def post(self, request):
+        data = request.data
+        try:
+            display = build_display(data["init_sql"], data["ref_sql"], data["mode"])
+        except SQLCaseError as e:
+            return self.error(e.message)
+        return self.success(display)
