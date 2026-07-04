@@ -692,6 +692,35 @@ class SQLTestCasePreviewAPI(APIView):
         return self.success(display)
 
 
+class SQLTestCaseAIGenAPI(APIView):
+    @problem_permission_required
+    def post(self, request):
+        ref_sql = request.data.get("ref_sql", "")
+        mode = request.data.get("mode", "query")
+        client = get_ai_client()
+        response = client.chat.completions.create(
+            model="deepseek-v4-flash",
+            messages=[
+                {
+                    "role": "system",
+                    "content": """你是一个 SQL 出题助手。用户会给你一道 SQL 题的标准答案（查询题的
+                    SELECT 语句，或增删改题的 UPDATE/DELETE/INSERT 语句）和题型。
+                    请你推断出该标准答案所需要的表结构，生成一份自洽的 SQLite 兼容初始化脚本，
+                    包含 CREATE TABLE 和若干条 INSERT 语句，插入的数据要足够让标准答案跑出有意义的结果
+                    （比如查询题要有能被筛选出来和被过滤掉的行；增删改题要有能被改动和不受影响的行）。
+                    请只返回 SQL 脚本本身，连 ``` 都不需要，不要任何解释文字。""",
+                },
+                {
+                    "role": "user",
+                    "content": f"题型：{mode}\n标准答案：\n{ref_sql}",
+                },
+            ],
+            extra_body={"thinking": {"type": "disabled"}},
+        )
+        sql = response.choices[0].message.content
+        return self.success({"sql": sql})
+
+
 class SQLTestCaseScriptsAPI(APIView, TestCaseZipProcessor):
     @problem_permission_required
     def get(self, request):
