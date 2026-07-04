@@ -517,17 +517,14 @@ class ProfileProblemDisplayIDRefreshAPI(AsyncAPIView):
     async def get(self, request):
         profile = await UserProfile.objects.aget(user=request.user)
         acm_problems = profile.acm_problems_status.get("problems", {})
-        oi_problems = profile.oi_problems_status.get("problems", {})
-        ids = list(acm_problems.keys()) + list(oi_problems.keys())
+        ids = list(acm_problems.keys())
         if not ids:
             return self.success()
         display_ids = [did async for did in Problem.objects.filter(id__in=ids, visible=True).values_list("_id", flat=True)]
         id_map = dict(zip(ids, display_ids))
         for k, v in acm_problems.items():
             v["_id"] = id_map[k]
-        for k, v in oi_problems.items():
-            v["_id"] = id_map[k]
-        await profile.asave(update_fields=["acm_problems_status", "oi_problems_status"])
+        await profile.asave(update_fields=["acm_problems_status"])
         return self.success()
 
 

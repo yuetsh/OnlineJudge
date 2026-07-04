@@ -108,8 +108,6 @@ class UserProfile(models.Model):
     #     }
     # }
     acm_problems_status = JSONField(default=dict, db_default=models.Value({}, output_field=models.JSONField()))
-    # like acm_problems_status, merely add "score" field
-    oi_problems_status = JSONField(default=dict, db_default=models.Value({}, output_field=models.JSONField()))
 
     real_name = models.TextField(null=True)
     avatar = models.TextField(default=f"{settings.AVATAR_URI_PREFIX}/default.png")
@@ -119,10 +117,7 @@ class UserProfile(models.Model):
     school = models.TextField(null=True)
     major = models.TextField(null=True)
     language = models.TextField(null=True)
-    # for ACM
     accepted_number = models.IntegerField(default=0, db_default=0)
-    # for OI
-    total_score = models.BigIntegerField(default=0, db_default=0)
     submission_number = models.IntegerField(default=0, db_default=0)
 
     def add_accepted_problem_number(self):
@@ -132,12 +127,6 @@ class UserProfile(models.Model):
     def add_submission_number(self):
         self.submission_number = models.F("submission_number") + 1
         self.save(update_fields=["submission_number"])
-
-    # 计算总分时， 应先减掉上次该题所得分数， 然后再加上本次所得分数
-    def add_score(self, this_time_score, last_time_score=None):
-        last_time_score = last_time_score or 0
-        self.total_score = models.F("total_score") - last_time_score + this_time_score
-        self.save(update_fields=["total_score"])
 
     class Meta:
         db_table = "user_profile"
