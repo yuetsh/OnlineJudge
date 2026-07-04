@@ -30,7 +30,9 @@ def format_code(code, language):
 
 def _format_with_sql(code):
     # sqlparse 对语法错误宽容，不会抛异常，语法问题留给判题阶段反馈
-    return sqlparse.format(code, strip_whitespace=True, keyword_case="upper")
+    # strip_whitespace 会把多条语句压成一行，先按分号拆分再逐条格式化
+    statements = sqlparse.split(code)
+    return "\n\n".join(sqlparse.format(s, strip_whitespace=True, keyword_case="upper") for s in statements)
 
 
 def _format_with_ruff(code):
