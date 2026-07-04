@@ -30,7 +30,7 @@ def format_code(code, language):
 
 def _format_with_sql(code):
     # sqlparse 对语法错误宽容，不会抛异常，语法问题留给判题阶段反馈
-    return sqlparse.format(code, reindent=True, keyword_case="upper")
+    return sqlparse.format(code, strip_whitespace=True, keyword_case="upper")
 
 
 def _format_with_ruff(code):
