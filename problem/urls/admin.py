@@ -8,6 +8,7 @@ from ..views.admin import (
     ProblemFlowchartAIGen,
     ProblemVisibleAPI,
     SQLTestCasePreviewAPI,
+    SQLTestCaseScriptsAPI,
     StuckProblemsAPI,
     TestCaseAPI,
     TopACTrendAPI,
@@ -16,6 +17,7 @@ from ..views.admin import (
 urlpatterns = [
     path("test_case", TestCaseAPI.as_view()),
     path("sql_test_case_preview", SQLTestCasePreviewAPI.as_view()),
+    path("sql_test_case_scripts", SQLTestCaseScriptsAPI.as_view()),
     path("problem", ProblemAPI.as_view()),
     path("problem/visible", ProblemVisibleAPI.as_view()),
     path("problem/stuck", StuckProblemsAPI.as_view()),

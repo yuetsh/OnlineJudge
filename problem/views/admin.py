@@ -690,3 +690,38 @@ class SQLTestCasePreviewAPI(APIView):
         except SQLCaseError as e:
             return self.error(e.message)
         return self.success(display)
+
+
+class SQLTestCaseScriptsAPI(APIView, TestCaseZipProcessor):
+    @problem_permission_required
+    def get(self, request):
+        problem_id = request.GET.get("problem_id")
+        if not problem_id:
+            return self.error("Parameter error, problem_id is required")
+        try:
+            problem = Problem.objects.get(id=problem_id)
+        except Problem.DoesNotExist:
+            return self.error("Problem does not exists")
+
+        if problem.contest:
+            ensure_created_by(problem.contest, request.user)
+        else:
+            ensure_created_by(problem, request.user)
+
+        test_case_dir = os.path.join(settings.TEST_CASE_DIR, problem.test_case_id)
+        try:
+            with open(os.path.join(test_case_dir, "info"), encoding="utf-8") as f:
+                info = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            return self.error("测试点信息读取失败")
+        if not info.get("sql"):
+            return self.error("该题的测试点不是 SQL 类型")
+
+        scripts = []
+        for name in self.filter_sql_name_list(os.listdir(test_case_dir)):
+            try:
+                with open(os.path.join(test_case_dir, name), encoding="utf-8") as f:
+                    scripts.append({"name": name, "content": f.read()})
+            except OSError:
+                return self.error(f"测试点脚本 {name} 读取失败")
+        return self.success(scripts)
