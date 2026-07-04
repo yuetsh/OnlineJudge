@@ -19,7 +19,7 @@ from utils.api import APIError, APIView, CSRFExemptAPIView, validate_serializer
 from utils.openai import get_ai_client
 from utils.shortcuts import natural_sort_key, rand_str
 
-from ..models import Problem, ProblemRuleType, ProblemTag
+from ..models import Problem, ProblemTag
 from ..serializers import (
     AddContestProblemSerializer,
     ContestProblemMakePublicSerializer,
@@ -195,14 +195,6 @@ class TestCaseAPI(CSRFExemptAPIView, TestCaseZipProcessor):
 class ProblemBase(APIView):
     def common_checks(self, request):
         data = request.data
-        if data["rule_type"] == ProblemRuleType.OI:
-            total_score = 0
-            for item in data["test_case_score"]:
-                if item["score"] <= 0:
-                    return "Invalid score"
-                else:
-                    total_score += item["score"]
-            data["total_score"] = total_score
         data["languages"] = list(data["languages"])
 
         # SQL 题校验：.sql 测试点与 .in/.out 沙箱判题互斥，SQL 必须是唯一语言

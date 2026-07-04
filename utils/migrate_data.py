@@ -12,7 +12,7 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "oj.settings")
 django.setup()
 from django.conf import settings
 from account.models import User, UserProfile, AdminType, ProblemPermission
-from problem.models import Problem, ProblemTag, ProblemRuleType
+from problem.models import Problem, ProblemTag
 from utils.constants import Difficulty
 
 admin_type_map = {0: AdminType.REGULAR_USER, 1: AdminType.STUDENT_ADMIN, 2: AdminType.SUPER_ADMIN}
@@ -154,7 +154,6 @@ def import_problems():
                 print("%s test_case files don't exist, omitted" % data["title"])
                 continue
             data["test_case_score"] = test_case_score
-            data["rule_type"] = ProblemRuleType.ACM
             data["template"] = {}
             data.pop("total_submit_number")
             data.pop("total_accepted_number")

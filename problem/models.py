@@ -13,24 +13,6 @@ class ProblemTag(models.Model):
         db_table = "problem_tag"
 
 
-class ProblemRuleType(models.TextChoices):
-    ACM = "ACM", "ACM"
-    OI = "OI", "OI"
-
-
-class ProblemIOMode(models.TextChoices):
-    STANDARD = "Standard IO", "Standard IO"
-    FILE = "File IO", "File IO"
-
-
-def _default_io_mode():
-    return {
-        "io_mode": ProblemIOMode.STANDARD,
-        "input": "input.txt",
-        "output": "output.txt",
-    }
-
-
 class Problem(models.Model):
     # display ID
     _id = models.TextField(db_index=True)
@@ -58,18 +40,14 @@ class Problem(models.Model):
     time_limit = models.IntegerField()
     # MB
     memory_limit = models.IntegerField()
-    # io mode
-    io_mode = models.JSONField(default=_default_io_mode)
-    rule_type = models.TextField(choices=ProblemRuleType.choices)
     visible = models.BooleanField(default=True, db_default=True)
     difficulty = models.TextField(choices=Difficulty.choices)
     tags = models.ManyToManyField(ProblemTag)
     source = models.TextField(null=True)
+    # 预留：题目考察知识点，供未来 AI 分析使用（当前未接线）
     prompt = models.TextField(null=True)
     # [{language: "python", code: "..."}]
     answers = models.JSONField(null=True)
-    # for OI mode
-    total_score = models.IntegerField(default=0, db_default=0)
     submission_number = models.BigIntegerField(default=0, db_default=0)
     accepted_number = models.BigIntegerField(default=0, db_default=0)
     # {JudgeStatus.ACCEPTED: 3, JudgeStatus.WRONG_ANSWER: 11}, the number means count

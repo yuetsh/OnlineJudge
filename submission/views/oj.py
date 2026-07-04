@@ -11,7 +11,7 @@ from judge.tasks import judge_task
 from options.options import SysOptions
 
 # from judge.dispatcher import JudgeDispatcher
-from problem.models import Problem, ProblemRuleType
+from problem.models import Problem
 from utils.api import APIView, AsyncAPIView, validate_serializer
 from utils.cache import cache
 from utils.captcha import Captcha
@@ -116,10 +116,7 @@ class SubmissionAPI(AsyncAPIView):
         if not submission.check_user_permission(request.user):
             return self.error("No permission for this submission")
 
-        if (
-            submission.problem.rule_type == ProblemRuleType.OI
-            or request.user.is_admin_role()
-        ):
+        if request.user.is_admin_role():
             submission_data = await self.async_serialize_data(SubmissionModelSerializer, submission)
         else:
             submission_data = await self.async_serialize_data(SubmissionSafeModelSerializer, submission)

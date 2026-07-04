@@ -88,7 +88,7 @@ class SQLJudgeDispatcher(JudgeDispatcher):
             raise SQLProblemConfigError("测试点不是 SQL 类型，请重新上传 SQL 测试点压缩包")
 
         init_scripts = []
-        # 按 "1","2",… 自然序遍历，保证与 test_case_score 的下标对应（OI 计分依赖顺序）
+        # 按 "1","2",… 自然序遍历，保证测试点顺序稳定
         for key in sorted(info["test_cases"].keys(), key=natural_sort_key):
             input_name = info["test_cases"][key]["input_name"]
             try:

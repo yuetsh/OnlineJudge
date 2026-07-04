@@ -1,5 +1,3 @@
-import re
-
 from django import forms
 
 from utils.api import UsernameSerializer, serializers
@@ -9,7 +7,7 @@ from utils.serializers import (
     LanguageNameMultiChoiceField,
 )
 
-from .models import Problem, ProblemIOMode, ProblemRuleType, ProblemTag
+from .models import Problem, ProblemTag
 from .utils import parse_problem_template
 
 
@@ -48,20 +46,6 @@ class SQLTestCasePreviewSerializer(serializers.Serializer):
     mode = serializers.ChoiceField(choices=["query", "modify"])
 
 
-class ProblemIOModeSerializer(serializers.Serializer):
-    io_mode = serializers.ChoiceField(choices=ProblemIOMode.choices)
-    input = serializers.CharField()
-    output = serializers.CharField()
-
-    def validate(self, attrs):
-        if attrs["input"] == attrs["output"]:
-            raise serializers.ValidationError("Invalid io mode")
-        for item in (attrs["input"], attrs["output"]):
-            if not re.match("^[a-zA-Z0-9.]+$", item):
-                raise serializers.ValidationError("Invalid io file name format")
-        return attrs
-
-
 class CreateOrEditProblemSerializer(serializers.Serializer):
     _id = serializers.CharField(max_length=32, allow_blank=True, allow_null=True)
     title = serializers.CharField(max_length=1024)
@@ -75,8 +59,6 @@ class CreateOrEditProblemSerializer(serializers.Serializer):
     memory_limit = serializers.IntegerField(min_value=1, max_value=1024)
     languages = LanguageNameMultiChoiceField()
     template = serializers.DictField(child=serializers.CharField(min_length=1))
-    rule_type = serializers.ChoiceField(choices=ProblemRuleType.choices)
-    io_mode = ProblemIOModeSerializer()
     visible = serializers.BooleanField()
     difficulty = serializers.ChoiceField(choices=Difficulty.choices)
     tags = serializers.ListField(child=serializers.CharField(max_length=32), allow_empty=False)

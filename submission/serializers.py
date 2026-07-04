@@ -57,7 +57,7 @@ class SubmissionModelSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
-# 不显示submission info的serializer, 用于ACM rule_type
+# 不显示submission info的serializer, 用于非管理员查看他人提交
 class SubmissionSafeModelSerializer(serializers.ModelSerializer):
     problem = serializers.SlugRelatedField(read_only=True, slug_field="_id")
 

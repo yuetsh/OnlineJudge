@@ -1,5 +1,3 @@
-from problem.models import ProblemIOMode
-
 default_env = ["LANG=en_US.UTF-8", "LANGUAGE=en_US:en", "LC_ALL=en_US.UTF-8"]
 
 _c_lang_config = {
@@ -27,7 +25,7 @@ int main() {
         "max_memory": 256 * 1024 * 1024,
         "compile_command": "/usr/bin/gcc -DONLINE_JUDGE -O2 -w -fmax-errors=3 -std=c17 {src_path} -lm -o {exe_path}",
     },
-    "run": {"command": "{exe_path}", "seccomp_rule": {ProblemIOMode.STANDARD: "c_cpp", ProblemIOMode.FILE: "c_cpp_file_io"}, "env": default_env},
+    "run": {"command": "{exe_path}", "seccomp_rule": {"Standard IO": "c_cpp", "File IO": "c_cpp_file_io"}, "env": default_env},
 }
 
 
@@ -56,7 +54,7 @@ int main() {
         "max_memory": 1024 * 1024 * 1024,
         "compile_command": "/usr/bin/g++ -DONLINE_JUDGE -O2 -w -fmax-errors=3 -std=c++20 {src_path} -lm -o {exe_path}",
     },
-    "run": {"command": "{exe_path}", "seccomp_rule": {ProblemIOMode.STANDARD: "c_cpp", ProblemIOMode.FILE: "c_cpp_file_io"}, "env": default_env},
+    "run": {"command": "{exe_path}", "seccomp_rule": {"Standard IO": "c_cpp", "File IO": "c_cpp_file_io"}, "env": default_env},
 }
 
 

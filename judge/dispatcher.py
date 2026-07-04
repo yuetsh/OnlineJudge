@@ -13,7 +13,7 @@ from account.models import User
 from conf.models import JudgeServer
 from contest.models import ACMContestRank
 from options.options import SysOptions
-from problem.models import Problem, ProblemRuleType
+from problem.models import Problem
 from problem.utils import parse_problem_template
 from submission.models import JudgeStatus, Submission, is_accepted
 from utils.cache import cache
@@ -114,22 +114,6 @@ class JudgeDispatcher(DispatcherBase):
         self.submission.statistic_info["time_cost"] = max([x["cpu_time"] for x in resp_data])
         self.submission.statistic_info["memory_cost"] = max([x["memory"] for x in resp_data])
 
-        # sum up the score in OI mode
-        if self.problem.rule_type == ProblemRuleType.OI:
-            score = 0
-            try:
-                for i in range(len(resp_data)):
-                    if resp_data[i]["result"] == JudgeStatus.ACCEPTED:
-                        resp_data[i]["score"] = self.problem.test_case_score[i]["score"]
-                        score += resp_data[i]["score"]
-                    else:
-                        resp_data[i]["score"] = 0
-            except IndexError:
-                logger.error(f"Index Error raised when summing up the score in problem {self.problem.id}")
-                self.submission.statistic_info["score"] = 0
-                return
-            self.submission.statistic_info["score"] = score
-
     def judge(self):
         language = self.submission.language
         sub_config = list(filter(lambda item: language == item["name"], SysOptions.languages))[0]
@@ -147,7 +131,7 @@ class JudgeDispatcher(DispatcherBase):
             "max_memory": 1024 * 1024 * self.problem.memory_limit,
             "test_case_id": self.problem.test_case_id,
             "output": False,
-            "io_mode": self.problem.io_mode,
+            "io_mode": {"io_mode": "Standard IO", "input": "input.txt", "output": "output.txt"},
         }
 
         with ChooseJudgeServer() as server:
@@ -188,14 +172,11 @@ class JudgeDispatcher(DispatcherBase):
             self.submission.info = resp
             self._compute_statistic_info(resp["data"])
             error_test_case = list(filter(lambda case: case["result"] != 0, resp["data"]))
-            # ACM模式下,多个测试点全部正确则AC，否则取第一个错误的测试点的状态
-            # OI模式下, 若多个测试点全部正确则AC， 若全部错误则取第一个错误测试点状态，否则为部分正确
+            # 多个测试点全部正确则AC，否则取第一个错误的测试点的状态
             if not error_test_case:
                 self.submission.result = JudgeStatus.ACCEPTED
-            elif self.problem.rule_type == ProblemRuleType.ACM or len(error_test_case) == len(resp["data"]):
-                self.submission.result = error_test_case[0]["result"]
             else:
-                self.submission.result = JudgeStatus.PARTIALLY_ACCEPTED
+                self.submission.result = error_test_case[0]["result"]
 
             if self.submission.result == JudgeStatus.ACCEPTED:
                 ast_rules = self.problem.ast_rules
@@ -252,27 +233,13 @@ class JudgeDispatcher(DispatcherBase):
             problem.save(update_fields=["accepted_number", "statistic_info"])
 
             profile = User.objects.select_for_update().get(id=self.submission.user_id).userprofile
-            if problem.rule_type == ProblemRuleType.ACM:
-                acm_problems_status = profile.acm_problems_status.get("problems", {})
-                if not is_accepted(acm_problems_status[problem_id]["status"]):
-                    acm_problems_status[problem_id]["status"] = JudgeStatus.ACCEPTED if is_accepted(self.submission.result) else self.submission.result
-                    if is_accepted(self.submission.result):
-                        profile.accepted_number += 1
-                profile.acm_problems_status["problems"] = acm_problems_status
-                profile.save(update_fields=["accepted_number", "acm_problems_status"])
-
-            else:
-                oi_problems_status = profile.oi_problems_status.get("problems", {})
-                score = self.submission.statistic_info["score"]
-                if not is_accepted(oi_problems_status[problem_id]["status"]):
-                    # minus last time score, add this tim score
-                    profile.add_score(this_time_score=score, last_time_score=oi_problems_status[problem_id]["score"])
-                    oi_problems_status[problem_id]["score"] = score
-                    oi_problems_status[problem_id]["status"] = JudgeStatus.ACCEPTED if is_accepted(self.submission.result) else self.submission.result
-                    if is_accepted(self.submission.result):
-                        profile.accepted_number += 1
-                profile.oi_problems_status["problems"] = oi_problems_status
-                profile.save(update_fields=["accepted_number", "oi_problems_status"])
+            acm_problems_status = profile.acm_problems_status.get("problems", {})
+            if not is_accepted(acm_problems_status[problem_id]["status"]):
+                acm_problems_status[problem_id]["status"] = JudgeStatus.ACCEPTED if is_accepted(self.submission.result) else self.submission.result
+                if is_accepted(self.submission.result):
+                    profile.accepted_number += 1
+            profile.acm_problems_status["problems"] = acm_problems_status
+            profile.save(update_fields=["accepted_number", "acm_problems_status"])
 
     def update_problem_status(self):
         result = str(self.submission.result)
@@ -292,36 +259,17 @@ class JudgeDispatcher(DispatcherBase):
             user_profile = user.userprofile
             user_profile.submission_number = F("submission_number") + 1
             profile_status = JudgeStatus.ACCEPTED if is_accepted(self.submission.result) else self.submission.result
-            if problem.rule_type == ProblemRuleType.ACM:
-                acm_problems_status = user_profile.acm_problems_status.get("problems", {})
-                if problem_id not in acm_problems_status:
-                    acm_problems_status[problem_id] = {"status": profile_status, "_id": self.problem._id}
-                    if is_accepted(self.submission.result):
-                        user_profile.accepted_number += 1
-                elif not is_accepted(acm_problems_status[problem_id]["status"]):
-                    acm_problems_status[problem_id]["status"] = profile_status
-                    if is_accepted(self.submission.result):
-                        user_profile.accepted_number += 1
-                user_profile.acm_problems_status["problems"] = acm_problems_status
-                user_profile.save(update_fields=["submission_number", "accepted_number", "acm_problems_status"])
-
-            else:
-                oi_problems_status = user_profile.oi_problems_status.get("problems", {})
-                score = self.submission.statistic_info["score"]
-                if problem_id not in oi_problems_status:
-                    user_profile.add_score(score)
-                    oi_problems_status[problem_id] = {"status": profile_status, "_id": self.problem._id, "score": score}
-                    if is_accepted(self.submission.result):
-                        user_profile.accepted_number += 1
-                elif not is_accepted(oi_problems_status[problem_id]["status"]):
-                    # minus last time score, add this time score
-                    user_profile.add_score(this_time_score=score, last_time_score=oi_problems_status[problem_id]["score"])
-                    oi_problems_status[problem_id]["score"] = score
-                    oi_problems_status[problem_id]["status"] = profile_status
-                    if is_accepted(self.submission.result):
-                        user_profile.accepted_number += 1
-                user_profile.oi_problems_status["problems"] = oi_problems_status
-                user_profile.save(update_fields=["submission_number", "accepted_number", "oi_problems_status"])
+            acm_problems_status = user_profile.acm_problems_status.get("problems", {})
+            if problem_id not in acm_problems_status:
+                acm_problems_status[problem_id] = {"status": profile_status, "_id": self.problem._id}
+                if is_accepted(self.submission.result):
+                    user_profile.accepted_number += 1
+            elif not is_accepted(acm_problems_status[problem_id]["status"]):
+                acm_problems_status[problem_id]["status"] = profile_status
+                if is_accepted(self.submission.result):
+                    user_profile.accepted_number += 1
+            user_profile.acm_problems_status["problems"] = acm_problems_status
+            user_profile.save(update_fields=["submission_number", "accepted_number", "acm_problems_status"])
 
     def update_contest_problem_status(self):
         with transaction.atomic():
