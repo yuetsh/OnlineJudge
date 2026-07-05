@@ -48,6 +48,9 @@ class TestCaseZipProcessor(object):
             test_case_list = self.filter_name_list(name_list, dir=dir)
         if not test_case_list:
             raise APIError("Empty file")
+        # 题目页会展示测试点1的期望结果，单测试点时学生可对照硬编码 AC
+        if sql and len(test_case_list) < 2:
+            raise APIError("SQL 题至少需要 2 个数据不同的测试点，防止硬编码期望结果")
 
         test_case_id = rand_str()
         test_case_dir = os.path.join(settings.TEST_CASE_DIR, test_case_id)
