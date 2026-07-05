@@ -256,6 +256,15 @@ def _display_value(v):
     return v
 
 
+def _query_result_columns(names, tables):
+    """给查询结果的列名标上类型：按列名回查数据表的声明类型，与数据表展示同源（如 VARCHAR(20)）。
+
+    表达式/聚合列（COUNT(*)、别名等）在数据表里无同名列，类型留空（前端隐藏）。
+    """
+    col_types = {c["name"]: c["type"] for t in tables for c in t["columns"]}
+    return [{"name": name, "type": col_types.get(name, "")} for name in names]
+
+
 def _dump_display_tables(conn, only=None):
     """按建表顺序 dump 用户表的原始行用于展示（区别于 _dump_tables 的归一化判题态）。
 
@@ -301,12 +310,12 @@ def build_display(init_sql, ref_sql, mode, *, memory_limit_mb=64):
                 for stmt in split_statements(ref_sql):
                     cursor = conn.execute(stmt)
                     if cursor.description is not None:
-                        columns = [d[0] for d in cursor.description]
+                        names = [d[0] for d in cursor.description]
                         rows = cursor.fetchmany(ROW_LIMIT + 1)
                         if len(rows) > ROW_LIMIT:
                             raise SQLCaseError(JudgeStatus.SYSTEM_ERROR, f"标准答案结果超过 {ROW_LIMIT} 行")
                         expected = {
-                            "columns": columns,
+                            "columns": _query_result_columns(names, tables),
                             "rows": [[_display_value(v) for v in row] for row in rows[:DISPLAY_ROW_LIMIT]],
                             "total_rows": len(rows),
                             "truncated": len(rows) > DISPLAY_ROW_LIMIT,
