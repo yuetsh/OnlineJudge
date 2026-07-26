@@ -676,8 +676,8 @@ class TopACTrendAPI(APIView):
 
 
 class SQLTestCasePreviewAPI(APIView):
-    @validate_serializer(SQLTestCasePreviewSerializer)
     @problem_permission_required
+    @validate_serializer(SQLTestCasePreviewSerializer)
     def post(self, request):
         data = request.data
         try:

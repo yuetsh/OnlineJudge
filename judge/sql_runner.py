@@ -3,7 +3,8 @@
 查询题（mode="query"）比对最后一条 SELECT 的结果集；
 增删改题（mode="modify"）比对执行后所有用户表的最终状态。
 学生 SQL 通过 authorizer（禁 ATTACH/PRAGMA，查询题只读）、
-progress_handler（墙钟超时）和 max_page_count（内存上限）三重防护。
+progress_handler（墙钟超时）和 max_page_count + SQLITE_LIMIT_LENGTH（内存上限）三重防护；
+受信脚本（初始化/标准答案）不受超时和只读限制，但同样禁止 ATTACH/DETACH。
 """
 
 import sqlite3
@@ -25,6 +26,16 @@ _SYNTAX_ERROR_MARKERS = ("syntax error", "unrecognized token", "incomplete input
 
 # 两种模式都禁止的授权码：挂载外部库 / 数据库参数
 _DENIED_ALWAYS = {sqlite3.SQLITE_ATTACH, sqlite3.SQLITE_DETACH, sqlite3.SQLITE_PRAGMA}
+
+# 受信脚本（初始化/标准答案）也必须禁止挂载外部库：ATTACH 能在服务器上读写任意 SQLite 文件，
+# 而这些脚本在保存/预览题目时跑在 Django 请求进程里，等于把出题权限提成任意文件读写。
+_TRUSTED_DENIED = {sqlite3.SQLITE_ATTACH, sqlite3.SQLITE_DETACH}
+_ATTACH_DENIED_HINT = "脚本中禁止使用 ATTACH/DETACH 挂载外部数据库"
+
+
+def _trusted_authorizer(action, arg1, arg2, db_name, trigger):
+    return sqlite3.SQLITE_DENY if action in _TRUSTED_DENIED else sqlite3.SQLITE_OK
+
 
 # 查询题允许的授权码（白名单外一律拒绝，防先 INSERT 伪造数据再 SELECT）
 _QUERY_MODE_ALLOWED = {getattr(sqlite3, name) for name in ("SQLITE_SELECT", "SQLITE_READ", "SQLITE_FUNCTION", "SQLITE_RECURSIVE", "SQLITE_TRANSACTION") if hasattr(sqlite3, name)}
@@ -84,10 +95,17 @@ def _canonical_row(row):
 
 
 def _new_db(memory_limit_mb):
+    limit_mb = max(int(memory_limit_mb), 1)
     conn = sqlite3.connect(":memory:", isolation_level=None)  # autocommit，脚本行为可预期
     conn.execute("PRAGMA page_size=4096")
     # 4096B/页 × 256 页/MB，超限报 "database or disk is full"
-    conn.execute(f"PRAGMA max_page_count={max(int(memory_limit_mb), 1) * 256}")
+    conn.execute(f"PRAGMA max_page_count={limit_mb * 256}")
+    # max_page_count 只约束数据库页，管不住查询期的单值分配：默认 1GB 上限下
+    # 一条 SELECT hex(zeroblob(5e8)) 就能在 worker 进程里吃掉 GB 级内存且秒级返回，
+    # progress_handler 的指令粒度也拦不到（分配发生在单条 opcode 内）。
+    conn.setlimit(sqlite3.SQLITE_LIMIT_LENGTH, limit_mb * 1024 * 1024)
+    # 整条连接生命周期内禁止 ATTACH/DETACH（学生 SQL 由 _run_student 换上更严的 authorizer）
+    conn.set_authorizer(_trusted_authorizer)
     return conn
 
 
@@ -122,6 +140,16 @@ def _dump_tables(conn):
     return state
 
 
+def _trusted_error_text(e):
+    """受信脚本的 sqlite 错误转出题人能看懂的提示。"""
+    msg = str(e)
+    if "not authorized" in msg or "prohibited" in msg:
+        return _ATTACH_DENIED_HINT
+    if "interrupted" in msg:
+        return "超时"
+    return _truncate(msg)
+
+
 def _execute_trusted(conn, script, deadline, error_prefix):
     """执行受信脚本，任何失败都是出题问题 → SYSTEM_ERROR。"""
     conn.set_progress_handler(lambda: 1 if time.monotonic() > deadline else 0, PROGRESS_STEP)
@@ -130,7 +158,7 @@ def _execute_trusted(conn, script, deadline, error_prefix):
     except SQLCaseError as e:
         raise SQLCaseError(JudgeStatus.SYSTEM_ERROR, f"{error_prefix}: {e.message}")
     except sqlite3.Error as e:
-        raise SQLCaseError(JudgeStatus.SYSTEM_ERROR, f"{error_prefix}: {_truncate(e)}")
+        raise SQLCaseError(JudgeStatus.SYSTEM_ERROR, f"{error_prefix}: {_trusted_error_text(e)}")
     finally:
         conn.set_progress_handler(None, PROGRESS_STEP)
 
@@ -159,6 +187,9 @@ def _run_student(conn, script, mode, deadline):
             raise SQLCaseError(JudgeStatus.CPU_TIME_LIMIT_EXCEEDED, "SQL 执行超时")
         if "database or disk is full" in msg:
             raise SQLCaseError(JudgeStatus.MEMORY_LIMIT_EXCEEDED, "数据量超出内存限制")
+        # SQLITE_LIMIT_LENGTH 触顶，如 zeroblob/group_concat 构造出的超大单值
+        if "too big" in msg:
+            raise SQLCaseError(JudgeStatus.MEMORY_LIMIT_EXCEEDED, "单个数据值超出内存限制")
         if "not authorized" in msg or "prohibited" in msg:
             hint = denied_hints[-1] if denied_hints else "本题禁止使用该语句"
             raise SQLCaseError(JudgeStatus.RUNTIME_ERROR, hint)
@@ -167,7 +198,8 @@ def _run_student(conn, script, mode, deadline):
         raise SQLCaseError(JudgeStatus.RUNTIME_ERROR, _truncate(msg))
     finally:
         conn.set_progress_handler(None, PROGRESS_STEP)
-        conn.set_authorizer(None)
+        # 还原连接级的 ATTACH/DETACH 防护，而不是彻底放开
+        conn.set_authorizer(_trusted_authorizer)
 
     if mode == "query":
         return last_result
@@ -322,8 +354,7 @@ def build_display(init_sql, ref_sql, mode, *, memory_limit_mb=64):
                         }
                     cursor.close()
             except sqlite3.Error as e:
-                msg = "超时" if "interrupted" in str(e) else _truncate(e)
-                raise SQLCaseError(JudgeStatus.SYSTEM_ERROR, f"标准答案执行失败: {msg}")
+                raise SQLCaseError(JudgeStatus.SYSTEM_ERROR, f"标准答案执行失败: {_trusted_error_text(e)}")
             finally:
                 conn.set_progress_handler(None, PROGRESS_STEP)
             if expected is None:

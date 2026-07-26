@@ -79,6 +79,10 @@ class DispatcherBase(object):
 
 
 class JudgeDispatcher(DispatcherBase):
+    # 是否占用 JudgeServer 槽位。判完后只有占过槽位的才需要唤醒等待队列，
+    # 否则会把队首任务 pop 出来又原地退回（SQLJudgeDispatcher 在 worker 内判题，不占槽位）
+    uses_judge_server = True
+
     def __init__(self, submission_id, problem_id):
         super().__init__()
         self.submission = Submission.objects.get(id=submission_id)
@@ -216,8 +220,9 @@ class JudgeDispatcher(DispatcherBase):
             else:
                 self.update_problem_status()
 
-        # 至此判题结束，尝试处理任务队列中剩余的任务
-        process_pending_task()
+        # 至此判题结束，释放了 JudgeServer 槽位，尝试处理任务队列中剩余的任务
+        if self.uses_judge_server:
+            process_pending_task()
 
     def update_problem_status_rejudge(self):
         result = str(self.submission.result)

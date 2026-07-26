@@ -23,6 +23,9 @@ class SQLProblemConfigError(Exception):
 
 
 class SQLJudgeDispatcher(JudgeDispatcher):
+    # 在 worker 内用 sqlite3 判题，不经过 ChooseJudgeServer，也就没有槽位可释放
+    uses_judge_server = False
+
     def judge(self):
         Submission.objects.filter(id=self.submission.id).update(result=JudgeStatus.JUDGING)
         self._push_status(JudgeStatus.JUDGING, "judging")
@@ -55,6 +58,15 @@ class SQLJudgeDispatcher(JudgeDispatcher):
                 self._process_judge_result({"err": "CompileError", "data": case["error_message"]})
                 return
             cases.append(case)
+
+        # 判题给出的中文提示（授权拒绝/超时/内存/无结果集）只存在测试点的 error_message 里，
+        # 前端只读 statistic_info.err_info，这里把首个失败测试点的提示提上来，否则学生看不到原因
+        failed = next((c for c in cases if c["result"] != JudgeStatus.ACCEPTED), None)
+        if failed and failed["error_message"]:
+            self.submission.statistic_info["err_info"] = failed["error_message"]
+        else:
+            # rejudge 时清掉上一轮的残留提示
+            self.submission.statistic_info.pop("err_info", None)
 
         self._process_judge_result({"err": None, "data": cases})
 
