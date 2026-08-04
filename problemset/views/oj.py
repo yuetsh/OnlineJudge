@@ -3,6 +3,7 @@ from django.utils import timezone
 
 from account.decorators import login_required, teacher_admin_required
 from account.models import User
+from achievement.notify import notify_badges
 from problem.models import Problem
 from problemset.models import (
     BadgeConditionType,
@@ -229,22 +230,39 @@ class ProblemSetProgressAPI(APIView):
         return self.success("进度已更新")
 
     def _check_badges(self, progress):
-        """检查是否获得奖章"""
-        badges = ProblemSetBadge.objects.filter(problemset=progress.problemset)
+        """检查是否获得奖章。
 
+        一次查询取出全部已获奖章 id，内存比对，避免逐条 exists()（原来的 N+1）。
+        用 get_or_create 避免并发重复提交撞 unique constraint 抛异常。
+        新获得的奖章推送给用户——接入前奖章是静默入库的，学生根本不知道自己拿到了。
+        """
+        badges = list(ProblemSetBadge.objects.filter(problemset=progress.problemset))
+        if not badges:
+            return
+
+        owned = set(UserBadge.objects.filter(user=progress.user, badge__in=badges).values_list("badge_id", flat=True))
+
+        earned = []
         for badge in badges:
-            if UserBadge.objects.filter(user=progress.user, badge=badge).exists():
+            if badge.id in owned:
                 continue
 
             if badge.condition_type == BadgeConditionType.ALL_PROBLEMS:
-                if progress.total_problems_count > 0 and progress.completed_problems_count == progress.total_problems_count:
-                    UserBadge.objects.create(user=progress.user, badge=badge)
+                hit = progress.total_problems_count > 0 and progress.completed_problems_count == progress.total_problems_count
             elif badge.condition_type == BadgeConditionType.PROBLEM_COUNT:
-                if progress.completed_problems_count >= badge.condition_value:
-                    UserBadge.objects.create(user=progress.user, badge=badge)
+                hit = progress.completed_problems_count >= badge.condition_value
             elif badge.condition_type == BadgeConditionType.SCORE:
-                if progress.total_score >= badge.condition_value:
-                    UserBadge.objects.create(user=progress.user, badge=badge)
+                hit = progress.total_score >= badge.condition_value
+            else:
+                hit = False
+
+            if hit:
+                _, created = UserBadge.objects.get_or_create(user=progress.user, badge=badge)
+                if created:
+                    earned.append(badge)
+
+        if earned:
+            notify_badges(progress.user_id, earned)
 
 
 # DEPRECATED: 前端未调用 (2026-05-26)
