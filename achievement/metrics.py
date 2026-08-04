@@ -13,12 +13,16 @@ import logging
 from django.db.models import Count, Q
 from django.utils import timezone
 
-from submission.models import JudgeStatus, Submission
+from submission.models import JudgeStatus, Submission, is_accepted
 
 logger = logging.getLogger(__name__)
 
 METRIC_REGISTRY = {}
 META_METRICS = set()
+
+# AC 口径与全项目一致：AST_CHECK_FAILED（代码结构检查未通过但测试点全过）也算通过。
+# 见 submission/models.py 的 is_accepted()。ORM 过滤用这个常量，标量比较用 is_accepted()。
+ACCEPTED_RESULTS = (JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED)
 
 
 class BaseMetric:
@@ -64,19 +68,20 @@ def build_ctx(user_id, sub):
     prior = _practice_submissions(user_id).filter(problem_id=sub.problem_id).exclude(id=sub.id)
     prior_stats = prior.aggregate(
         total=Count("id"),
-        accepted=Count("id", filter=Q(result=JudgeStatus.ACCEPTED)),
+        accepted=Count("id", filter=Q(result__in=ACCEPTED_RESULTS)),
     )
     local_now = timezone.localtime(sub.create_time)
+    sub_is_accepted = is_accepted(sub.result)
     return {
         "skip": False,
-        "is_accepted": sub.result == JudgeStatus.ACCEPTED,
+        "is_accepted": sub_is_accepted,
         # 该题此前的提交次数与 AC 次数
         "prior_count": prior_stats["total"],
         "prior_accepted": prior_stats["accepted"],
         # 首次 AC 这道题（此前从未 AC 过）
-        "is_first_ac_of_problem": sub.result == JudgeStatus.ACCEPTED and prior_stats["accepted"] == 0,
+        "is_first_ac_of_problem": sub_is_accepted and prior_stats["accepted"] == 0,
         # 一发入魂：此前无任何提交且本次 AC
-        "is_first_try_ac": sub.result == JudgeStatus.ACCEPTED and prior_stats["total"] == 0,
+        "is_first_try_ac": sub_is_accepted and prior_stats["total"] == 0,
         "local_date": local_now.date().isoformat(),
         "local_hour": local_now.hour,
     }
@@ -89,7 +94,7 @@ class AcceptedCount(BaseMetric):
             metrics["accepted_count"] = metrics.get("accepted_count", 0) + 1
 
     def recompute(self, user):
-        return _practice_submissions(user.id).filter(result=JudgeStatus.ACCEPTED).values("problem_id").distinct().count()
+        return _practice_submissions(user.id).filter(result__in=ACCEPTED_RESULTS).values("problem_id").distinct().count()
 
 
 @metric("submission_count", "提交总数", "提交次数（不含比赛）")
@@ -134,7 +139,7 @@ class MaxAcStreakDays(BaseMetric):
         metrics["max_ac_streak_days"] = max(metrics.get("max_ac_streak_days", 0), current)
 
     def recompute(self, user):
-        dates = sorted({timezone.localtime(t).date() for t in _practice_submissions(user.id).filter(result=JudgeStatus.ACCEPTED).values_list("create_time", flat=True)})
+        dates = sorted({timezone.localtime(t).date() for t in _practice_submissions(user.id).filter(result__in=ACCEPTED_RESULTS).values_list("create_time", flat=True)})
         if not dates:
             return None
         best = current = 1
@@ -203,7 +208,7 @@ class FirstTryAcCount(BaseMetric):
             if s["problem_id"] in seen:
                 continue
             seen.add(s["problem_id"])
-            if s["result"] == JudgeStatus.ACCEPTED:
+            if is_accepted(s["result"]):
                 count += 1
         return count
 
@@ -241,7 +246,7 @@ class MaxWaBeforeAc(BaseMetric):
             pid = s["problem_id"]
             if pid in attempts and attempts[pid] is None:
                 continue
-            if s["result"] == JudgeStatus.ACCEPTED:
+            if is_accepted(s["result"]):
                 best = max(best or 0, attempts.get(pid, 0))
                 attempts[pid] = None
             else:
@@ -262,7 +267,7 @@ class MaxAcInOneDay(BaseMetric):
     def recompute(self, user):
         counts = {}
         seen = set()
-        for s in _practice_submissions(user.id).filter(result=JudgeStatus.ACCEPTED).order_by("create_time").values("problem_id", "create_time"):
+        for s in _practice_submissions(user.id).filter(result__in=ACCEPTED_RESULTS).order_by("create_time").values("problem_id", "create_time"):
             if s["problem_id"] in seen:
                 continue
             seen.add(s["problem_id"])
@@ -281,7 +286,7 @@ class MinAcCodeChars(BaseMetric):
         metrics["min_ac_code_chars"] = length if cur is None else min(cur, length)
 
     def recompute(self, user):
-        lengths = [len(c) for c in _practice_submissions(user.id).filter(result=JudgeStatus.ACCEPTED).values_list("code", flat=True)]
+        lengths = [len(c) for c in _practice_submissions(user.id).filter(result__in=ACCEPTED_RESULTS).values_list("code", flat=True)]
         return min(lengths) if lengths else None
 
 

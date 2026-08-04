@@ -148,6 +148,14 @@ class MidnightSubmissions:
 
 这条对所有指标统一适用，累积型指标（缺失即视为未达标）行为不变，极小值型指标由此被正确保护。前端进度条同理：指标缺失时显示 `0 / N` 而不是拿缺失值参与计算。
 
+### AC 的口径
+
+判断一次提交是否算通过，一律使用 `submission/models.py` 的 `is_accepted()`，即 `result in (ACCEPTED, AST_CHECK_FAILED)`。
+
+`AST_CHECK_FAILED`（状态码 10）表示测试用例全部通过、但违反了教师配置的代码结构规则。项目里每一处统计 AC 的地方都把它算作通过（个人主页的已通过题数、题目的通过人数、比赛排名等），成就必须跟随同一口径——否则学生个人主页显示「已通过 50 题」而成就进度条显示 47，会被当成 bug 来问。
+
+ORM 过滤无法调用该函数，用 `result__in=(JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED)`。
+
 ### 比赛提交不计入成就
 
 **所有基于提交的指标只统计 `contest_id IS NULL` 的提交。** 比赛里做的题不算进「AC 100 题」这类成就。

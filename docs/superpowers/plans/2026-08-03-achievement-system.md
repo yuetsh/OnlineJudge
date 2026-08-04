@@ -18,6 +18,7 @@
 - 后端 lint：`ruff check .` 与 `ruff format .`（E/F/I 规则，行宽 180，双引号）。每次提交前必须通过。
 - 前端格式化：`npm fmt`（Prettier）。
 - 所有基于提交的指标**只统计 `contest_id IS NULL` 的提交**，比赛题不计入成就。唯一例外是 `contest_joined`。
+- **判断提交是否算通过一律用 `submission.models.is_accepted()`**，即 `result in (ACCEPTED, AST_CHECK_FAILED)`，与项目其余所有 AC 统计口径一致。ORM 过滤用 `result__in=(JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED)`。（Task 2 执行期间由 reviewer 发现计划原文写成了 `result == ACCEPTED`，经人工裁决改正。）
 - 成就为纯荣誉，**不发放任何可消费奖励**，不接入积分/道具/权限体系。
 - 判定任务内所有异常必须捕获并记日志，绝不允许影响判题结果。
 - 指标未产生过有效值时，其 key **不存在于** `metrics` 字典中（而非置 0）。判定时遇到缺失 key 直接跳过该成就。
