@@ -1,6 +1,7 @@
 import dramatiq
 
 from account.models import User
+from achievement.tasks import check_achievements
 from judge.dispatcher import JudgeDispatcher
 from judge.sql_dispatcher import SQLJudgeDispatcher
 from submission.models import Submission
@@ -17,3 +18,6 @@ def judge_task(submission_id, problem_id):
         SQLJudgeDispatcher(submission_id, problem_id).judge()
     else:
         JudgeDispatcher(submission_id, problem_id).judge()
+
+    # 判题结束后异步判定成就；投递失败不影响判题结果
+    check_achievements.send(submission.user_id, submission_id)
