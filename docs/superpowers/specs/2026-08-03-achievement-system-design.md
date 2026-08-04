@@ -75,7 +75,7 @@
 | `rarity` | TextField(choices) | `bronze` / `silver` / `gold` / `platinum` |
 | `hidden` | BooleanField | 隐藏成就：未解锁时前端显示 `???` 且描述打码 |
 | `metric` | TextField(choices) | 指标名，choices 由代码注册表动态提供 |
-| `operator` | TextField(choices) | `gte` / `lte` / `eq` |
+| `operator` | TextField(choices) | `gte` / `lte` |
 | `threshold` | IntegerField | 阈值 |
 | `visible` | BooleanField | 是否上架；下架的不参与判定也不展示 |
 | `unlock_count` | IntegerField | 已解锁人数计数器，解锁时 `F()+1` |
@@ -86,7 +86,7 @@
 
 **阶梯成就**（AC 10 / 50 / 100）就是三条同 `metric` 不同 `threshold` 的记录，前端按 `metric` 自动归组成系列，不需要额外字段。
 
-`operator` 需要 `lte` 是因为存在「最短 AC 代码 ≤ 50 字符」这类成就。
+`operator` 需要 `lte` 是因为存在「最短 AC 代码 ≤ 50 字符」这类成就。不提供 `eq` —— `gte`/`lte` 已覆盖全部 15 个指标，多一个选项只会让后台能配出永远解锁不了的成就。
 
 ### UserStat — 指标快照
 
@@ -107,8 +107,10 @@ user          ForeignKey(User)
 achievement   ForeignKey(Achievement)
 unlock_time   DateTimeField
 backfilled    BooleanField   # 见"历史数据补发"
+notified      BooleanField   # 是否已向用户弹过奖杯，见"解锁通知"
 unique_together (user, achievement)
 index (user, -unlock_time)
+index (user, notified)        # pending 端点的查询路径
 ```
 
 全站获得率不实时聚合，读 `Achievement.unlock_count / 分母`。
@@ -146,6 +148,14 @@ class MidnightSubmissions:
 
 这条对所有指标统一适用，累积型指标（缺失即视为未达标）行为不变，极小值型指标由此被正确保护。前端进度条同理：指标缺失时显示 `0 / N` 而不是拿缺失值参与计算。
 
+### 比赛提交不计入成就
+
+**所有基于提交的指标只统计 `contest_id IS NULL` 的提交。** 比赛里做的题不算进「AC 100 题」这类成就。
+
+理由：`UserProfile.acm_problems_status` 本就把 `problems` 和 `contest_problems` 分开存，`dispatcher.judge()` 对比赛分支在 `judge/dispatcher.py:213` 也有独立处理路径；成就跟随平时练习的口径，与现有数据模型一致。
+
+唯一例外是 `contest_joined` —— 它统计的是参赛场次而非题数，本就属于比赛维度。
+
 ### 初始指标清单
 
 **累积型**（养习惯，人人可得）
@@ -173,9 +183,25 @@ class MidnightSubmissions:
 | `min_ac_code_chars` | 最短 AC 代码字符数（配 `lte`） |
 | `max_code_lines` | 最长代码行数 |
 
+**元指标**（用于白金档的全收集成就）
+
+| key | 含义 |
+|---|---|
+| `achievement_unlocked_count` | 已解锁的成就数（不含白金档自身） |
+
+这个指标自引用：解锁成就会改变它，进而可能解锁新成就。**判定流程因此限定为最多两轮**：
+
+1. 第一轮用 `on_submission` 更新的普通指标判定，解锁普通成就
+2. 若第一轮有解锁，重算一次 `achievement_unlocked_count`，第二轮**只判定依赖该指标的成就**
+3. 第二轮结果不触发第三轮
+
+`achievement_unlocked_count` 的口径排除 `rarity=platinum` 的成就，避免「集齐 30 个成就」这类白金奖杯把自己算进分子。
+
 ## 判定流程
 
-判题完成后（`judge/` 现有链路末端）投递 dramatiq 任务：
+**投递点：`judge/tasks.py:judge_task` 的末尾**，`dispatcher.judge()` 返回之后。
+
+不挂在 `JudgeDispatcher` 内部：`judge()` 对比赛分支在 `judge/dispatcher.py:213` 会提前 `return`，挂在里面会漏掉那条路径；挂在 actor 末尾则同时覆盖 `JudgeDispatcher` 和 `SQLJudgeDispatcher` 两条判题链路。
 
 ```
 check_achievements(user_id, submission_id)
@@ -185,16 +211,39 @@ check_achievements(user_id, submission_id)
   4. 保存 UserStat
   5. 一次查询取出：visible=True 且该用户尚未解锁的全部 Achievement
   6. 内存中比对 metric / operator / threshold —— 零额外查询
-  7. bulk_create UserAchievement(ignore_conflicts=True)
+  7. bulk_create UserAchievement(ignore_conflicts=True, notified=False)
   8. F() 批量 +1 unlock_count
-  9. WebSocket 推送新解锁列表
+  9. 若第 7 步有新解锁 → 重算 achievement_unlocked_count，重复 5–8 但只判定依赖它的成就（第二轮，不再有第三轮）
+ 10. WebSocket 尝试推送新解锁列表（推送失败不影响已入库的解锁记录）
 ```
 
 第 5 步一次取全部候选、第 6 步纯内存比对，是刻意与现有 `_check_badges()` 逐条查询相反的写法。整个任务对一次判题只多 3~4 条 SQL。
 
 **任务内异常全部捕获并记日志** —— 成就算错绝不能影响判题结果，这也是选异步的意义。
 
-第 9 步的推送封装为 `achievement/notify.py` 中的独立函数，题单奖章解锁时也调用它。
+## 解锁通知：推拉结合
+
+现有 WebSocket **不是常驻连接**：`useSubmissionWebSocket` 全项目只有一处调用（`ojnext/src/oj/problem/composables/useSubmissionMonitor.ts:85`），连接只在问题页且有提交在监听时存在。纯靠 WebSocket 推送会丢消息：
+
+- 用户看完判题结果立刻跳走，异步任务稍后才推送，`group_send` 不为未来成员排队 → 消息丢失
+- 题单奖章解锁发生在题单进度 API，那些页面根本没建连接 → 一条都推不到
+
+因此通知走**推拉结合**，`UserAchievement.notified` 是唯一的真相来源：
+
+| 通道 | 作用 | 覆盖场景 |
+|---|---|---|
+| **拉**（主）| `GET /api/achievements/pending` 返回 `notified=False` 的解锁，弹完由前端 `POST` 标记已读 | 全部场景，绝不丢 |
+| **推**（增强）| `utils/websocket.py:push_to_user()` | 判题当场在问题页，即时弹出 |
+
+前端在布局层（`shared/layout/default.vue`）路由切换时拉一次 pending，这样任何页面、任何时刻解锁的成就最终都会弹到。WebSocket 只负责把"当场那一下"的延迟从"下次导航"压到几百毫秒。
+
+推送封装为 `achievement/notify.py` 的独立函数，题单奖章解锁时也调用它（奖章同样写入一条待通知记录）。
+
+### 前端必须改的现有文件
+
+`push_to_user()` 复用了 `submission_update` 这个 channel layer handler 名（`submission/consumers.py` 文档中明写"不可改名"），只把自定义 `type` 塞进内层 data。而 `SubmissionWebSocket` 的泛型是 `SubmissionUpdate`，`useSubmissionMonitor` 的 handler 会把 `type: "achievement_unlocked"` 的帧当成提交更新去读 `submission_id` / `result`。
+
+**`useSubmissionMonitor.handleSubmissionUpdate` 必须先按 `data.type === "submission_update"` 过滤**，成就消息单独分流给成就 store。这是修改现有文件，不是新增。
 
 ## 前端：奖杯馆
 
@@ -218,10 +267,11 @@ check_achievements(user_id, submission_id)
 
 ### 解锁弹窗
 
-`AchievementToast.vue`，复用 `shared/composables/websocket`：
+`AchievementToast.vue` 挂在布局层，数据来自上面的推拉两个通道：
 
 - 右下角滑入、奖杯光效、3 秒淡出
 - 多个同时解锁**排队依次弹出**，不重叠堆积
+- 弹完后 `POST` 标记 `notified=True`，避免下次导航重复弹
 - 题单奖章解锁复用同一组件
 
 ### 炫耀入口
@@ -243,9 +293,9 @@ check_achievements(user_id, submission_id)
 
 ### 首次上线使用 `--silent`
 
-不推送通知 —— 学生一登录被 30 个奖杯糊脸是灾难。改为个人主页顶部一条一次性提示：「成就系统上线了，你已解锁 23 个成就 →」。
+补发的记录直接以 `notified=True` 入库 —— 学生一登录被 30 个奖杯糊脸是灾难。改为个人主页顶部一条一次性提示：「成就系统上线了，你已解锁 23 个成就 →」。
 
-`--silent` 是开关而非硬编码：以后加了新指标再跑重算时应当正常推送。
+`--silent` 是开关而非硬编码：以后加了新指标再跑重算时不带这个参数，新解锁以 `notified=False` 入库，下次导航正常弹出。
 
 ### 阈值下调的补发
 
@@ -270,6 +320,8 @@ UserStat.objects.annotate(
 |---|---|
 | `GET /api/achievements?name=<username>` | 奖杯馆数据：全部成就定义 + 该用户解锁状态 + 进度值 + 获得率。隐藏且未解锁的成就，`name`/`description` 在序列化层就替换为占位符，不下发真实内容 |
 | `GET /api/achievements/summary?name=<username>` | 个人主页摘要：完成度、各稀有度计数、最近 5 枚 |
+| `GET /api/achievements/pending` | 当前用户 `notified=False` 的解锁记录，供布局层拉取弹窗 |
+| `POST /api/achievements/pending/read` | 标记指定解锁记录为已弹出 |
 
 ### 管理侧（`achievement/urls/admin.py`）
 
