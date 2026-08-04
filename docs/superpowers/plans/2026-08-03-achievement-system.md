@@ -296,6 +296,15 @@ class BaseMetric:
         """全量重算。返回 None 表示该用户此指标无有效值。"""
         raise NotImplementedError
 
+    def recompute_state(self, user):
+        """重算时一并重建增量所需的辅助键，返回 {key: value}。
+
+        默认无辅助状态。凡是 on_submission 依赖 `_` 前缀辅助键的指标都必须重写
+        本方法：否则全量重算把辅助键丢掉后，下一次判题会从零重新累积，指标当场
+        回退（active_days 从 45 掉回 1），且要等到下一次重算才恢复。
+        """
+        return {}
+
 
 def metric(key, name, help_text="", meta=False):
     def deco(cls):
@@ -1567,6 +1576,9 @@ class Command(BaseCommand):
                 # None 表示该指标无有效值，key 必须缺席而不是置 0
                 if value is not None:
                     metrics[key] = value
+                # 一并重建增量辅助键，否则重算后的第一次判题会把
+                # active_days / languages_used / max_ac_in_one_day 打回 1
+                metrics.update(m.recompute_state(user))
             stat.metrics = metrics
             stat.save(update_fields=["metrics", "update_time"])
 
@@ -1590,7 +1602,11 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(f"完成：{total_users} 个用户，新解锁 {total_unlocked} 条"))
 ```
 
-> 注意：重算时丢弃了 `_active_dates` / `_languages` 等下划线前缀的增量辅助 key。这是有意的——`recompute` 直接算出终值，辅助 key 会在下一次判题的 `on_submission` 中自然重建。但 `active_days`、`languages_used`、`max_ac_in_one_day`、`max_ac_streak_days` 这四个指标在重算后的第一次判题会**从辅助 key 缺失的状态重新累积**，可能导致数值短暂偏低。**因此重算后应立刻再跑一次重算是无效的；正确做法是重算命令只在低峰期执行，且执行后不依赖增量值的绝对精确性——这些指标的成就阈值判定用的是 max 语义，不会回退。**
+> **重算必须同时重建 `_` 前缀的增量辅助键**，这就是每个指标 `recompute_state()` 的职责。
+>
+> 早先这里写着"辅助键会在下一次判题时自然重建、这些指标是 max 语义不会回退"——**这个说法是错的**，四个指标里只有 `max_ac_streak_days` 的最大值受 max 保护。`active_days`、`languages_used`、`max_ac_in_one_day` 的 `on_submission` 完全从辅助结构推导新值、不参考已有顶层值，辅助键一丢，下一次提交就把它们打回 1，且要等下次重算才恢复。`max_ac_streak_days` 虽然最大值不退，但当前连续天数会清零，连了 20 天的学生得重新连 20 天才能刷新纪录。
+>
+> 上线当天就会踩到：`--silent` 补发跑完，每个学生的下一次提交都会让这三个指标崩掉。
 
 - [ ] **Step 2: 单用户试跑**
 
