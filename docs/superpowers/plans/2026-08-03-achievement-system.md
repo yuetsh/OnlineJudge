@@ -665,7 +665,7 @@ git commit -m "feat(achievement): 添加指标注册表与 16 个内置指标"
 - Produces:
   - `checker.evaluate(user, metrics: dict, only_metrics: set | None = None) -> list[Achievement]` — 纯判定，返回应解锁但尚未解锁的成就
   - `checker.unlock(user, achievements: list, backfilled=False, notified=False) -> list[UserAchievement]` — 写库 + 更新 `unlock_count`
-  - `checker.run_for_submission(user_id: int, submission) -> list[UserAchievement]` — 完整两轮流程
+  - `checker.run_for_submission(user: User, submission) -> list[UserAchievement]` — 完整两轮流程（传 User 实例，不是 id）
   - `notify.notify_achievements(user_id: int, records: list[UserAchievement]) -> None`
   - `notify.notify_badges(user_id: int, badges: list) -> None`
   - `tasks.check_achievements.send(user_id, submission_id)`
@@ -759,13 +759,21 @@ def run_for_submission(user, submission):
         return []
 
     # 第二轮：只重算元指标、只判定依赖元指标的成就，不再有第三轮
-    for key in META_METRICS:
-        value = METRIC_REGISTRY[key].recompute(user)
-        if value is None:
-            stat.metrics.pop(key, None)
-        else:
-            stat.metrics[key] = value
-    stat.save(update_fields=["metrics", "update_time"])
+    meta_values = {key: METRIC_REGISTRY[key].recompute(user) for key in META_METRICS}
+
+    # 必须重新取锁并重新读一次 stat：上面那个 stat 对象的 metrics 是解锁前的快照，
+    # 直接 save 会把整份字典写回，覆盖掉并发判题在这期间已提交的增量
+    # （同一用户两次提交并发判题时会让提交数/AC 数静默倒退，且无定期重算兜底）。
+    # 这里只合并元指标那几个 key。
+    with transaction.atomic():
+        stat = UserStat.objects.select_for_update().get(user=user)
+        for key, value in meta_values.items():
+            if value is None:
+                stat.metrics.pop(key, None)
+            else:
+                stat.metrics[key] = value
+        stat.save(update_fields=["metrics", "update_time"])
+
     second = unlock(user, evaluate(user, stat.metrics, only_metrics=META_METRICS))
 
     return first + second
