@@ -103,7 +103,7 @@ class AcceptedCount(BaseMetric):
             metrics["accepted_count"] = metrics.get("accepted_count", 0) + 1
 
     def recompute(self, user):
-        return _practice_submissions(user.id).filter(result__in=ACCEPTED_RESULTS).values("problem_id").distinct().count()
+        return _practice_submissions(user.id).filter(result__in=ACCEPTED_RESULTS).order_by().values("problem_id").distinct().count()
 
 
 @metric("submission_count", "提交总数", "提交次数（不含比赛）")
@@ -181,10 +181,14 @@ class LanguagesUsed(BaseMetric):
             metrics["languages_used"] = len(seen)
 
     def recompute(self, user):
-        return _practice_submissions(user.id).values("language").distinct().count()
+        return _practice_submissions(user.id).order_by().values("language").distinct().count()
 
     def recompute_state(self, user):
-        return {"_languages": list(_practice_submissions(user.id).values_list("language", flat=True).distinct())}
+        # order_by() 不能省：Submission.Meta 有默认排序 ("-create_time",)，
+        # Django 会把排序字段并入 DISTINCT，于是每条提交各成一行——
+        # 实测某用户返回 659 条而不是 5 种语言。
+        # recompute 侥幸正确只是因为 .count() 会清掉排序，不能依赖这一点。
+        return {"_languages": list(_practice_submissions(user.id).order_by().values_list("language", flat=True).distinct())}
 
 
 @metric("contest_joined", "参赛场次", "参加过的比赛数量（本指标是比赛维度，不受比赛提交不计入的限制）")
@@ -194,7 +198,7 @@ class ContestJoined(BaseMetric):
         return
 
     def recompute(self, user):
-        return Submission.objects.filter(user_id=user.id, contest_id__isnull=False).values("contest_id").distinct().count()
+        return Submission.objects.filter(user_id=user.id, contest_id__isnull=False).order_by().values("contest_id").distinct().count()
 
 
 @metric("badge_count", "题单奖章数", "获得的题单奖章数量")
