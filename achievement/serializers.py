@@ -27,6 +27,12 @@ class AchievementSerializer(serializers.ModelSerializer):
     name = serializers.SerializerMethodField()
     description = serializers.SerializerMethodField()
     icon = serializers.SerializerMethodField()
+    # 条件三件套也必须跟着遮掉：只遮名称和描述、却明文下发
+    # metric/operator/threshold，学生打开 DevTools 就知道"凌晨提交 10 次"，
+    # 隐藏成就的意义全部作废
+    metric = serializers.SerializerMethodField()
+    operator = serializers.SerializerMethodField()
+    threshold = serializers.SerializerMethodField()
 
     class Meta:
         model = Achievement
@@ -58,6 +64,15 @@ class AchievementSerializer(serializers.ModelSerializer):
 
     def get_icon(self, obj):
         return "❓" if self._masked(obj) else obj.icon
+
+    def get_metric(self, obj):
+        return None if self._masked(obj) else obj.metric
+
+    def get_operator(self, obj):
+        return None if self._masked(obj) else obj.operator
+
+    def get_threshold(self, obj):
+        return None if self._masked(obj) else obj.threshold
 
     def get_unlock_rate(self, obj):
         total = get_active_user_count()
