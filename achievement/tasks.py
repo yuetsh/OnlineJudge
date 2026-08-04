@@ -56,7 +56,10 @@ def rescan_achievement(achievement_id):
         if stat.user_id in already:
             continue
         try:
-            records = checker.unlock(stat.user, [achievement])
+            # backfilled=True：这是补发，不是学生刚刚挣到的。
+            # 前端据此只显示"已获得"而不显示具体日期——否则一次补发会给几百人
+            # 盖上同一个时间戳，把"最近获得"板块彻底冲垮
+            records = checker.unlock(stat.user, [achievement], backfilled=True)
             notify_achievements(stat.user_id, records)
         except Exception as e:
             logger.error(f"rescan_achievement failed for user {stat.user_id}: {e}")

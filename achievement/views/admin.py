@@ -1,6 +1,6 @@
 from account.decorators import super_admin_required
 from achievement.metrics import METRIC_REGISTRY
-from achievement.models import Achievement
+from achievement.models import Achievement, Rarity
 from achievement.tasks import rescan_achievement
 from utils.api import APIView
 from utils.shortcuts import check_is_id
@@ -53,20 +53,19 @@ class AchievementAdminAPI(APIView):
         if error:
             return self.error(error)
 
-        old_threshold = achievement.threshold
-        old_operator = achievement.operator
+        before = (achievement.metric, achievement.operator, achievement.threshold, achievement.visible)
         for field in ("name", "description", "icon", "rarity", "hidden", "metric", "operator", "threshold", "visible", "order"):
             if field in data:
                 setattr(achievement, field, data[field])
         achievement.save()
 
-        # 条件放宽（gte 调低阈值 / lte 调高阈值 / 换了比较符）时补发
-        loosened = (
-            achievement.operator != old_operator
-            or (achievement.operator == "gte" and achievement.threshold < old_threshold)
-            or (achievement.operator == "lte" and achievement.threshold > old_threshold)
-        )
-        if loosened and achievement.visible:
+        # 只要"谁能达成"这件事可能变了就补发，不去精细判断是否放宽。
+        # 补发是幂等的后台任务（unlock 用 get_or_create），多跑一次只花一次扫描；
+        # 漏跑却是学生已达标却拿不到，两个方向代价不对称。
+        # 早先的 loosened 谓词只看 operator/threshold，会漏掉两种情况：
+        # 换了 metric（换了维度）、以及从下架改成上架（草稿期已达标的人）。
+        after = (achievement.metric, achievement.operator, achievement.threshold, achievement.visible)
+        if achievement.visible and before != after:
             rescan_achievement.send(achievement.id)
         return self.success(_serialize(achievement))
 
@@ -94,6 +93,10 @@ def _validate(data):
         return "指标不存在"
     if data["operator"] not in ("gte", "lte"):
         return "比较符不合法"
+    # rarity 不校验的话，一个乱填的值会让 AchievementSummaryAPI 的四档统计
+    # 对不上：它按 Rarity.choices 遍历，野值算进总数却不出现在任何一档里
+    if data["rarity"] not in Rarity.values:
+        return "稀有度不合法"
     if not isinstance(data.get("threshold"), int):
         return "阈值必须是整数"
     return None
