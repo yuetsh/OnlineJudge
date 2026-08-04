@@ -119,5 +119,8 @@ def _serialize(a):
         # 这个计数器是唯一的仪表盘
         "unlock_count": a.unlock_count,
         "order": a.order,
-        "create_time": a.create_time,
+        # 必须 isoformat()：这里是手写的 dict 而不是 DRF 序列化器，
+        # 原始 datetime 交给 JSON 编码器会抛 TypeError，整个管理接口 500。
+        # 表为空时列表接口看着正常（不进循环），一旦有数据就全挂。
+        "create_time": a.create_time.isoformat() if a.create_time else None,
     }
