@@ -717,19 +717,25 @@ def evaluate(user, metrics, only_metrics=None):
 
 
 def unlock(user, achievements, backfilled=False, notified=False):
-    """写入解锁记录并累加 unlock_count，返回实际新建的记录。"""
-    if not achievements:
-        return []
-    records = [
-        UserAchievement(user=user, achievement=a, backfilled=backfilled, notified=notified)
-        for a in achievements
-    ]
-    with transaction.atomic():
-        UserAchievement.objects.bulk_create(records, ignore_conflicts=True)
-        created = list(
-            UserAchievement.objects.filter(user=user, achievement__in=achievements).select_related("achievement")
+    """写入解锁记录并累加 unlock_count，返回实际新建的记录。
+
+    刻意逐条 get_or_create 而不是 bulk_create：unique_user_achievement 约束负责
+    并发竞态，was_created 是"这一条确实是我新建的"的唯一可信判据。用
+    bulk_create(ignore_conflicts=True) 则无法区分新建与已存在，并发判题时会把
+    unlock_count 重复累加（获得率永久偏高），并对同一个奖杯重复推送通知。
+
+    循环次数是"本次新解锁的成就数"，常态为 0，因此常态零查询。
+    """
+    created = []
+    for achievement in achievements:
+        record, was_created = UserAchievement.objects.get_or_create(
+            user=user,
+            achievement=achievement,
+            defaults={"backfilled": backfilled, "notified": notified},
         )
-        Achievement.objects.filter(id__in=[a.id for a in achievements]).update(unlock_count=F("unlock_count") + 1)
+        if was_created:
+            Achievement.objects.filter(id=achievement.id).update(unlock_count=F("unlock_count") + 1)
+            created.append(record)
     return created
 
 
