@@ -27,4 +27,5 @@ urlpatterns = [
     path("api/admin/", include("problemset.urls.admin")),
     path("api/", include("class_pk.urls.oj")),
     path("api/", include("achievement.urls.oj")),
+    path("api/admin/", include("achievement.urls.admin")),
 ]
