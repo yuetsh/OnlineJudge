@@ -41,6 +41,9 @@ class Command(BaseCommand):
                 # None 表示该指标无有效值，key 必须缺席而不是置 0
                 if value is not None:
                     metrics[key] = value
+                # 一并重建增量辅助键，否则重算后的第一次判题会把
+                # active_days / languages_used / max_ac_in_one_day 打回 1
+                metrics.update(m.recompute_state(user))
             stat.metrics = metrics
             stat.save(update_fields=["metrics", "update_time"])
 

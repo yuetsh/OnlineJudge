@@ -38,6 +38,15 @@ class BaseMetric:
         """全量重算。返回 None 表示该用户此指标无有效值。"""
         raise NotImplementedError
 
+    def recompute_state(self, user):
+        """重算时一并重建增量所需的辅助键，返回 {key: value}。
+
+        默认无辅助状态。凡是 on_submission 依赖 `_` 前缀辅助键的指标都必须重写
+        本方法：否则全量重算把辅助键丢掉后，下一次判题会从零重新累积，指标当场
+        回退（active_days 从 45 掉回 1），且要等到下一次重算才恢复。
+        """
+        return {}
+
 
 def metric(key, name, help_text="", meta=False):
     def deco(cls):
@@ -119,6 +128,10 @@ class ActiveDays(BaseMetric):
         dates = {timezone.localtime(t).date().isoformat() for t in _practice_submissions(user.id).values_list("create_time", flat=True)}
         return len(dates)
 
+    def recompute_state(self, user):
+        dates = sorted({timezone.localtime(t).date().isoformat() for t in _practice_submissions(user.id).values_list("create_time", flat=True)})
+        return {"_active_dates": dates}
+
 
 @metric("max_ac_streak_days", "最长连续 AC 天数", "连续每天至少 AC 一题的最长天数")
 class MaxAcStreakDays(BaseMetric):
@@ -148,6 +161,15 @@ class MaxAcStreakDays(BaseMetric):
             best = max(best, current)
         return best
 
+    def recompute_state(self, user):
+        dates = sorted({timezone.localtime(t).date() for t in _practice_submissions(user.id).filter(result__in=ACCEPTED_RESULTS).values_list("create_time", flat=True)})
+        if not dates:
+            return {}
+        current = 1
+        for prev, cur in zip(dates, dates[1:]):
+            current = current + 1 if (cur - prev).days == 1 else 1
+        return {"_last_ac_date": dates[-1].isoformat(), "_current_ac_streak": current}
+
 
 @metric("languages_used", "使用语言数", "用过多少种编程语言")
 class LanguagesUsed(BaseMetric):
@@ -160,6 +182,9 @@ class LanguagesUsed(BaseMetric):
 
     def recompute(self, user):
         return _practice_submissions(user.id).values("language").distinct().count()
+
+    def recompute_state(self, user):
+        return {"_languages": list(_practice_submissions(user.id).values_list("language", flat=True).distinct())}
 
 
 @metric("contest_joined", "参赛场次", "参加过的比赛数量（本指标是比赛维度，不受比赛提交不计入的限制）")
@@ -274,6 +299,17 @@ class MaxAcInOneDay(BaseMetric):
             day = timezone.localtime(s["create_time"]).date().isoformat()
             counts[day] = counts.get(day, 0) + 1
         return max(counts.values()) if counts else None
+
+    def recompute_state(self, user):
+        counts = {}
+        seen = set()
+        for s in _practice_submissions(user.id).filter(result__in=ACCEPTED_RESULTS).order_by("create_time").values("problem_id", "create_time"):
+            if s["problem_id"] in seen:
+                continue
+            seen.add(s["problem_id"])
+            day = timezone.localtime(s["create_time"]).date().isoformat()
+            counts[day] = counts.get(day, 0) + 1
+        return {"_ac_per_day": counts}
 
 
 @metric("min_ac_code_chars", "最短 AC 代码", "通过的代码里最短的字符数（配小于等于使用）")
