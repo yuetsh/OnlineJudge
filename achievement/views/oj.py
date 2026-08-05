@@ -61,7 +61,7 @@ class AchievementSummaryAPI(APIView):
         total = sum(total_by_rarity.values())
         unlocked = sum(unlocked_by_rarity.values())
 
-        recent = list(UserAchievement.objects.filter(user=user, achievement__visible=True).select_related("achievement").order_by("-unlock_time")[:5])
+        recent = list(UserAchievement.objects.filter(user=user, achievement__visible=True).select_related("achievement").order_by("-unlock_time")[:10])
 
         return self.success(
             {
