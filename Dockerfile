@@ -25,7 +25,6 @@ apt-get install -y --no-install-recommends \
   curl \
   libjpeg62-turbo \
   libpq5 \
-  nginx \
   openssl \
   passwd \
   supervisor \
@@ -34,6 +33,9 @@ apt-get install -y --no-install-recommends \
 pip install -r /app/deploy/requirements.txt
 rm -rf /var/lib/apt/lists/*
 EOS
+
+# Caddy 官方镜像里是静态链接的 Go 二进制，直接拷进 slim 就能跑，不需要额外依赖。
+COPY --from=caddy:2-alpine /usr/bin/caddy /usr/bin/caddy
 
 COPY --chmod=755 ./ /app/
 RUN mkdir -p /app/dist/

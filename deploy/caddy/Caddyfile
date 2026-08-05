@@ -1,0 +1,77 @@
+{
+	admin off
+
+	servers {
+		# TLS 由前面的 Nginx Proxy Manager 终止，转发进来是明文 http。
+		# 只信任内网来源的 X-Forwarded-For，{client_ip} 才解析得出学生的真实 IP。
+		trusted_proxies static private_ranges
+	}
+}
+
+# 站点地址只写端口，Caddy 就不会去申请证书（auto-HTTPS 自动关闭）。
+:8000 {
+	encode gzip
+
+	# 和 NPM 那一层的 client_max_body_size 保持一致，上传测试用例压缩包用得上。
+	# 必须写 MiB：Caddy 的 MB 按 10^6 算，200MB 比 nginx 的 200M 小了将近 10M。
+	request_body {
+		max_size 200MiB
+	}
+
+	# Caddy 的 header 会跨层叠加，不像 nginx 的 add_header 一旦在子块出现就不再继承，
+	# 所以这里写一次就够，下面各 handle 里只管自己的 Cache-Control。
+	header {
+		X-XSS-Protection "1; mode=block"
+		X-Frame-Options SAMEORIGIN
+		X-Content-Type-Options nosniff
+	}
+
+	log {
+		output file /data/log/caddy_access.log {
+			roll_size 10MiB
+			roll_keep 10
+		}
+	}
+
+	# 判题机心跳每秒一次；静态资源量大且带永久缓存。两者都不记访问日志。
+	@nolog path /api/judge_server_heartbeat/ /assets/*
+	log_skip @nolog
+
+	handle /api/* {
+		reverse_proxy 127.0.0.1:8080 {
+			header_up X-Real-IP {client_ip}
+			# AI 分析走 SSE。X-Accel-Buffering 是 nginx 专有的，Caddy 不认，
+			# 这里显式关掉响应缓冲，保证流式输出逐块下发。
+			flush_interval -1
+		}
+	}
+
+	handle /ws/* {
+		reverse_proxy 127.0.0.1:8080 {
+			header_up X-Real-IP {client_ip}
+		}
+	}
+
+	# 头像、上传文件、站点图标，实际落在 /data/public 下。
+	handle /public/* {
+		root * /data
+		file_server
+	}
+
+	# 构建产物文件名带内容 hash，内容一变文件名就变，可以永久缓存。
+	# 命中后浏览器直接读磁盘，不再发条件请求。
+	handle /assets/* {
+		root * /app/dist
+		header Cache-Control "public, max-age=31536000, immutable"
+		file_server
+	}
+
+	# index.html 引用着带 hash 的文件名，必须每次回源校验，
+	# 否则发新版后学生刷不到。no-cache 是"缓存但每次校验"，命中走 304。
+	handle {
+		root * /app/dist
+		header Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
+}
