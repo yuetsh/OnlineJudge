@@ -19,7 +19,7 @@ from utils.api import APIError, APIView, CSRFExemptAPIView, validate_serializer
 from utils.openai import get_ai_client
 from utils.shortcuts import natural_sort_key, rand_str
 
-from ..models import Problem
+from ..models import Problem, ProblemTag
 from ..serializers import (
     AddContestProblemSerializer,
     ContestProblemMakePublicSerializer,
@@ -27,12 +27,14 @@ from ..serializers import (
     CreateProblemSerializer,
     EditContestProblemSerializer,
     EditProblemSerializer,
+    EditTagSerializer,
     ProblemAdminListSerializer,
     ProblemAdminSerializer,
     SQLTestCasePreviewSerializer,
+    TagAdminSerializer,
     TestCaseUploadForm,
 )
-from ..services import resolve_tags
+from ..services import clear_tag_cache, resolve_tags
 from ..utils import generate_sql_display
 
 
@@ -494,6 +496,61 @@ class AddContestProblemAPI(APIView):
         problem.statistic_info = {}
         problem.save()
         problem.tags.set(tags)
+        return self.success()
+
+
+class TagAdminAPI(APIView):
+    @problem_permission_required
+    def get(self, request):
+        tags = ProblemTag.objects.annotate(problem_count=Count("problem"))
+        keyword = request.GET.get("keyword", "").strip()
+        if keyword:
+            tags = tags.filter(name__icontains=keyword)
+        tags = tags.order_by("-problem_count", "name")
+        return self.success(TagAdminSerializer(tags, many=True).data)
+
+    @problem_permission_required
+    @validate_serializer(EditTagSerializer)
+    def put(self, request):
+        data = request.data
+        try:
+            tag = ProblemTag.objects.get(id=data["id"])
+        except ProblemTag.DoesNotExist:
+            return self.error("标签不存在，请刷新后重试")
+
+        name = data["name"].strip()
+        if not name:
+            return self.error("标签名不能为空")
+
+        target = ProblemTag.objects.filter(name__iexact=name).exclude(id=tag.id).first()
+        if target is None:
+            tag.name = name
+            tag.save()
+            clear_tag_cache()
+            return self.success({"merged": False, "id": tag.id, "name": tag.name, "affected_count": 0})
+
+        # 改名撞上已有标签，视为合并：题目关系转移过去，原标签删除
+        affected_count = 0
+        for problem in Problem.objects.filter(tags=tag):
+            problem.tags.add(target)
+            problem.tags.remove(tag)
+            affected_count += 1
+        tag.delete()
+        clear_tag_cache()
+        return self.success({"merged": True, "id": target.id, "name": target.name, "affected_count": affected_count})
+
+    @problem_permission_required
+    def delete(self, request):
+        tag_id = request.GET.get("id")
+        if not tag_id:
+            return self.error("Invalid parameter, id is required")
+        try:
+            tag = ProblemTag.objects.get(id=tag_id)
+        except ProblemTag.DoesNotExist:
+            return self.error("标签不存在，请刷新后重试")
+        # 删除标签行的同时，Django 会级联清掉 problem_tags 中间表里的关系
+        tag.delete()
+        clear_tag_cache()
         return self.success()
 
 

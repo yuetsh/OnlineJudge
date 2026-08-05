@@ -109,6 +109,19 @@ class TagSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
+class TagAdminSerializer(serializers.ModelSerializer):
+    problem_count = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = ProblemTag
+        fields = ["id", "name", "problem_count"]
+
+
+class EditTagSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    name = serializers.CharField(max_length=32)
+
+
 class BaseProblemSerializer(serializers.ModelSerializer):
     tags = serializers.SlugRelatedField(many=True, slug_field="name", read_only=True)
     created_by = UsernameSerializer()
