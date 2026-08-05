@@ -54,7 +54,20 @@ python manage.py check_achievement_deploy
 
 ### 第四步 配成就并全量补发
 
-在管理后台「成就」页配置。参考配置表见实施计划文档 Task 13（17 条，累积型 `hidden=False`、隐藏型 `hidden=True`）。
+在管理后台「成就」页配置。累积型设 `hidden=False`、隐藏型设 `hidden=True`。实施计划文档 Task 13 里有一份 17 条的初始参考表，但线上早已在其之上迭代（2026-08-05 起 38 条），**以管理后台的实际配置为准，别照着计划文档重配**。
+
+配阈值前先看真实分布，别拍脑袋——线上踩过的坑：`contest_joined` 最高只有 7（各班只打自己班的比赛），配 ≥10 是零解锁；`min_ac_code_chars` 最小值 8（有道题 8 个字符能过），已因此删除该指标。分布查询：
+
+```bash
+python manage.py shell -c "
+from achievement.models import UserStat
+k = 'hard_ac_count'
+v = sorted((s.metrics[k] for s in UserStat.objects.all() if k in s.metrics), reverse=True)
+print('n=', len(v), 'top20=', v[:20], 'p95/p99=', v[int(len(v)*0.05)], v[int(len(v)*0.01)])
+"
+```
+
+**阈值只能从严往松调**：调低会自动补发，调高不撤销已发出的记录。新成就先配高阈值看 `unlock_count`，太少再往下调；配松了想收紧只能删掉成就（级联删解锁记录）重建。
 
 ```bash
 python manage.py recompute_achievements --silent
