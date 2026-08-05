@@ -252,6 +252,18 @@ class MidnightSubmissions(BaseMetric):
         return sum(1 for t in _practice_submissions(user.id).values_list("create_time", flat=True) if 0 <= timezone.localtime(t).hour < 5)
 
 
+@metric("early_bird_submissions", "早起提交次数", "5:00–7:00 之间的提交次数")
+class EarlyBirdSubmissions(BaseMetric):
+    """与 midnight_submissions 对称的作息维度。5 点是两者的分界，不重叠。"""
+
+    def on_submission(self, metrics, sub, ctx):
+        if 5 <= ctx["local_hour"] < 7:
+            metrics["early_bird_submissions"] = metrics.get("early_bird_submissions", 0) + 1
+
+    def recompute(self, user):
+        return sum(1 for t in _practice_submissions(user.id).values_list("create_time", flat=True) if 5 <= timezone.localtime(t).hour < 7)
+
+
 @metric("compile_error_count", "编译错误次数", "累计编译错误的次数")
 class CompileErrorCount(BaseMetric):
     def on_submission(self, metrics, sub, ctx):
