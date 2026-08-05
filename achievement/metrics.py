@@ -14,6 +14,7 @@ from django.db.models import Count, Q
 from django.utils import timezone
 
 from submission.models import JudgeStatus, Submission, is_accepted
+from utils.constants import Difficulty
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +82,16 @@ def build_ctx(user_id, sub):
     )
     local_now = timezone.localtime(sub.create_time)
     sub_is_accepted = is_accepted(sub.result)
+    is_first_ac_of_problem = sub_is_accepted and prior_stats["accepted"] == 0
+
+    # 难度只有首次 AC 时才用得上，其余情况不查这一次库——
+    # 绝大多数提交都不是首次 AC，放在外面等于给每次判题白加一条 SQL
+    difficulty = None
+    if is_first_ac_of_problem:
+        from problem.models import Problem
+
+        difficulty = Problem.objects.filter(id=sub.problem_id).values_list("difficulty", flat=True).first()
+
     return {
         "skip": False,
         "is_accepted": sub_is_accepted,
@@ -88,9 +99,11 @@ def build_ctx(user_id, sub):
         "prior_count": prior_stats["total"],
         "prior_accepted": prior_stats["accepted"],
         # 首次 AC 这道题（此前从未 AC 过）
-        "is_first_ac_of_problem": sub_is_accepted and prior_stats["accepted"] == 0,
+        "is_first_ac_of_problem": is_first_ac_of_problem,
         # 一发入魂：此前无任何提交且本次 AC
         "is_first_try_ac": sub_is_accepted and prior_stats["total"] == 0,
+        # 本题难度，仅首次 AC 时有值
+        "problem_difficulty": difficulty,
         "local_date": local_now.date().isoformat(),
         "local_hour": local_now.hour,
     }
@@ -104,6 +117,33 @@ class AcceptedCount(BaseMetric):
 
     def recompute(self, user):
         return _practice_submissions(user.id).filter(result__in=ACCEPTED_RESULTS).order_by().values("problem_id").distinct().count()
+
+
+class _DifficultyAcCount(BaseMetric):
+    """按难度去重统计 AC 题数。子类只需指定 difficulty。
+
+    增量靠 ctx["problem_difficulty"]，它只在首次 AC 时才有值——与
+    is_first_ac_of_problem 是同一个条件，所以两者一起判即可。
+    """
+
+    difficulty = ""
+
+    def on_submission(self, metrics, sub, ctx):
+        if ctx["is_first_ac_of_problem"] and ctx["problem_difficulty"] == self.difficulty:
+            metrics[self.key] = metrics.get(self.key, 0) + 1
+
+    def recompute(self, user):
+        return _practice_submissions(user.id).filter(result__in=ACCEPTED_RESULTS, problem__difficulty=self.difficulty).order_by().values("problem_id").distinct().count()
+
+
+@metric("mid_ac_count", "中等题 AC 数", "去重后通过的中等难度题目数（不含比赛）")
+class MidAcCount(_DifficultyAcCount):
+    difficulty = Difficulty.MID
+
+
+@metric("hard_ac_count", "困难题 AC 数", "去重后通过的困难题目数（不含比赛）")
+class HardAcCount(_DifficultyAcCount):
+    difficulty = Difficulty.HIGH
 
 
 @metric("submission_count", "提交总数", "提交次数（不含比赛）")
@@ -328,18 +368,10 @@ class MaxAcInOneDay(BaseMetric):
         return {"_ac_per_day": counts}
 
 
-@metric("min_ac_code_chars", "最短 AC 代码", "通过的代码里最短的字符数（配小于等于使用）")
-class MinAcCodeChars(BaseMetric):
-    def on_submission(self, metrics, sub, ctx):
-        if not ctx["is_accepted"]:
-            return
-        length = len(sub.code)
-        cur = metrics.get("min_ac_code_chars")
-        metrics["min_ac_code_chars"] = length if cur is None else min(cur, length)
-
-    def recompute(self, user):
-        lengths = [len(c) for c in _practice_submissions(user.id).filter(result__in=ACCEPTED_RESULTS).values_list("code", flat=True)]
-        return min(lengths) if lengths else None
+# 曾经这里有 min_ac_code_chars（最短 AC 代码）。线上实测 1314 个用户的分布，
+# 最小值 8、p5=10：有道题 8 个字符就能通过，于是它测的是"谁做过那道水题"
+# 而不是"谁写得简洁"，配不出有意义的成就，2026-08-05 删除。
+# 要重新引入，得先按题目难度加权，或排除掉那类水题。
 
 
 @metric("max_code_lines", "最长代码行数", "提交过的最长代码有多少行")

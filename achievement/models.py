@@ -43,7 +43,7 @@ class UserStat(models.Model):
     """成就系统唯一的指标源，不复用 UserProfile 的计数器，避免两处口径漂移。
 
     metrics 为 {指标名: 数值}；指标从未产生过有效值时 key 不存在（而非置 0），
-    否则 min_ac_code_chars 这类极小值指标会对新用户恒成立。
+    否则极小值型指标（求 min、配 lte 用的那种）会对新用户恒成立。
     """
 
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="achievement_stat")

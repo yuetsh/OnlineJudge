@@ -31,7 +31,7 @@ def evaluate(user, metrics, only_metrics=None):
     for achievement in qs:
         value = metrics.get(achievement.metric)
         # 指标从未产生有效值时 key 不存在，直接跳过：
-        # 否则 min_ac_code_chars 这类极小值指标会对新用户恒成立
+        # 否则极小值型指标（求 min、配 lte 用的那种）会对新用户恒成立
         if value is None:
             continue
         if achievement.operator == Operator.GTE and value >= achievement.threshold:

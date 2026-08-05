@@ -16,7 +16,7 @@ from django.db.models.functions import Cast
 
 from account.models import User
 from achievement.metrics import META_METRICS, METRIC_REGISTRY
-from achievement.models import Achievement, UserAchievement, UserStat
+from achievement.models import Achievement, Operator, UserAchievement, UserStat
 
 # on_submission 依赖的辅助键 -> 它应该与哪个顶层指标保持一致
 STATE_PAIRS = {
@@ -85,20 +85,20 @@ class Command(BaseCommand):
         if count == 0:
             self._fail(title, "METRIC_REGISTRY 是空的，AppConfig.ready() 没有导入 metrics")
             return
-        if "min_ac_code_chars" not in METRIC_REGISTRY:
-            self._fail(title, f"注册了 {count} 个指标，但缺少 min_ac_code_chars")
-            return
         self._ok(title, f"{count} 个指标，元指标 {sorted(META_METRICS)}")
 
     def _check_min_metric_absent(self):
-        """极小值型指标对没有 AC 记录的用户必须返回 None。
+        """lte 类成就用的指标，对没有 AC 记录的用户必须返回 None。
 
-        返回 0 的话，"最短 AC 代码 ≤ 50 字符"会白送给每一个从没做出过题的新生。
+        返回 0 的话，"最短 AC 代码 ≤ 50 字符"这类成就会白送给每一个从没做出过题的新生。
+        线上目前没有 lte 成就（min_ac_code_chars 已删），本项因此会 SKIP；
+        将来配了任何 lte 成就，它会自动开始检查对应的指标。
         """
         title = "极小值指标对零 AC 用户返回 None"
-        metric = METRIC_REGISTRY.get("min_ac_code_chars")
-        if metric is None:
-            self._skip(title, "指标未注册")
+        metric_keys = sorted(set(Achievement.objects.filter(operator=Operator.LTE, visible=True).values_list("metric", flat=True)))
+        metrics = [(k, METRIC_REGISTRY[k]) for k in metric_keys if k in METRIC_REGISTRY]
+        if not metrics:
+            self._skip(title, "没有上架的 lte 类成就")
             return
 
         user = User.objects.filter(is_disabled=False, userprofile__accepted_number=0).first()
@@ -106,14 +106,15 @@ class Command(BaseCommand):
             self._skip(title, "找不到 accepted_number=0 的用户，无法验证")
             return
 
-        value = metric.recompute(user)
-        if value is None:
-            self._ok(title, f"用户 {user.username}")
-        else:
+        bad = [(key, value) for key, m in metrics if (value := m.recompute(user)) is not None]
+        if bad:
+            detail = "、".join(f"{key} 得到 {value!r}" for key, value in bad)
             self._fail(
                 title,
-                f"用户 {user.username} 得到 {value!r}，应为 None。\n       现在配任何 lte 类成就都会白送给全部零 AC 用户。",
+                f"用户 {user.username}：{detail}，都应为 None。\n       这些 lte 成就正在白送给全部零 AC 用户。",
             )
+        else:
+            self._ok(title, f"用户 {user.username}，检查了 {len(metrics)} 个指标")
 
     def _check_jsonb_cast(self):
         """JSONB 数字必须按整数比较，不能按字符串序。
