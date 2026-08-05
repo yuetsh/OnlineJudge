@@ -19,6 +19,8 @@ class Operator(models.TextChoices):
 class Achievement(models.Model):
     name = models.TextField(verbose_name="成就名称")
     description = models.TextField(verbose_name="成就描述")
+    # iconify 图标名（如 noto:owl），不是 emoji 字符：
+    # 机房的老浏览器缺 emoji 字体会渲染成方块，前端统一渲染成 SVG
     icon = models.TextField(verbose_name="图标")
     rarity = models.TextField(default=Rarity.BRONZE, choices=Rarity.choices, verbose_name="稀有度")
     hidden = models.BooleanField(default=False, db_default=False, verbose_name="是否隐藏")

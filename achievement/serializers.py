@@ -63,7 +63,9 @@ class AchievementSerializer(serializers.ModelSerializer):
         return "达成条件保密" if self._masked(obj) else obj.description
 
     def get_icon(self, obj):
-        return "❓" if self._masked(obj) else obj.icon
+        # icon 存的是 iconify 图标名，不是 emoji 字符：机房里的老浏览器缺 emoji
+        # 字体会渲染成方块，前端统一按 iconify 渲染成 SVG
+        return "noto:red-question-mark" if self._masked(obj) else obj.icon
 
     def get_metric(self, obj):
         return None if self._masked(obj) else obj.metric
