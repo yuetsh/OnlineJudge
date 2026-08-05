@@ -122,6 +122,12 @@ class EditTagSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=32)
 
 
+class BatchProblemTagSerializer(serializers.Serializer):
+    problem_ids = serializers.ListField(child=serializers.IntegerField(), allow_empty=False)
+    tag_names = serializers.ListField(child=serializers.CharField(max_length=32), allow_empty=False)
+    action = serializers.ChoiceField(choices=["add", "remove"])
+
+
 class BaseProblemSerializer(serializers.ModelSerializer):
     tags = serializers.SlugRelatedField(many=True, slug_field="name", read_only=True)
     created_by = UsernameSerializer()

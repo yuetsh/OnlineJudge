@@ -22,6 +22,7 @@ from utils.shortcuts import natural_sort_key, rand_str
 from ..models import Problem, ProblemTag
 from ..serializers import (
     AddContestProblemSerializer,
+    BatchProblemTagSerializer,
     ContestProblemMakePublicSerializer,
     CreateContestProblemSerializer,
     CreateProblemSerializer,
@@ -34,7 +35,7 @@ from ..serializers import (
     TagAdminSerializer,
     TestCaseUploadForm,
 )
-from ..services import clear_tag_cache, resolve_tags
+from ..services import clear_tag_cache, find_tags, resolve_tags
 from ..utils import generate_sql_display
 
 
@@ -552,6 +553,37 @@ class TagAdminAPI(APIView):
         tag.delete()
         clear_tag_cache()
         return self.success()
+
+
+class BatchProblemTagAPI(APIView):
+    @problem_permission_required
+    @validate_serializer(BatchProblemTagSerializer)
+    def post(self, request):
+        data = request.data
+        problems = Problem.objects.filter(id__in=data["problem_ids"], contest_id__isnull=True)
+        if not request.user.can_mgmt_all_problem():
+            problems = problems.filter(created_by=request.user)
+        problems = list(problems)
+        if not problems:
+            return self.error("没有可操作的题目")
+
+        # 添加时按需新建标签，移除时只认已有标签
+        if data["action"] == "add":
+            tags = resolve_tags(data["tag_names"])
+        else:
+            tags = find_tags(data["tag_names"])
+        if not tags:
+            return self.error("没有匹配的标签")
+
+        for problem in problems:
+            if data["action"] == "add":
+                problem.tags.add(*tags)
+            else:
+                problem.tags.remove(*tags)
+
+        # 题目数变化会影响前台标签列表（只展示 problem_count > 0 的）
+        clear_tag_cache()
+        return self.success({"problem_count": len(problems), "tag_count": len(tags)})
 
 
 class ProblemVisibleAPI(APIView):

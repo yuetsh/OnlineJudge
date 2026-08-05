@@ -2,6 +2,7 @@ from django.urls import path
 
 from ..views.admin import (
     AddContestProblemAPI,
+    BatchProblemTagAPI,
     ContestProblemAPI,
     MakeContestProblemPublicAPIView,
     ProblemAPI,
@@ -27,6 +28,7 @@ urlpatterns = [
     path("problem/top_ac_trend", TopACTrendAPI.as_view()),
     path("problem/flowchart", ProblemFlowchartAIGen.as_view()),
     path("problem/tag", TagAdminAPI.as_view()),
+    path("problem/batch_tag", BatchProblemTagAPI.as_view()),
     path("contest/problem", ContestProblemAPI.as_view()),
     path("contest_problem/make_public", MakeContestProblemPublicAPIView.as_view()),
     path("contest/add_problem_from_public", AddContestProblemAPI.as_view()),
