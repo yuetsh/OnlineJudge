@@ -16,7 +16,9 @@
 - **本次不跑数据库、不开浏览器。**（用户 2026-08-05 决定）`oj/dev_settings.py:6-14` 指向的是远程库 `150.158.29.156:5455`，不是本地库；本次只写代码，运行时验证由用户自己择机进行。因此：
   - **不要执行任何 `manage.py` 命令**（`migrate` / `makemigrations` / `shell` / `showmigrations` 都会连远程库，而且可能长时间挂起）。迁移文件按计划给出的内容**手写**。
   - **不要执行任何写数据的操作**，也不要造测试数据。
-  - 后端每个任务的验证 = `ruff format .` + `ruff check .` 通过；前端 = `npm fmt` + `npm run build` 通过。
+  - 后端每个任务的验证 = `ruff format <本任务改动的文件>` + `ruff check .` 通过；前端 = `npm fmt` + `npm run build` 通过。
+- **`ruff format` 只格式化本任务改动的文件，不要跑 `ruff format .`。** 仓库里有 50 多个文件不符合当前 ruff 版本的格式化结果，`ruff format .` 会把它们全部重排，污染工作区。`ruff check .` 可以全仓库跑（只读）。
+- **提交前必须确认 `git status` 只包含本任务的文件。** 有多余文件就 `git checkout -- <那些文件>` 还原，绝不要把无关改动一起提交。
   - 计划各任务里凡是标注「**[本次跳过]**」的步骤，一律不执行，直接跳到下一步。
 - 后端仓库 `OnlineJudge/`，前端仓库 `ojnext/`，**两者是独立的 git 仓库**，根目录 `OJ/` 不是仓库。跨仓库任务分别提交。后端当前分支 `yuetsh`，前端当前分支 `main`。
 - 后端 lint：`ruff check .` 与 `ruff format .`（E/F/I 规则，行宽 180，双引号）。每次提交前必须通过。
