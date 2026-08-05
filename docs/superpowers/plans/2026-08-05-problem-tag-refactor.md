@@ -12,7 +12,12 @@
 
 ## Global Constraints
 
-- **不写测试。** 项目 `CLAUDE.md` 明确规定 "Do not write tests"。本计划不含 TDD 循环，每个任务用可执行的验证命令（`ruff`、Django shell、浏览器操作）替代测试步骤。执行者不得自行添加测试文件。
+- **不写测试。** 项目 `CLAUDE.md` 明确规定 "Do not write tests"。本计划不含 TDD 循环。执行者不得自行添加测试文件。
+- **本次不跑数据库、不开浏览器。**（用户 2026-08-05 决定）`oj/dev_settings.py:6-14` 指向的是远程库 `150.158.29.156:5455`，不是本地库；本次只写代码，运行时验证由用户自己择机进行。因此：
+  - **不要执行任何 `manage.py` 命令**（`migrate` / `makemigrations` / `shell` / `showmigrations` 都会连远程库，而且可能长时间挂起）。迁移文件按计划给出的内容**手写**。
+  - **不要执行任何写数据的操作**，也不要造测试数据。
+  - 后端每个任务的验证 = `ruff format .` + `ruff check .` 通过；前端 = `npm fmt` + `npm run build` 通过。
+  - 计划各任务里凡是标注「**[本次跳过]**」的步骤，一律不执行，直接跳到下一步。
 - 后端仓库 `OnlineJudge/`，前端仓库 `ojnext/`，**两者是独立的 git 仓库**，根目录 `OJ/` 不是仓库。跨仓库任务分别提交。后端当前分支 `yuetsh`，前端当前分支 `main`。
 - 后端 lint：`ruff check .` 与 `ruff format .`（E/F/I 规则，行宽 180，双引号）。每次提交前必须通过。
 - 前端格式化：`npm fmt`（Prettier）。每次提交前必须跑。
@@ -105,20 +110,9 @@ from utils.constants import Difficulty
 from utils.models import RichTextField
 ```
 
-- [ ] **Step 2: 生成迁移文件骨架**
+- [ ] **Step 2: 手写迁移文件**
 
-```bash
-cd /home/xuyue/Projects/OJ/OnlineJudge
-python manage.py makemigrations problem --name problem_tag_ci_unique
-```
-
-预期：生成 `problem/migrations/0014_problem_tag_ci_unique.py`，内容是一条 `AddConstraint`。
-
-如果生成的文件名带了别的后缀，把它重命名成 `0014_problem_tag_ci_unique.py`。
-
-- [ ] **Step 3: 在迁移里补上数据清理**
-
-把 `problem/migrations/0014_problem_tag_ci_unique.py` 整个替换为下面内容（`dependencies` 保持 makemigrations 生成的那一行不变）：
+不要跑 `makemigrations`（会连远程库）。直接新建 `problem/migrations/0014_problem_tag_ci_unique.py`，内容如下。`dependencies` 里的 `0013_...` 是当前最后一个迁移，已核对过目录，照抄即可：
 
 ```python
 from collections import defaultdict
@@ -174,65 +168,13 @@ class Migration(migrations.Migration):
 
 注意：历史模型上没有自定义的 `save()`，所以 `primary.save(update_fields=["name"])` 不会自动 strip，必须像上面那样手动赋值。
 
-- [ ] **Step 4: 造几条脏数据用于验证**
+- [ ] **Step 3: [本次跳过] 造脏数据、跑迁移、验证合并结果、清理数据**
 
-```bash
-cd /home/xuyue/Projects/OJ/OnlineJudge
-python manage.py shell -c "
-from problem.models import Problem, ProblemTag
-p = Problem.objects.filter(contest__isnull=True).first()
-a = ProblemTag.objects.create(name='ZzTest')
-b = ProblemTag.objects.create(name='zztest')
-c = ProblemTag.objects.create(name='  ZZTEST  ')
-p.tags.add(a, b, c)
-print('before:', ProblemTag.objects.filter(name__icontains='zztest').count(), '题目标签:', list(p.tags.values_list('name', flat=True)))
-"
-```
+这四步原本需要连数据库，按 Global Constraints 本次不执行。用户会在自己择机跑 `migrate` 时验证。
 
-预期输出 `before: 3`，题目标签里包含三个变体。
+留给用户执行时对照的预期：迁移后同一批大小写变体只剩一条标签，题目仍挂着保留下来的那条，再建同名变体会抛 `IntegrityError`。
 
-> 注意：模型的 `save()` 会 strip，所以 `'  ZZTEST  '` 落库时已经是 `'ZZTEST'`，这不影响验证——它和另外两个仍然只有大小写差异。
-
-- [ ] **Step 5: 跑迁移**
-
-```bash
-cd /home/xuyue/Projects/OJ/OnlineJudge
-python manage.py migrate problem
-```
-
-预期：无报错，`Applying problem.0014_problem_tag_ci_unique... OK`。
-
-- [ ] **Step 6: 验证合并结果**
-
-```bash
-cd /home/xuyue/Projects/OJ/OnlineJudge
-python manage.py shell -c "
-from problem.models import Problem, ProblemTag
-print('after:', ProblemTag.objects.filter(name__icontains='zztest').count())
-p = Problem.objects.filter(tags__name__icontains='zztest').first()
-print('题目标签:', list(p.tags.values_list('name', flat=True)))
-try:
-    ProblemTag.objects.create(name='zZtEsT')
-    print('约束未生效！')
-except Exception as e:
-    print('约束生效:', type(e).__name__)
-"
-```
-
-预期：`after: 1`；题目标签里 zztest 只剩一个；最后打印 `约束生效: IntegrityError`。
-
-- [ ] **Step 7: 清理验证数据**
-
-```bash
-cd /home/xuyue/Projects/OJ/OnlineJudge
-python manage.py shell -c "
-from problem.models import ProblemTag
-n, _ = ProblemTag.objects.filter(name__icontains='zztest').delete()
-print('已删除', n)
-"
-```
-
-- [ ] **Step 8: Lint 并提交**
+- [ ] **Step 4: Lint 并提交**
 
 ```bash
 cd /home/xuyue/Projects/OJ/OnlineJudge
@@ -412,30 +354,13 @@ from ..services import resolve_tags
 
 > `clear_tag_cache` 和 `find_tags` 定义在 `services.py` 里但本任务还没有调用点，Task 3、4 才用到。它们是模块级函数定义、不是 import，`ruff check .` 不会报未使用。Task 3 和 Task 4 会各自把需要的名字加进 `from ..services import ...` 这行。
 
-- [ ] **Step 3: 验证四处替换后行为一致**
+- [ ] **Step 3: [本次跳过] Django shell 验证 + 浏览器验证题目保存**
 
-```bash
-cd /home/xuyue/Projects/OJ/OnlineJudge
-python manage.py shell -c "
-from problem.services import resolve_tags, find_tags
-from problem.models import ProblemTag
-tags = resolve_tags(['  服务测试  ', '服务测试', 'FUWU', 'fuwu', '', None])
-print('解析出', len(tags), '个:', [t.name for t in tags])
-print('库里:', ProblemTag.objects.filter(name__in=['服务测试', 'FUWU']).count())
-print('find_tags 不创建:', [t.name for t in find_tags(['fUwU', '不存在的标签xyz'])])
-ProblemTag.objects.filter(name__in=['服务测试', 'FUWU']).delete()
-"
-```
+按 Global Constraints 本次不连数据库、不开浏览器。
 
-预期：`解析出 2 个: ['服务测试', 'FUWU']`；`库里: 2`；`find_tags 不创建: ['FUWU']`。
+留给用户执行时对照的预期：`resolve_tags(['  服务测试  ', '服务测试', 'FUWU', 'fuwu', '', None])` 应解析出 2 个标签 `['服务测试', 'FUWU']`；`find_tags(['fUwU', '不存在的标签xyz'])` 应返回 `['FUWU']` 且不创建新标签；管理后台编辑题目时输入已有标签的大小写变体，保存后不应产生新标签。
 
-- [ ] **Step 4: 浏览器验证题目保存流程未被破坏**
-
-启动后端 `python dev.py` 和前端 `npm start`，登录管理后台，编辑任意一道题，在标签处用 `n-dynamic-tags` 输入一个已有标签的大小写变体（例如已有 `循环`，输入 `循环 ` 带空格），保存后重新打开该题。
-
-预期：标签仍然只有一个 `循环`，没有产生新标签。
-
-- [ ] **Step 5: Lint 并提交**
+- [ ] **Step 4: Lint 并提交**
 
 ```bash
 cd /home/xuyue/Projects/OJ/OnlineJudge
@@ -588,50 +513,13 @@ class TagAdminAPI(APIView):
     path("problem/tag", TagAdminAPI.as_view()),
 ```
 
-- [ ] **Step 4: 验证列表与重命名**
+- [ ] **Step 4: [本次跳过] 接口联调验证**
 
-```bash
-cd /home/xuyue/Projects/OJ/OnlineJudge
-python manage.py shell -c "
-from problem.models import Problem, ProblemTag
-p = Problem.objects.filter(contest__isnull=True).first()
-a = ProblemTag.objects.create(name='标签甲')
-b = ProblemTag.objects.create(name='标签乙')
-p.tags.add(a, b)
-print('a.id =', a.id, ' b.id =', b.id, ' problem.id =', p.id)
-"
-```
+按 Global Constraints 本次不连数据库、不启服务。
 
-记下打印出的 `a.id` / `b.id`，然后启动后端 `python dev.py`，用浏览器以超级管理员身份登录后台后，在浏览器控制台执行（Cookie 会自动带上，CSRF token 从 cookie 取）：
+留给用户执行时对照的预期：`GET /api/admin/problem/tag?keyword=xx` 返回带 `problem_count` 的列表；`PUT` 改成一个不存在的名字返回 `{merged: false, affected_count: 0}`；`PUT` 改成一个已存在标签的名字返回 `{merged: true, name: "<目标标签>", affected_count: N}`，且原标签消失、题目改挂目标标签。
 
-```javascript
-const csrf = document.cookie.match(/csrftoken=([^;]+)/)[1]
-// 列表
-await (await fetch('/api/admin/problem/tag?keyword=标签', {headers: {'X-CSRFToken': csrf}})).json()
-// 重命名到一个不存在的名字
-await (await fetch('/api/admin/problem/tag', {method: 'PUT', headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf}, body: JSON.stringify({id: <a.id>, name: '标签丙'})})).json()
-// 再把它改成已存在的「标签乙」，应触发合并
-await (await fetch('/api/admin/problem/tag', {method: 'PUT', headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf}, body: JSON.stringify({id: <a.id>, name: '标签乙'})})).json()
-```
-
-预期：列表返回两条带 `problem_count: 1` 的记录；第一次重命名返回 `{merged: false, name: "标签丙", affected_count: 0}`；第二次返回 `{merged: true, name: "标签乙", affected_count: 1}`。
-
-- [ ] **Step 5: 验证合并后数据正确并清理**
-
-```bash
-cd /home/xuyue/Projects/OJ/OnlineJudge
-python manage.py shell -c "
-from problem.models import Problem, ProblemTag
-print('剩余标签:', list(ProblemTag.objects.filter(name__startswith='标签').values_list('name', flat=True)))
-p = Problem.objects.filter(tags__name='标签乙').first()
-print('题目还挂着标签乙:', p is not None)
-ProblemTag.objects.filter(name__startswith='标签').delete()
-"
-```
-
-预期：`剩余标签: ['标签乙']`（标签甲/丙已被合并删除）；`题目还挂着标签乙: True`。
-
-- [ ] **Step 6: Lint 并提交**
+- [ ] **Step 5: Lint 并提交**
 
 ```bash
 cd /home/xuyue/Projects/OJ/OnlineJudge
@@ -722,42 +610,13 @@ class BatchProblemTagAPI(APIView):
     path("problem/batch_tag", BatchProblemTagAPI.as_view()),
 ```
 
-- [ ] **Step 4: 验证批量添加与移除**
+- [ ] **Step 4: [本次跳过] 接口联调验证**
 
-```bash
-cd /home/xuyue/Projects/OJ/OnlineJudge
-python manage.py shell -c "
-from problem.models import Problem
-ids = list(Problem.objects.filter(contest__isnull=True).values_list('id', flat=True)[:3])
-print('problem_ids =', ids)
-"
-```
+按 Global Constraints 本次不连数据库、不启服务。
 
-记下这三个 id，启动后端后在浏览器控制台（已登录超管）执行：
+留给用户执行时对照的预期：对 3 道题 `action: "add"` 返回 `{problem_count: 3, tag_count: 1}`；再对其中 1 道 `action: "remove"` 返回 `{problem_count: 1, tag_count: 1}`；最终有 2 道题挂着该标签。
 
-```javascript
-const csrf = document.cookie.match(/csrftoken=([^;]+)/)[1]
-const post = (body) => fetch('/api/admin/problem/batch_tag', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf}, body: JSON.stringify(body)}).then(r => r.json())
-await post({problem_ids: [<id1>, <id2>, <id3>], tag_names: ['批量测试'], action: 'add'})
-await post({problem_ids: [<id1>], tag_names: ['批量测试'], action: 'remove'})
-```
-
-预期：第一次返回 `{problem_count: 3, tag_count: 1}`；第二次返回 `{problem_count: 1, tag_count: 1}`。
-
-- [ ] **Step 5: 验证结果并清理**
-
-```bash
-cd /home/xuyue/Projects/OJ/OnlineJudge
-python manage.py shell -c "
-from problem.models import Problem, ProblemTag
-print('还挂着批量测试的题目数:', Problem.objects.filter(tags__name='批量测试').count())
-ProblemTag.objects.filter(name='批量测试').delete()
-"
-```
-
-预期：`还挂着批量测试的题目数: 2`（3 个加上，移除了 1 个）。
-
-- [ ] **Step 6: Lint 并提交**
+- [ ] **Step 5: Lint 并提交**
 
 ```bash
 cd /home/xuyue/Projects/OJ/OnlineJudge
@@ -1053,16 +912,11 @@ watchDebounced(keyword, listTags, { debounce: 500, maxWait: 1000 })
 
 必须加在 `if (path.startsWith("/admin/problem"))` **之前**，否则不会命中。这里返回 `"admin problem list"` 是让侧边栏「题目」项保持高亮——标签管理不单独占一个菜单项，入口在题目列表页上（Task 7 加）。
 
-- [ ] **Step 4: 浏览器验证**
+- [ ] **Step 4: [本次跳过] 浏览器验证**
 
-启动前后端，以超级管理员登录，访问 `/admin/problem/tags`。
+按 Global Constraints 本次不启服务、不开浏览器。
 
-预期：
-1. 表格按题目数降序列出所有标签（包括题目数为 0 的），侧边栏「题目」高亮
-2. 搜索框输入关键字能过滤
-3. 点「重命名」，输入一个全新名字保存 → 提示「已重命名」，列表刷新
-4. 再点「重命名」，输入一个**已存在**标签的名字（大小写不同也算）保存 → 提示「已合并到「xxx」，影响 N 道题」，列表里原标签消失
-5. 点「删除」→ 弹窗显示「当前有 N 道题在使用它」，确认后标签消失
+留给用户执行时对照的预期：访问 `/admin/problem/tags`，表格按题目数降序列出所有标签（含题目数为 0 的），侧边栏「题目」高亮；搜索能过滤；重命名成新名字提示「已重命名」；重命名撞上已有标签提示「已合并到「xxx」，影响 N 道题」且原标签消失；删除弹窗显示「当前有 N 道题在使用它」。
 
 - [ ] **Step 5: 格式化并提交**
 
@@ -1318,25 +1172,20 @@ const columns = computed<DataTableColumn<AdminProblemFiltered>[]>(() =>
   />
 ```
 
-- [ ] **Step 4: 浏览器验证**
+- [ ] **Step 4: [本次跳过] 浏览器验证**
 
-启动前后端，以超级管理员登录，访问 `/admin/problem/list`。
+按 Global Constraints 本次不启服务、不开浏览器。
 
-预期：
-1. 每行左侧出现复选框，勾选后右上角出现「添加标签（N）」和「移除标签」按钮
+留给用户执行时对照的预期：
+1. `/admin/problem/list` 每行左侧出现复选框，勾选后右上角出现「添加标签（N）」和「移除标签」按钮
 2. 点「添加标签」→ 弹窗显示「已选中 N 道题目」、可勾选的已有标签、可输入新标签的输入框
-3. 勾一个标签点确定 → 提示「已为 N 道题添加 1 个标签」，表格刷新后这些题目的标签列出现该标签，选中状态清空
-4. 再勾选其中一道题，点「移除标签」→ 弹窗**不显示**新标签输入框；勾同一个标签确定 → 该题标签列里它消失了
+3. 勾一个标签确定 → 提示「已为 N 道题添加 1 个标签」，表格刷新后标签列出现该标签，选中状态清空
+4. 点「移除标签」→ 弹窗**不**显示新标签输入框；确定后该标签从题目上消失
 5. 点标题栏「标签管理」能跳到标签管理页
 6. 比赛题目列表页（`/admin/contest/:id/problem/list`）**不**出现复选框列、批量按钮和「标签管理」按钮
+7. 前台题目列表（`/`）左侧筛选栏立即出现新加的标签，不需要等一小时缓存过期——这验证 Task 4 的 `clear_tag_cache()` 生效
 
-- [ ] **Step 5: 验证前台标签筛选同步更新**
-
-打开前台题目列表页（`/`），检查左侧标签筛选栏。
-
-预期：Step 4 中新加的标签立即出现在筛选栏里（不需要等一小时缓存过期）——这验证了 Task 4 的 `clear_tag_cache()` 生效。
-
-- [ ] **Step 6: 格式化并提交**
+- [ ] **Step 5: 格式化并提交**
 
 ```bash
 cd /home/xuyue/Projects/OJ/ojnext
