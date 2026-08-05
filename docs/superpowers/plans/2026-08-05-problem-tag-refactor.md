@@ -315,10 +315,18 @@ def resolve_tags(names):
 
 - [ ] **Step 2: 在 `problem/views/admin.py` 换掉四处重复逻辑**
 
-先改 import。`problem/views/admin.py:22` 那行 `from ..models import Problem, ProblemTag` 保持不变（`ProblemTag` 后面 Task 3 还要用），在 `problem/views/admin.py:35` 的 `from ..utils import generate_sql_display` 后面加一行：
+先改 import。本任务替换掉 admin.py 里**全部** `ProblemTag` 的用法，所以 `problem/views/admin.py:22` 那行必须去掉 `ProblemTag`，否则 `ruff check .` 会报 F401：
 
 ```python
-from ..services import clear_tag_cache, find_tags, resolve_tags
+from ..models import Problem
+```
+
+（Task 3 会把它加回来。）
+
+在 `problem/views/admin.py:35` 的 `from ..utils import generate_sql_display` 后面加一行：
+
+```python
+from ..services import resolve_tags
 ```
 
 然后把下面四处替换掉（每处都是 `problem.tags.set(resolve_tags(tags))` 一行）：
@@ -402,13 +410,7 @@ from ..services import clear_tag_cache, find_tags, resolve_tags
         return self.success()
 ```
 
-> `clear_tag_cache` 和 `find_tags` 这一步还没有调用点，Task 3、4 才用到。为了让 `ruff check .` 不报 F401 未使用 import，**这一步先只 import `resolve_tags`**：
-
-```python
-from ..services import resolve_tags
-```
-
-Task 3 和 Task 4 会各自把需要的名字加进这行 import。
+> `clear_tag_cache` 和 `find_tags` 定义在 `services.py` 里但本任务还没有调用点，Task 3、4 才用到。它们是模块级函数定义、不是 import，`ruff check .` 不会报未使用。Task 3 和 Task 4 会各自把需要的名字加进 `from ..services import ...` 这行。
 
 - [ ] **Step 3: 验证四处替换后行为一致**
 
@@ -485,11 +487,19 @@ class EditTagSerializer(serializers.Serializer):
 
 - [ ] **Step 2: 在 `problem/views/admin.py` 加 `TagAdminAPI`**
 
-先把 Task 2 加的那行 import 扩成：
+先把 Task 2 改过的模型 import 加回 `ProblemTag`（本任务的新视图要用）：
+
+```python
+from ..models import Problem, ProblemTag
+```
+
+再把 Task 2 加的 services import 扩成：
 
 ```python
 from ..services import clear_tag_cache, resolve_tags
 ```
+
+> 本任务的 `TagAdminAPI` 没有用到 `resolve_tags`，但 Task 2 的四处题目保存逻辑仍在用它，所以这行保留 `resolve_tags` 不会触发 F401。
 
 再把 `problem/views/admin.py:23-34` 的序列化器 import 块里加上 `EditTagSerializer` 和 `TagAdminSerializer`（保持字母序，ruff 的 I 规则会检查）：
 
