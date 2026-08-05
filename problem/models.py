@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models.functions import Lower
 
 from account.models import User
 from contest.models import Contest
@@ -11,6 +12,13 @@ class ProblemTag(models.Model):
 
     class Meta:
         db_table = "problem_tag"
+        constraints = [
+            models.UniqueConstraint(Lower("name"), name="problem_tag_name_ci_unique"),
+        ]
+
+    def save(self, *args, **kwargs):
+        self.name = (self.name or "").strip()
+        super().save(*args, **kwargs)
 
 
 class Problem(models.Model):
