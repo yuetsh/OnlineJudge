@@ -76,8 +76,7 @@ class ProblemSetAPI(AsyncAPIView):
 
                 # 批量查询用户已获得的奖章ID（这些题单相关的）
                 user_earned_badge_ids = {
-                    badge_id
-                    async for badge_id in UserBadge.objects.filter(user=request.user, badge__problemset_id__in=problem_set_ids).values_list("badge_id", flat=True)
+                    badge_id async for badge_id in UserBadge.objects.filter(user=request.user, badge__problemset_id__in=problem_set_ids).values_list("badge_id", flat=True)
                 }
 
         # 预加载奖章信息（在获取ID之后应用，避免在获取ID时也预加载）
@@ -97,12 +96,7 @@ class ProblemSetDetailAPI(AsyncAPIView):
     async def get(self, request, problem_set_id):
         """获取题单详情"""
         try:
-            problem_set = await (
-                ProblemSet.objects.select_related("created_by")
-                .filter(id=problem_set_id, visible=True)
-                .exclude(status=ProblemSetStatus.DRAFT)
-                .aget()
-            )
+            problem_set = await ProblemSet.objects.select_related("created_by").filter(id=problem_set_id, visible=True).exclude(status=ProblemSetStatus.DRAFT).aget()
         except ProblemSet.DoesNotExist:
             return self.error("题单不存在")
 

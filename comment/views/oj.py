@@ -54,11 +54,7 @@ class CommentAPI(AsyncAPIView):
     @login_required
     async def get(self, request):
         problem_id = request.GET.get("problem_id")
-        comment = await (
-            Comment.objects.select_related("problem")
-            .filter(user=request.user, problem_id=problem_id)
-            .afirst()
-        )
+        comment = await Comment.objects.select_related("problem").filter(user=request.user, problem_id=problem_id).afirst()
         if comment:
             return self.success(await self.async_serialize_data(CommentSerializer, comment))
         else:
@@ -82,10 +78,13 @@ class CommentStatisticsAPI(AsyncAPIView):
         if not agg["count"]:
             return self.success()
 
-        data = {"count": agg["count"], "rating": {
-            "description": agg["description"],
-            "difficulty": agg["difficulty"],
-            "comprehensive": agg["comprehensive"],
-        }}
+        data = {
+            "count": agg["count"],
+            "rating": {
+                "description": agg["description"],
+                "difficulty": agg["difficulty"],
+                "comprehensive": agg["comprehensive"],
+            },
+        }
         await async_cache_set(cache_key, data, 3600)
         return self.success(data)

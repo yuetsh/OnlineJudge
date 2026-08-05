@@ -53,19 +53,10 @@ class TutorialAdminAPI(APIView):
                 return self.success(TutorialSerializer(tutorial).data)
             except Tutorial.DoesNotExist:
                 return self.error("Tutorial does not exist")
-                
+
         tutorials = Tutorial.objects.all().order_by("order", "-created_at")
         # 按 type 分组返回数据
-        result = {
-            "python": TutorialListSerializer(
-                tutorials.filter(type="python"), 
-                many=True
-            ).data,
-            "c": TutorialListSerializer(
-                tutorials.filter(type="c"), 
-                many=True
-            ).data
-        }
+        result = {"python": TutorialListSerializer(tutorials.filter(type="python"), many=True).data, "c": TutorialListSerializer(tutorials.filter(type="c"), many=True).data}
         return self.success(result)
 
     @super_admin_required

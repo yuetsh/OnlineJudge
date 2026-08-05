@@ -52,9 +52,7 @@ class AnnouncementAdminAPI(APIView):
         announcement = Announcement.objects.all().order_by("-create_time")
         if request.GET.get("visible") == "true":
             announcement = announcement.filter(visible=True)
-        return self.success(
-            self.paginate_data(request, announcement, AnnouncementSerializer)
-        )
+        return self.success(self.paginate_data(request, announcement, AnnouncementSerializer))
 
     @super_admin_required
     def delete(self, request):

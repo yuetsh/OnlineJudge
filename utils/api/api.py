@@ -62,6 +62,7 @@ class APIView(View):
      - self.response 返回一个django HttpResponse, 具体在self.response_class中实现
      - parse请求的类需要定义在request_parser中, 目前只支持json和urlencoded的类型, 用来解析请求的数据
     """
+
     request_parsers = (JSONParser, URLEncodedParser)
     response_class = JSONResponse
 
@@ -134,11 +135,10 @@ class APIView(View):
             offset = 0
         # 只调用一次 count()，避免重复查询
         count = query_set.count()
-        results = query_set[offset:offset + limit]
+        results = query_set[offset : offset + limit]
         if object_serializer:
             results = object_serializer(results, many=True, context={"request": request}).data
-        data = {"results": results,
-                "total": count}
+        data = {"results": results, "total": count}
         return data
 
     def dispatch(self, request, *args, **kwargs):
@@ -215,8 +215,9 @@ class AsyncAPIView(APIView):
             offset = 0
         if offset < 0:
             offset = 0
+
         async def _slice():
-            return [item async for item in query_set[offset:offset + limit]]
+            return [item async for item in query_set[offset : offset + limit]]
 
         count, results = await asyncio.gather(
             query_set.acount(),
@@ -245,8 +246,10 @@ def validate_serializer(serializer):
     def post(self, request):
         return self.success(request.data)
     """
+
     def validate(view_method):
         if inspect.iscoroutinefunction(view_method):
+
             @functools.wraps(view_method)
             async def async_handle(*args, **kwargs):
                 self = args[0]
@@ -261,6 +264,7 @@ def validate_serializer(serializer):
                     return response
                 else:
                     return self.invalid_serializer(s)
+
             return async_handle
 
         @functools.wraps(view_method)
@@ -274,6 +278,7 @@ def validate_serializer(serializer):
                 return view_method(*args, **kwargs)
             else:
                 return self.invalid_serializer(s)
+
         return handle
 
     return validate

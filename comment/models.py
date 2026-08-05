@@ -43,5 +43,3 @@ class Comment(models.Model):
         indexes = [
             models.Index(fields=["problem", "create_time"], name="comment_problem_time_idx"),
         ]
-
-

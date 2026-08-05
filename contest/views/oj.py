@@ -27,9 +27,7 @@ class ContestAnnouncementListAPI(AsyncAPIView):
         contest_id = request.GET.get("contest_id")
         if not contest_id:
             return self.error("Invalid parameter, contest_id is required")
-        qs = ContestAnnouncement.objects.select_related("created_by").filter(
-            contest_id=contest_id, visible=True
-        )
+        qs = ContestAnnouncement.objects.select_related("created_by").filter(contest_id=contest_id, visible=True)
         max_id = request.GET.get("max_id")
         if max_id:
             qs = qs.filter(id__gt=max_id)
@@ -43,11 +41,7 @@ class ContestAPI(AsyncAPIView):
         if not id or not check_is_id(id):
             return self.error("Invalid parameter, id is required")
         try:
-            contest = await (
-                Contest.objects.select_related("created_by")
-                .filter(id=id, visible=True)
-                .afirst()
-            )
+            contest = await Contest.objects.select_related("created_by").filter(id=id, visible=True).afirst()
             if contest is None:
                 raise Contest.DoesNotExist
         except Contest.DoesNotExist:
@@ -84,9 +78,7 @@ class ContestPasswordVerifyAPI(AsyncAPIView):
     async def post(self, request):
         data = request.data
         try:
-            contest = await Contest.objects.aget(
-                id=data["contest_id"], visible=True, password__isnull=False
-            )
+            contest = await Contest.objects.aget(id=data["contest_id"], visible=True, password__isnull=False)
         except Contest.DoesNotExist:
             return self.error("Contest does not exist")
         if not check_contest_password(data["password"], contest.password):
@@ -106,17 +98,11 @@ class ContestAccessAPI(AsyncAPIView):
         if not contest_id:
             return self.error()
         try:
-            contest = await Contest.objects.aget(
-                id=contest_id, visible=True, password__isnull=False
-            )
+            contest = await Contest.objects.aget(id=contest_id, visible=True, password__isnull=False)
         except Contest.DoesNotExist:
             return self.error("Contest does not exist")
-        session_pass = request.session.get(CONTEST_PASSWORD_SESSION_KEY, {}).get(
-            str(contest.id)
-        )
-        return self.success(
-            {"access": check_contest_password(session_pass, contest.password)}
-        )
+        session_pass = request.session.get(CONTEST_PASSWORD_SESSION_KEY, {}).get(str(contest.id))
+        return self.success({"access": check_contest_password(session_pass, contest.password)})
 
 
 class ContestRankAPI(AsyncAPIView):
@@ -155,16 +141,12 @@ class ContestRankAPI(AsyncAPIView):
         for index, item in enumerate(data):
             worksheet.write_string(index + 1, 0, str(item["user"]["id"]))
             worksheet.write_string(index + 1, 1, item["user"]["username"])
-            worksheet.write_string(
-                index + 1, 2, item["user"]["real_name"] or ""
-            )
+            worksheet.write_string(index + 1, 2, item["user"]["real_name"] or "")
             worksheet.write_string(index + 1, 3, str(item["accepted_number"]))
             worksheet.write_string(index + 1, 4, str(item["submission_number"]))
             worksheet.write_string(index + 1, 5, str(item["total_time"]))
             for k, v in item["submission_info"].items():
-                worksheet.write_string(
-                    index + 1, 6 + problem_id_to_col[int(k)], str(v["is_ac"])
-                )
+                worksheet.write_string(index + 1, 6 + problem_id_to_col[int(k)], str(v["is_ac"]))
 
         workbook.close()
         f.seek(0)
@@ -173,32 +155,20 @@ class ContestRankAPI(AsyncAPIView):
     @check_contest_permission(check_type="ranks")
     async def get(self, request):
         download_csv = request.GET.get("download_csv")
-        is_contest_admin = (
-            request.user.is_authenticated
-            and request.user.is_contest_admin(self.contest)
-        )
+        is_contest_admin = request.user.is_authenticated and request.user.is_contest_admin(self.contest)
 
         qs = self.get_rank()
 
         if download_csv:
             rank_list = [item async for item in qs]
-            data = await self.async_serialize_data(
-                ACMContestRankSerializer, rank_list, many=True, is_contest_admin=is_contest_admin
-            )
-            contest_problems = await sync_to_async(
-                lambda: list(Problem.objects.filter(contest=self.contest, visible=True).order_by("_id"))
-            )()
+            data = await self.async_serialize_data(ACMContestRankSerializer, rank_list, many=True, is_contest_admin=is_contest_admin)
+            contest_problems = await sync_to_async(lambda: list(Problem.objects.filter(contest=self.contest, visible=True).order_by("_id")))()
             xlsx_bytes = await sync_to_async(self._build_xlsx)(data, contest_problems)
             response = HttpResponse(xlsx_bytes)
-            response["Content-Disposition"] = (
-                f"attachment; filename=content-{self.contest.id}-rank.xlsx"
-            )
+            response["Content-Disposition"] = f"attachment; filename=content-{self.contest.id}-rank.xlsx"
             response["Content-Type"] = "application/xlsx"
             return response
 
         page_qs = await self.async_paginate_data(request, qs)
-        page_qs["results"] = await self.async_serialize_data(
-            ACMContestRankSerializer,
-            page_qs["results"], many=True, is_contest_admin=is_contest_admin
-        )
+        page_qs["results"] = await self.async_serialize_data(ACMContestRankSerializer, page_qs["results"], many=True, is_contest_admin=is_contest_admin)
         return self.success(page_qs)

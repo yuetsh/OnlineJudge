@@ -19,10 +19,7 @@ def bulk_fetch_problemset_progress(user, problem_ids):
             problemset__status=ProblemSetStatus.ACTIVE,
             problemset__problemsetproblem__problem_id__in=problem_ids,
         )
-        .filter(
-            models.Q(problemset__end_time__isnull=True)
-            | models.Q(problemset__end_time__gt=timezone.now())
-        )
+        .filter(models.Q(problemset__end_time__isnull=True) | models.Q(problemset__end_time__gt=timezone.now()))
         .annotate(matched_problem_id=F("problemset__problemsetproblem__problem_id"))
         .only("join_time", "progress_detail")
     )
@@ -51,7 +48,6 @@ class ShareSubmissionSerializer(serializers.Serializer):
 
 
 class SubmissionModelSerializer(serializers.ModelSerializer):
-
     class Meta:
         model = Submission
         fields = "__all__"
@@ -92,11 +88,7 @@ class SubmissionListSerializer(serializers.ModelSerializer):
         # 如果该题目已在题单中做出来了，则恢复显示
         if obj.user_id == self.user.id and self.user.is_regular_user():
             progress = self._get_problemset_progress(obj.problem_id)
-            if (
-                progress
-                and obj.create_time < progress.join_time
-                and str(obj.problem_id) not in progress.progress_detail
-            ):
+            if progress and obj.create_time < progress.join_time and str(obj.problem_id) not in progress.progress_detail:
                 return False
         return True
 
@@ -111,10 +103,7 @@ class SubmissionListSerializer(serializers.ModelSerializer):
                     problemset__status=ProblemSetStatus.ACTIVE,
                     problemset__problemsetproblem__problem_id=problem_id,
                 )
-                .filter(
-                    models.Q(problemset__end_time__isnull=True)
-                    | models.Q(problemset__end_time__gt=timezone.now())
-                )
+                .filter(models.Q(problemset__end_time__isnull=True) | models.Q(problemset__end_time__gt=timezone.now()))
                 .only("join_time", "progress_detail")
                 .first()
             )

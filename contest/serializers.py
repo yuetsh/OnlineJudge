@@ -84,7 +84,6 @@ class ACMContestRankSerializer(serializers.ModelSerializer):
         return UsernameSerializer(obj.user, need_real_name=self.is_contest_admin).data
 
 
-
 class ACMContesHelperSerializer(serializers.Serializer):
     contest_id = serializers.IntegerField()
     problem_id = serializers.CharField()

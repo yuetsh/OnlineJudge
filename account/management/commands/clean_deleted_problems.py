@@ -17,14 +17,10 @@ class Command(BaseCommand):
         dry_run = options["dry_run"]
 
         # 所有现存非比赛题目的 PK 集合
-        existing_ids = set(
-            Problem.objects.filter(contest__isnull=True).values_list("id", flat=True)
-        )
+        existing_ids = set(Problem.objects.filter(contest__isnull=True).values_list("id", flat=True))
         self.stdout.write(f"现存题库题目数: {len(existing_ids)}")
 
-        profiles = UserProfile.objects.select_related("user").exclude(
-            acm_problems_status={}
-        )
+        profiles = UserProfile.objects.select_related("user").exclude(acm_problems_status={})
         total = profiles.count()
         self.stdout.write(f"检查用户数: {total}{'（dry-run 模式）' if dry_run else ''}")
 
@@ -38,17 +34,11 @@ class Command(BaseCommand):
             if not stale_keys:
                 continue
 
-            removed_accepted = sum(
-                1
-                for k in stale_keys
-                if problems[k].get("status") in ACCEPTED_STATUSES
-            )
+            removed_accepted = sum(1 for k in stale_keys if problems[k].get("status") in ACCEPTED_STATUSES)
 
             stale_display = [problems[k].get("_id", k) for k in stale_keys]
             self.stdout.write(
-                f"  用户 {profile.user.username}"
-                f" | 删除 {len(stale_keys)} 题: {', '.join(stale_display)}"
-                f"{f' | 其中已AC {removed_accepted} 题' if removed_accepted else ''}"
+                f"  用户 {profile.user.username} | 删除 {len(stale_keys)} 题: {', '.join(stale_display)}{f' | 其中已AC {removed_accepted} 题' if removed_accepted else ''}"
             )
 
             if dry_run:

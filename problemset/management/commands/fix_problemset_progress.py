@@ -24,9 +24,7 @@ class Command(BaseCommand):
 
         fixed_count = 0
         for progress in progresses:
-            problemset_problems = ProblemSetProblem.objects.filter(
-                problemset=progress.problemset
-            ).select_related("problem")
+            problemset_problems = ProblemSetProblem.objects.filter(problemset=progress.problemset).select_related("problem")
 
             updated = False
             for psp in problemset_problems:
@@ -46,10 +44,7 @@ class Command(BaseCommand):
                 if not accepted:
                     continue
 
-                self.stdout.write(
-                    f"  用户 {progress.user.username} | 题单「{progress.problemset.title}」"
-                    f" | 题目 {psp.problem._id} 已AC但进度未记录"
-                )
+                self.stdout.write(f"  用户 {progress.user.username} | 题单「{progress.problemset.title}」 | 题目 {psp.problem._id} 已AC但进度未记录")
                 if dry_run:
                     continue
 

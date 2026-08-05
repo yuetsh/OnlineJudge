@@ -431,11 +431,16 @@ class UserRankAPI(AsyncAPIView):
         except ValueError:
             n = 0
 
-        profiles = UserProfile.objects.filter(
-            user__admin_type__in=[AdminType.REGULAR_USER, AdminType.STUDENT_ADMIN],
-            user__is_disabled=False,
-            user__username__icontains=username,
-        ).select_related("user").filter(accepted_number__gte=0).order_by("-accepted_number", "submission_number")
+        profiles = (
+            UserProfile.objects.filter(
+                user__admin_type__in=[AdminType.REGULAR_USER, AdminType.STUDENT_ADMIN],
+                user__is_disabled=False,
+                user__username__icontains=username,
+            )
+            .select_related("user")
+            .filter(accepted_number__gte=0)
+            .order_by("-accepted_number", "submission_number")
+        )
         if n > 0:
             profiles = profiles[:n]
         return self.success(await self.async_paginate_data(request, profiles, RankInfoSerializer))
@@ -457,12 +462,7 @@ class UserActivityRankAPI(AsyncAPIView):
             create_time__gte=start,
             result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED],
         ).exclude(username__in=hidden_names)
-        data = [
-            row
-            async for row in submissions.values("username")
-            .annotate(count=Count("problem_id", distinct=True))
-            .order_by("-count")[:10]
-        ]
+        data = [row async for row in submissions.values("username").annotate(count=Count("problem_id", distinct=True)).order_by("-count")[:10]]
         await async_cache_set(cache_key, data, 600)
         return self.success(data)
 

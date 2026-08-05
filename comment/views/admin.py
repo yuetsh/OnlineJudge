@@ -17,9 +17,7 @@ class CommentAPI(APIView):
             except Problem.DoesNotExist:
                 return self.error("Problem doesn't exist")
             comments = comments.filter(problem=problem)
-        return self.success(
-            self.paginate_data(request, comments, CommentListSerializer)
-        )
+        return self.success(self.paginate_data(request, comments, CommentListSerializer))
 
     @super_admin_required
     def delete(self, request):

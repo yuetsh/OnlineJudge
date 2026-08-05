@@ -42,9 +42,7 @@ class ClassRankAPI(APIView):
             profiles = UserProfile.objects.filter(user_id__in=user_ids)
 
             total_ac = profiles.aggregate(total=Sum("accepted_number"))["total"] or 0
-            total_submission = (
-                profiles.aggregate(total=Sum("submission_number"))["total"] or 0
-            )
+            total_submission = profiles.aggregate(total=Sum("submission_number"))["total"] or 0
             avg_ac = profiles.aggregate(avg=Avg("accepted_number"))["avg"] or 0
 
             user_count = users.count()
@@ -56,9 +54,7 @@ class ClassRankAPI(APIView):
                     "total_ac": int(total_ac),
                     "total_submission": int(total_submission),
                     "avg_ac": round(avg_ac, 2),
-                    "ac_rate": round(total_ac / total_submission * 100, 2)
-                    if total_submission > 0
-                    else 0,
+                    "ac_rate": round(total_ac / total_submission * 100, 2) if total_submission > 0 else 0,
                 }
             )
 
@@ -213,9 +209,7 @@ class ClassPKAPI(APIView):
             # 获取所有学生的AC数列表（用于统计计算）
             profiles = UserProfile.objects.filter(user_id__in=user_ids)
             ac_list = sorted([p.accepted_number for p in profiles], reverse=True)
-            submission_list = sorted(
-                [p.submission_number for p in profiles], reverse=True
-            )
+            submission_list = sorted([p.submission_number for p in profiles], reverse=True)
 
             user_count = len(ac_list)
             if user_count == 0:
@@ -238,14 +232,8 @@ class ClassPKAPI(APIView):
             # 前10%和后10%统计
             top_10_count = max(1, math.ceil(user_count * 0.10))
             bottom_10_count = max(1, math.ceil(user_count * 0.10))
-            top_10_avg = (
-                statistics.mean(ac_list[:top_10_count]) if top_10_count > 0 else 0
-            )
-            bottom_10_avg = (
-                statistics.mean(ac_list[-bottom_10_count:])
-                if bottom_10_count > 0
-                else 0
-            )
+            top_10_avg = statistics.mean(ac_list[:top_10_count]) if top_10_count > 0 else 0
+            bottom_10_avg = statistics.mean(ac_list[-bottom_10_count:]) if bottom_10_count > 0 else 0
 
             # 中间80%均值（截尾均值，去掉前10%和后10%）
             if top_10_count + bottom_10_count < user_count:
@@ -256,9 +244,7 @@ class ClassPKAPI(APIView):
 
             # 优秀率（AC数 >= 全局Q3，即超过PK组所有学生的前25%）
             excellent_count = sum(1 for ac in ac_list if ac >= global_q3)
-            excellent_rate = (
-                (excellent_count / user_count * 100) if user_count > 0 else 0
-            )
+            excellent_rate = (excellent_count / user_count * 100) if user_count > 0 else 0
 
             # 及格率（AC数 >= 全局Q1，即超过PK组所有学生的后25%）
             pass_count = sum(1 for ac in ac_list if ac >= global_q1)
@@ -276,23 +262,13 @@ class ClassPKAPI(APIView):
                     create_time__gte=start_time,
                     create_time__lte=end_time,
                 )
-                recent_ac = (
-                    submissions.filter(result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED])
-                    .values("user_id", "problem_id")
-                    .distinct()
-                    .count()
-                )
+                recent_ac = submissions.filter(result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED]).values("user_id", "problem_id").distinct().count()
                 recent_submission = submissions.count()
 
                 # 时间段内的用户AC数列表
                 recent_user_ac = {}
                 for user_id in user_ids:
-                    user_recent_ac = (
-                        submissions.filter(user_id=user_id, result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED])
-                        .values("problem_id")
-                        .distinct()
-                        .count()
-                    )
+                    user_recent_ac = submissions.filter(user_id=user_id, result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED]).values("problem_id").distinct().count()
                     recent_user_ac[user_id] = user_recent_ac
 
                 recent_ac_list = sorted(recent_user_ac.values(), reverse=True)
@@ -302,14 +278,8 @@ class ClassPKAPI(APIView):
                         "recent_total_submission": recent_submission,
                         "recent_avg_ac": statistics.mean(recent_ac_list),
                         "recent_median_ac": statistics.median(recent_ac_list),
-                        "recent_top_10_avg": statistics.mean(
-                            recent_ac_list[: max(1, math.ceil(len(recent_ac_list) * 0.10))]
-                        )
-                        if recent_ac_list
-                        else 0,
-                        "recent_active_count": sum(
-                            1 for ac in recent_ac_list if ac > 0
-                        ),
+                        "recent_top_10_avg": statistics.mean(recent_ac_list[: max(1, math.ceil(len(recent_ac_list) * 0.10))]) if recent_ac_list else 0,
+                        "recent_active_count": sum(1 for ac in recent_ac_list if ac > 0),
                     }
 
             class_comparisons.append(
@@ -336,9 +306,7 @@ class ClassPKAPI(APIView):
                     "pass_rate": round(pass_rate, 2),
                     "active_rate": round(active_rate, 2),
                     # 正确率
-                    "ac_rate": round(total_ac / total_submission * 100, 2)
-                    if total_submission > 0
-                    else 0,
+                    "ac_rate": round(total_ac / total_submission * 100, 2) if total_submission > 0 else 0,
                     # 时间段统计（如果有）
                     **recent_stats,
                 }
@@ -359,9 +327,7 @@ class ClassPKAPI(APIView):
             c["composite_score"] = round(score, 1)
 
         # 按综合分排序（主），中位数（次）
-        class_comparisons.sort(
-            key=lambda x: (-x["composite_score"], -x["median_ac"])
-        )
+        class_comparisons.sort(key=lambda x: (-x["composite_score"], -x["median_ac"]))
 
         return self.success(
             {

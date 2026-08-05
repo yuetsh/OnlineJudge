@@ -25,17 +25,52 @@ Python 2.6+ or 3.2+
 Cannot defense xss in browser which is belowed IE7
 浏览器版本：IE7+ 或其他浏览器，无法防御IE6及以下版本浏览器中的XSS
 """
+
 import copy
 import re
 from html.parser import HTMLParser
 
 
 class XSSHtml(HTMLParser):
-    allow_tags = ['a', 'img', 'br', 'strong', 'b', 'code', 'pre',
-                  'p', 'div', 'em', 'span', 'h1', 'h2', 'h3', 'h4',
-                  'h5', 'h6', 'blockquote', 'ul', 'ol', 'tr', 'th', 'td',
-                  'hr', 'li', 'u', 'embed', 's', 'table', 'thead', 'tbody',
-                  'caption', 'small', 'q', 'sup', 'sub', 'font']
+    allow_tags = [
+        "a",
+        "img",
+        "br",
+        "strong",
+        "b",
+        "code",
+        "pre",
+        "p",
+        "div",
+        "em",
+        "span",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "blockquote",
+        "ul",
+        "ol",
+        "tr",
+        "th",
+        "td",
+        "hr",
+        "li",
+        "u",
+        "embed",
+        "s",
+        "table",
+        "thead",
+        "tbody",
+        "caption",
+        "small",
+        "q",
+        "sup",
+        "sub",
+        "font",
+    ]
     common_attrs = ["style", "class", "name"]
     nonend_tags = ["img", "hr", "br", "embed"]
     tags_own_attrs = {
@@ -43,7 +78,7 @@ class XSSHtml(HTMLParser):
         "a": ["href", "target", "rel", "title"],
         "embed": ["src", "width", "height", "type", "allowfullscreen", "loop", "play", "wmode", "menu"],
         "table": ["border", "cellpadding", "cellspacing"],
-        "font": ["color"]
+        "font": ["color"],
     }
 
     def __init__(self, allows=[]):
@@ -68,9 +103,9 @@ class XSSHtml(HTMLParser):
         Get the safe html code
         """
         for i in range(0, len(self.result)):
-            if self.result[i].strip('\n'):
+            if self.result[i].strip("\n"):
                 self.data.append(self.result[i])
-        return ''.join(self.data)
+        return "".join(self.data)
 
     def handle_startendtag(self, tag, attrs):
         self.handle_starttag(tag, attrs)
@@ -78,7 +113,7 @@ class XSSHtml(HTMLParser):
     def handle_starttag(self, tag, attrs):
         if tag not in self.allow_tags:
             return
-        end_diagonal = ' /' if tag in self.nonend_tags else ''
+        end_diagonal = " /" if tag in self.nonend_tags else ""
         if not end_diagonal:
             self.start.append(tag)
         attdict = {}
@@ -92,14 +127,14 @@ class XSSHtml(HTMLParser):
             attdict = self.node_default(attdict)
 
         attrs = []
-        for (key, value) in attdict.items():
+        for key, value in attdict.items():
             attrs.append('%s="%s"' % (key, self._htmlspecialchars(value)))
-        attrs = (' ' + ' '.join(attrs)) if attrs else ''
-        self.result.append('<' + tag + attrs + end_diagonal + '>')
+        attrs = (" " + " ".join(attrs)) if attrs else ""
+        self.result.append("<" + tag + attrs + end_diagonal + ">")
 
     def handle_endtag(self, tag):
         if self.start and tag == self.start[len(self.start) - 1]:
-            self.result.append('</' + tag + '>')
+            self.result.append("</" + tag + ">")
             self.start.pop()
 
     def handle_data(self, data):
@@ -121,22 +156,23 @@ class XSSHtml(HTMLParser):
         attrs = self._common_attr(attrs)
         attrs = self._get_link(attrs, "href")
         attrs = self._set_attr_default(attrs, "target", "_blank")
-        attrs = self._limit_attr(attrs, {
-            "target": ["_blank", "_self"]
-        })
+        attrs = self._limit_attr(attrs, {"target": ["_blank", "_self"]})
         return attrs
 
     def node_embed(self, attrs):
         attrs = self._common_attr(attrs)
         attrs = self._get_link(attrs, "src")
-        attrs = self._limit_attr(attrs, {
-            "type": ["application/x-shockwave-flash"],
-            "wmode": ["transparent", "window", "opaque"],
-            "play": ["true", "false"],
-            "loop": ["true", "false"],
-            "menu": ["true", "false"],
-            "allowfullscreen": ["true", "false"]
-        })
+        attrs = self._limit_attr(
+            attrs,
+            {
+                "type": ["application/x-shockwave-flash"],
+                "wmode": ["transparent", "window", "opaque"],
+                "play": ["true", "false"],
+                "loop": ["true", "false"],
+                "menu": ["true", "false"],
+                "allowfullscreen": ["true", "false"],
+            },
+        )
         attrs["allowscriptaccess"] = "never"
         attrs["allownetworking"] = "none"
         return attrs
@@ -179,22 +215,19 @@ class XSSHtml(HTMLParser):
         attrs = self._get_style(attrs)
         return attrs
 
-    def _set_attr_default(self, attrs, name, default=''):
+    def _set_attr_default(self, attrs, name, default=""):
         if name not in attrs:
             attrs[name] = default
         return attrs
 
     def _limit_attr(self, attrs, limit={}):
-        for (key, value) in limit.items():
+        for key, value in limit.items():
             if key in attrs and attrs[key] not in value:
                 del attrs[key]
         return attrs
 
     def _htmlspecialchars(self, html):
-        return html.replace("<", "&lt;") \
-            .replace(">", "&gt;") \
-            .replace('"', "&quot;") \
-            .replace("'", "&#039;")
+        return html.replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;").replace("'", "&#039;")
 
 
 if "__main__" == __name__:

@@ -18,6 +18,7 @@ class CreateFlowchartSubmissionSerializer(serializers.Serializer):
 
     def validate_flowchart_data(self, value):
         import json
+
         if len(json.dumps(value)) > 500 * 1024:
             raise serializers.ValidationError("流程图数据过大")
         return value
@@ -55,6 +56,7 @@ class FlowchartSubmissionListSerializer(serializers.ModelSerializer):
     username = serializers.CharField(source="user.username")
     problem = serializers.CharField(source="problem._id")
     problem_title = serializers.CharField(source="problem.title")
+
     class Meta:
         model = FlowchartSubmission
         fields = [

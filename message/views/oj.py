@@ -10,9 +10,7 @@ from utils.api.api import validate_serializer
 class MessageAPI(AsyncAPIView):
     @login_required
     async def get(self, request):
-        messages = Message.objects.select_related(
-            "recipient", "sender", "submission", "submission__problem"
-        ).filter(recipient=request.user)
+        messages = Message.objects.select_related("recipient", "sender", "submission", "submission__problem").filter(recipient=request.user)
         return self.success(await self.async_paginate_data(request, messages, MessageSerializer))
 
     @super_admin_required

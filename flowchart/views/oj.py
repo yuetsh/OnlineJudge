@@ -47,11 +47,7 @@ class FlowchartSubmissionAPI(AsyncAPIView):
             return self.error("submission_id is required")
 
         try:
-            submission = await (
-                FlowchartSubmission.objects.select_related("user", "problem")
-                .filter(id=submission_id)
-                .afirst()
-            )
+            submission = await FlowchartSubmission.objects.select_related("user", "problem").filter(id=submission_id).afirst()
             if submission is None:
                 raise FlowchartSubmission.DoesNotExist
         except FlowchartSubmission.DoesNotExist:
@@ -74,9 +70,7 @@ class FlowchartSubmissionListAPI(AsyncAPIView):
 
         if problem_id:
             try:
-                problem = await Problem.objects.aget(
-                    _id__iexact=problem_id, contest_id__isnull=True, visible=True
-                )
+                problem = await Problem.objects.aget(_id__iexact=problem_id, contest_id__isnull=True, visible=True)
             except Problem.DoesNotExist:
                 return self.error("Problem doesn't exist")
             queryset = queryset.filter(problem=problem)
@@ -90,9 +84,7 @@ class FlowchartSubmissionListAPI(AsyncAPIView):
 
         if request.GET.get("today") == "1":
             now = timezone.now()
-            queryset = queryset.filter(
-                create_time__gte=now.replace(hour=0, minute=0, second=0, microsecond=0)
-            )
+            queryset = queryset.filter(create_time__gte=now.replace(hour=0, minute=0, second=0, microsecond=0))
 
         grade = request.GET.get("grade")
         if grade in ("S", "A", "B", "C"):
@@ -115,11 +107,7 @@ class FlowchartSubmissionRetryAPI(AsyncAPIView):
             return self.error("submission_id is required")
 
         try:
-            submission = await (
-                FlowchartSubmission.objects.select_related("problem")
-                .filter(id=submission_id)
-                .afirst()
-            )
+            submission = await FlowchartSubmission.objects.select_related("problem").filter(id=submission_id).afirst()
             if submission is None:
                 raise FlowchartSubmission.DoesNotExist
         except FlowchartSubmission.DoesNotExist:
@@ -187,7 +175,7 @@ class FlowchartSubmissionDetailAPI(AsyncAPIView):
         else:
             if page < 0 or page > count:
                 return self.error("Page out of range")
-            result = [s async for s in submissions[page - 1:page]]
+            result = [s async for s in submissions[page - 1 : page]]
             submission = result[0]
         data = await self.async_serialize_data(FlowchartSubmissionSerializer, submission)
         return self.success({"submission": data, "count": count})

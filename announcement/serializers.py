@@ -25,7 +25,7 @@ class AnnouncementListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Announcement
-        exclude = ['content']
+        exclude = ["content"]
 
 
 class EditAnnouncementSerializer(serializers.Serializer):

@@ -22,9 +22,7 @@ class SubmissionRejudgeAPI(APIView):
         if not id:
             return self.error("Parameter error, id is required")
         try:
-            submission = Submission.objects.select_related("problem").get(
-                id=id, contest_id__isnull=True
-            )
+            submission = Submission.objects.select_related("problem").get(id=id, contest_id__isnull=True)
         except Submission.DoesNotExist:
             return self.error("Submission does not exists")
         submission.statistic_info = {}
@@ -46,17 +44,13 @@ class SubmissionStatisticsAPI(APIView):
         filters = {"contest_id__isnull": True, "create_time__lte": end}
         if start:
             filters["create_time__gte"] = start
-        submissions = Submission.objects.filter(
-            **filters
-        ).select_related("problem__created_by")
+        submissions = Submission.objects.filter(**filters).select_related("problem__created_by")
 
         problem_id = request.GET.get("problem_id")
 
         if problem_id:
             try:
-                problem = Problem.objects.get(
-                    _id__iexact=problem_id, contest_id__isnull=True, visible=True
-                )
+                problem = Problem.objects.get(_id__iexact=problem_id, contest_id__isnull=True, visible=True)
             except Problem.DoesNotExist:
                 return self.error("Problem doesn't exist")
             submissions = submissions.filter(problem=problem)
@@ -82,9 +76,7 @@ class SubmissionStatisticsAPI(APIView):
         )
         submission_count = submission_stats["total_count"]
         accepted_count = submission_stats["accepted_count"]
-        correct_rate = (
-            round(accepted_count / submission_count * 100, 2) if submission_count else 0
-        )
+        correct_rate = round(accepted_count / submission_count * 100, 2) if submission_count else 0
 
         # 优化：获取用户提交统计
         user_submissions = (
@@ -99,20 +91,13 @@ class SubmissionStatisticsAPI(APIView):
         # 获取所有有提交记录的用户的class_name信息
         submitted_usernames = {item["username"] for item in user_submissions}
         if submitted_usernames:
-            submitted_users_dict = {
-                user["username"]: user["class_name"]
-                for user in User.objects.filter(
-                    username__in=submitted_usernames
-                ).values("username", "class_name")
-            }
+            submitted_users_dict = {user["username"]: user["class_name"] for user in User.objects.filter(username__in=submitted_usernames).values("username", "class_name")}
         else:
             submitted_users_dict = {}
 
         # 预先收集每个用户的提交ID和结果，按时间倒序
         submission_items_by_user = {}
-        for submission in submissions.values("username", "id", "result").order_by(
-            "-create_time"
-        ):
+        for submission in submissions.values("username", "id", "result").order_by("-create_time"):
             username_key = submission["username"]
             submission_id = str(submission["id"])
             submission_items_by_user.setdefault(username_key, []).append(
@@ -137,9 +122,7 @@ class SubmissionStatisticsAPI(APIView):
                         "submission_count": item["submission_count"],
                         "accepted_count": item["accepted_count"],
                         "correct_rate": f"{rate}%",
-                        "submission_items": submission_items_by_user.get(
-                            username_key, []
-                        ),
+                        "submission_items": submission_items_by_user.get(username_key, []),
                     }
                 )
 

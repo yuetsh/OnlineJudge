@@ -18,6 +18,7 @@ class my_property:
     2. ttl is callable，条件缓存
     3. 缓存 ttl 秒
     """
+
     def __init__(self, func=None, fset=None, ttl=None):
         self.fset = fset
         self.local = threading.local()
@@ -118,8 +119,7 @@ class OptionDefaultValue:
     class_list = []
     smtp_config = {}
     judge_server_token = default_token
-    throttling = {"ip": {"capacity": 100, "fill_rate": 0.1, "default_capacity": 50},
-                  "user": {"capacity": 20, "fill_rate": 0.03, "default_capacity": 10}}
+    throttling = {"ip": {"capacity": 100, "fill_rate": 0.1, "default_capacity": 50}, "user": {"capacity": 20, "fill_rate": 0.03, "default_capacity": 10}}
     languages = languages
     enable_maxkb = True
 
@@ -286,7 +286,6 @@ class _SysOptionsMeta(type):
     def enable_maxkb(cls, value):
         cls._set_option(OptionKeys.enable_maxkb, value)
 
-
     def reset_languages(cls):
         cls.languages = languages
 
@@ -295,6 +294,7 @@ class SysOptions(metaclass=_SysOptionsMeta):
     @classmethod
     async def aget(cls, key):
         from asgiref.sync import sync_to_async
+
         return await sync_to_async(getattr)(cls, key)
 
     @classmethod
@@ -303,4 +303,5 @@ class SysOptions(metaclass=_SysOptionsMeta):
 
         def _get_all():
             return {k: getattr(cls, k) for k in keys}
+
         return await sync_to_async(_get_all)()

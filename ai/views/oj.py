@@ -114,16 +114,12 @@ def get_class_user_ids(user):
     cache_key = get_cache_key("class_users", user.class_name)
     user_ids = cache.get(cache_key)
     if user_ids is None:
-        user_ids = list(
-            User.objects.filter(class_name=user.class_name).values_list("id", flat=True)
-        )
+        user_ids = list(User.objects.filter(class_name=user.class_name).values_list("id", flat=True))
         cache.set(cache_key, user_ids, CACHE_TIMEOUT)
     return user_ids
 
 
-def get_user_first_ac_submissions(
-    user_id, start, end, class_user_ids=None, use_class_scope=False, include_all_time=True
-):
+def get_user_first_ac_submissions(user_id, start, end, class_user_ids=None, use_class_scope=False, include_all_time=True):
     # 用户自己的 AC 记录按时间范围过滤
     user_first_ac = list(
         Submission.objects.filter(
@@ -151,9 +147,7 @@ def get_user_first_ac_submissions(
     if use_class_scope and class_user_ids:
         rank_qs = rank_qs.filter(user_id__in=class_user_ids)
 
-    ranked_first_ac = list(
-        rank_qs.values("user_id", "problem_id").annotate(first_ac_time=Min("create_time"))
-    )
+    ranked_first_ac = list(rank_qs.values("user_id", "problem_id").annotate(first_ac_time=Min("create_time")))
 
     by_problem = defaultdict(list)
     for item in ranked_first_ac:
@@ -241,18 +235,14 @@ class AIDetailDataAPI(APIView):
             except User.DoesNotExist:
                 return self.error("User not found")
 
-        cache_key = get_cache_key(
-            "ai_detail", user.id, user.class_name or "", start, end
-        )
+        cache_key = get_cache_key("ai_detail", user.id, user.class_name or "", start, end)
         cached_result = cache.get(cache_key)
         if cached_result:
             return self.success(cached_result)
 
         class_user_ids = get_class_user_ids(user)
         use_class_scope = bool(user.class_name) and len(class_user_ids) > 1
-        user_first_ac, by_problem, problem_ids = get_user_first_ac_submissions(
-            user.id, start, end, class_user_ids, use_class_scope
-        )
+        user_first_ac, by_problem, problem_ids = get_user_first_ac_submissions(user.id, start, end, class_user_ids, use_class_scope)
 
         # 同期排名：只统计时间窗口内解题的人
         by_problem_period = defaultdict(list)
@@ -265,9 +255,7 @@ class AIDetailDataAPI(APIView):
             )
             if use_class_scope and class_user_ids:
                 period_qs = period_qs.filter(user_id__in=class_user_ids)
-            for item in period_qs.values("user_id", "problem_id").annotate(
-                first_ac_time=Min("create_time")
-            ):
+            for item in period_qs.values("user_id", "problem_id").annotate(first_ac_time=Min("create_time")):
                 by_problem_period[item["problem_id"]].append(item)
             for lst in by_problem_period.values():
                 lst.sort(key=lambda x: (x["first_ac_time"], x["user_id"]))
@@ -286,15 +274,8 @@ class AIDetailDataAPI(APIView):
         }
 
         if user_first_ac:
-            problems = {
-                p.id: p
-                for p in Problem.objects.filter(id__in=problem_ids)
-                .select_related("contest")
-                .prefetch_related("tags")
-            }
-            solved, contest_ids = self._build_solved_records(
-                user_first_ac, by_problem, by_problem_period, problems, user.id
-            )
+            problems = {p.id: p for p in Problem.objects.filter(id__in=problem_ids).select_related("contest").prefetch_related("tags")}
+            solved, contest_ids = self._build_solved_records(user_first_ac, by_problem, by_problem_period, problems, user.id)
             # 查找 flowchart submissions
             flowcharts_query = FlowchartSubmission.objects.filter(
                 user_id=user,
@@ -336,9 +317,7 @@ class AIDetailDataAPI(APIView):
 
                 # 找到最高分和对应的等级
                 best_score = max(scores) if scores else 0
-                best_submission = next(
-                    (s for s in submissions if s.ai_score == best_score), submissions[0]
-                )
+                best_submission = next((s for s in submissions if s.ai_score == best_score), submissions[0])
                 best_grade = best_submission.ai_grade or ""
 
                 # 计算平均分
@@ -360,9 +339,7 @@ class AIDetailDataAPI(APIView):
                 flowcharts_data.append(merged_item)
 
             # 按最新提交时间排序
-            flowcharts_data.sort(
-                key=lambda x: x["latest_submission_time"] or "", reverse=True
-            )
+            flowcharts_data.sort(key=lambda x: x["latest_submission_time"] or "", reverse=True)
 
             result.update(
                 {
@@ -370,9 +347,7 @@ class AIDetailDataAPI(APIView):
                     "flowcharts": flowcharts_data,
                     "grade": calculate_average_grade([s["grade"] for s in solved]),
                     "tags": self._calculate_top_tags(problems.values()),
-                    "difficulty": self._calculate_difficulty_distribution(
-                        problems.values()
-                    ),
+                    "difficulty": self._calculate_difficulty_distribution(problems.values()),
                     "contest_count": len(set(contest_ids)),
                 }
             )
@@ -428,13 +403,8 @@ class AIDetailDataAPI(APIView):
     def _calculate_difficulty_distribution(self, problems):
         diff_counter = {"Low": 0, "Mid": 0, "High": 0}
         for problem in problems:
-            diff_counter[
-                problem.difficulty if problem.difficulty in diff_counter else "Mid"
-            ] += 1
-        return {
-            get_difficulty(k): v
-            for k, v in sorted(diff_counter.items(), key=lambda x: x[1], reverse=True)
-        }
+            diff_counter[problem.difficulty if problem.difficulty in diff_counter else "Mid"] += 1
+        return {get_difficulty(k): v for k, v in sorted(diff_counter.items(), key=lambda x: x[1], reverse=True)}
 
 
 class AIDurationDataAPI(APIView):
@@ -451,9 +421,7 @@ class AIDurationDataAPI(APIView):
             except User.DoesNotExist:
                 return self.error("User not found")
 
-        cache_key = get_cache_key(
-            "ai_duration", user.id, user.class_name or "", end_iso, duration
-        )
+        cache_key = get_cache_key("ai_duration", user.id, user.class_name or "", end_iso, duration)
         cached_result = cache.get(cache_key)
         if cached_result:
             return self.success(cached_result)
@@ -468,9 +436,7 @@ class AIDurationDataAPI(APIView):
             start = start + time_config["delta"]
             period_end = start + time_config["delta"]
 
-            submission_count = Submission.objects.filter(
-                user_id=user.id, create_time__gte=start, create_time__lte=period_end
-            ).count()
+            submission_count = Submission.objects.filter(user_id=user.id, create_time__gte=start, create_time__lte=period_end).count()
 
             period_data = {
                 "unit": time_config["show_unit"],
@@ -502,9 +468,7 @@ class AIDurationDataAPI(APIView):
                     )
                     if use_class_scope and class_user_ids:
                         period_qs = period_qs.filter(user_id__in=class_user_ids)
-                    for row in period_qs.values("user_id", "problem_id").annotate(
-                        first_ac_time=Min("create_time")
-                    ):
+                    for row in period_qs.values("user_id", "problem_id").annotate(first_ac_time=Min("create_time")):
                         by_problem_period[row["problem_id"]].append(row)
                     for lst in by_problem_period.values():
                         lst.sort(key=lambda x: (x["first_ac_time"], x["user_id"]))
@@ -558,7 +522,6 @@ class AIDurationDataAPI(APIView):
         )
 
 
-
 class AILoginSummaryAPI(APIView):
     @login_required
     def get(self, request):
@@ -574,20 +537,11 @@ class AILoginSummaryAPI(APIView):
         )
         new_problem_count = problems_qs.count()
 
-        submissions_qs = Submission.objects.filter(
-            user_id=user.id, create_time__gte=start_time, create_time__lte=end_time
-        )
+        submissions_qs = Submission.objects.filter(user_id=user.id, create_time__gte=start_time, create_time__lte=end_time)
         submission_count = submissions_qs.count()
         accepted_count = submissions_qs.filter(result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED]).count()
-        solved_count = (
-            submissions_qs.filter(result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED])
-            .values("problem_id")
-            .distinct()
-            .count()
-        )
-        flowchart_submission_count = FlowchartSubmission.objects.filter(
-            user_id=user.id, create_time__gte=start_time, create_time__lte=end_time
-        ).count()
+        solved_count = submissions_qs.filter(result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED]).values("problem_id").distinct().count()
+        flowchart_submission_count = FlowchartSubmission.objects.filter(user_id=user.id, create_time__gte=start_time, create_time__lte=end_time).count()
 
         summary = {
             "start": datetime2str(start_time),
@@ -614,9 +568,7 @@ class AILoginSummaryAPI(APIView):
         start_time = parse_datetime(start_raw) if start_raw else None
 
         if start_time and timezone.is_naive(start_time):
-            start_time = timezone.make_aware(
-                start_time, timezone.get_current_timezone()
-            )
+            start_time = timezone.make_aware(start_time, timezone.get_current_timezone())
 
         if not start_time:
             if user.last_login and user.last_login < end_time:
@@ -637,11 +589,7 @@ class AILoginSummaryAPI(APIView):
         except Exception as exc:
             return "", str(exc)
 
-        system_prompt = (
-            "你是 OnlineJudge 的学习助教。"
-            "请根据统计数据给出简短分析(1-2句)，再给出一行结论，"
-            "结论用“结论：”开头。"
-        )
+        system_prompt = "你是 OnlineJudge 的学习助教。请根据统计数据给出简短分析(1-2句)，再给出一行结论，结论用“结论：”开头。"
         user_prompt = (
             f"时间范围：{summary['start']} 到 {summary['end']}\n"
             f"新题目数：{summary['new_problem_count']}\n"
@@ -668,6 +616,7 @@ class AILoginSummaryAPI(APIView):
 
         content = completion.choices[0].message.content or ""
         return content.strip(), ""
+
 
 class AIAnalysisAPI(APIView):
     @login_required
@@ -697,9 +646,7 @@ class AIAnalysisAPI(APIView):
                 analysis=full_text,
             )
 
-        return make_sse_response(
-            stream_ai_response(client, system_prompt, user_prompt, on_complete)
-        )
+        return make_sse_response(stream_ai_response(client, system_prompt, user_prompt, on_complete))
 
 
 class ClassPKAnalysisAPI(APIView):
@@ -745,24 +692,11 @@ class ClassPKAnalysisAPI(APIView):
             class_display = fmt_class(c["class_name"])
             lines.append(f"\n### 第{i + 1}名：{class_display}（综合分 {c['composite_score']:.1f}）")
             lines.append(f"- 人数：{c['user_count']}")
-            lines.append(
-                f"- 总AC数：{c['total_ac']}，总提交数：{c['total_submission']}，AC率：{c['ac_rate']:.1f}%"
-            )
-            lines.append(
-                f"- 平均AC：{c['avg_ac']:.2f}，中位数AC：{c['median_ac']:.2f}"
-            )
-            lines.append(
-                f"- Q1：{c['q1_ac']:.2f}，Q3：{c['q3_ac']:.2f}，"
-                f"IQR（四分位距）：{c['iqr']:.2f}，标准差：{c['std_dev']:.2f}"
-            )
-            lines.append(
-                f"- 前10%均值：{c['top_10_avg']:.2f}，中间80%均值：{c['middle_80_avg']:.2f}，"
-                f"后10%均值：{c['bottom_10_avg']:.2f}"
-            )
-            lines.append(
-                f"- 优秀率：{c['excellent_rate']:.1f}%，及格率：{c['pass_rate']:.1f}%，"
-                f"参与度：{c['active_rate']:.1f}%"
-            )
+            lines.append(f"- 总AC数：{c['total_ac']}，总提交数：{c['total_submission']}，AC率：{c['ac_rate']:.1f}%")
+            lines.append(f"- 平均AC：{c['avg_ac']:.2f}，中位数AC：{c['median_ac']:.2f}")
+            lines.append(f"- Q1：{c['q1_ac']:.2f}，Q3：{c['q3_ac']:.2f}，IQR（四分位距）：{c['iqr']:.2f}，标准差：{c['std_dev']:.2f}")
+            lines.append(f"- 前10%均值：{c['top_10_avg']:.2f}，中间80%均值：{c['middle_80_avg']:.2f}，后10%均值：{c['bottom_10_avg']:.2f}")
+            lines.append(f"- 优秀率：{c['excellent_rate']:.1f}%，及格率：{c['pass_rate']:.1f}%，参与度：{c['active_rate']:.1f}%")
 
             if c.get("recent_total_ac") is not None:
                 lines.append(
@@ -781,19 +715,15 @@ class ClassPKAnalysisAPI(APIView):
             "",
             "**2. 参与积极性**：对比参与度和总提交数，谁的班学生更积极主动？",
             "",
-            '**3. 典型学生水平**：重点用中位数AC数对比（而非平均值），'
-            '分析谁班的"普通学生"更强。若均值明显高于中位数，说明均值被少数强者拉高，需指出。',
+            '**3. 典型学生水平**：重点用中位数AC数对比（而非平均值），分析谁班的"普通学生"更强。若均值明显高于中位数，说明均值被少数强者拉高，需指出。',
             "",
-            '**4. 班级内部均衡性**：结合标准差、IQR、前10%与后10%差距，'
-            '判断哪个班是"均衡型"，哪个班是"两极型"。',
+            '**4. 班级内部均衡性**：结合标准差、IQR、前10%与后10%差距，判断哪个班是"均衡型"，哪个班是"两极型"。',
             "",
-            "**5. 梯队深度对比**：对比各班前10%均值（尖子生天花板）和后10%均值（薄弱学生水平），"
-            "分析各班在培养尖子生和帮扶后进生上的差异。",
+            "**5. 梯队深度对比**：对比各班前10%均值（尖子生天花板）和后10%均值（薄弱学生水平），分析各班在培养尖子生和帮扶后进生上的差异。",
             "",
             '**6. 代码提交质量**：对比AC率，是否有班级存在"凑提交次数但不思考"的问题？',
             "",
-            "**7. 综合结论与建议**：用1句话明确说明胜负；"
-            "对落后班级给出2~3条具体可操作的改进建议；点出领先班级1条值得借鉴的做法。",
+            "**7. 综合结论与建议**：用1句话明确说明胜负；对落后班级给出2~3条具体可操作的改进建议；点出领先班级1条值得借鉴的做法。",
             "",
             "分析对象是班级任课教师，语言专业但不过分学术。",
         ]
@@ -916,9 +846,7 @@ class AIHintAPI(APIView):
             f"学生代码：\n```\n{submission.code[:2000]}\n```"
         )
 
-        return make_sse_response(
-            stream_ai_response(client, system_prompt, user_prompt)
-        )
+        return make_sse_response(stream_ai_response(client, system_prompt, user_prompt))
 
 
 class AIHeatmapDataAPI(APIView):
@@ -941,9 +869,7 @@ class AIHeatmapDataAPI(APIView):
 
         # 使用单次查询获取所有数据，按日期分组统计
         submission_counts = (
-            Submission.objects.filter(
-                user_id=user.id, create_time__gte=start, create_time__lte=end
-            )
+            Submission.objects.filter(user_id=user.id, create_time__gte=start, create_time__lte=end)
             .annotate(date=TruncDate("create_time"))
             .values("date")
             .annotate(count=Count("id"))
@@ -961,10 +887,7 @@ class AIHeatmapDataAPI(APIView):
             submission_count = submission_dict.get(day_date, 0)
             heatmap_data.append(
                 {
-                    "timestamp": int(
-                        datetime.combine(day_date, datetime.min.time()).timestamp()
-                        * 1000
-                    ),
+                    "timestamp": int(datetime.combine(day_date, datetime.min.time()).timestamp() * 1000),
                     "value": submission_count,
                 }
             )

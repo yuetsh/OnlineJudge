@@ -7,9 +7,7 @@ from utils.models import RichTextField
 
 class Message(models.Model):
     sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name="sender")
-    recipient = models.ForeignKey(
-        User, on_delete=models.CASCADE, related_name="recipient"
-    )
+    recipient = models.ForeignKey(User, on_delete=models.CASCADE, related_name="recipient")
     submission = models.ForeignKey(Submission, on_delete=models.CASCADE)
     message = RichTextField()
     create_time = models.DateTimeField(auto_now_add=True)

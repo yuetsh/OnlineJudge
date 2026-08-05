@@ -8,11 +8,7 @@ class AnnouncementAPI(AsyncAPIView):
         id = request.GET.get("id")
         if id:
             try:
-                announcement = await (
-                    Announcement.objects.select_related("created_by")
-                    .filter(id=id, visible=True)
-                    .afirst()
-                )
+                announcement = await Announcement.objects.select_related("created_by").filter(id=id, visible=True).afirst()
                 if announcement is None:
                     raise Announcement.DoesNotExist
                 return self.success(await self.async_serialize_data(AnnouncementSerializer, announcement))
@@ -20,6 +16,4 @@ class AnnouncementAPI(AsyncAPIView):
                 return self.error("Announcement does not exist")
 
         announcements = Announcement.objects.select_related("created_by").filter(visible=True)
-        return self.success(
-            await self.async_paginate_data(request, announcements, AnnouncementListSerializer)
-        )
+        return self.success(await self.async_paginate_data(request, announcements, AnnouncementListSerializer))

@@ -16,9 +16,7 @@ class TutorialAPI(APIView):
 class TutorialTitlesAPI(APIView):
     def get(self, request):
         type = request.GET.get("type") or "python"
-        tutorials = Tutorial.objects.filter(is_public=True, type=type).values(
-            "id", "title"
-        )
+        tutorials = Tutorial.objects.filter(is_public=True, type=type).values("id", "title")
         return self.success(list(tutorials))
 
 

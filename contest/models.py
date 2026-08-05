@@ -75,7 +75,6 @@ class ACMContestRank(AbstractContestRank):
         ]
 
 
-
 class ContestAnnouncement(models.Model):
     contest = models.ForeignKey(Contest, on_delete=models.CASCADE)
     title = models.TextField()

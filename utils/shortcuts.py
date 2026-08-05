@@ -37,7 +37,7 @@ def build_query_string(kv_data, ignore_none=True):
             query_string += "&"
         else:
             query_string = "?"
-        query_string += (k + "=" + str(v))
+        query_string += k + "=" + str(v)
     return query_string
 
 
@@ -60,8 +60,7 @@ def datetime2str(value, format="iso-8601"):
 
 
 def natural_sort_key(s, _nsre=re.compile(r"(\d+)")):
-    return [int(text) if text.isdigit() else text.lower()
-            for text in re.split(_nsre, s)]
+    return [int(text) if text.isdigit() else text.lower() for text in re.split(_nsre, s)]
 
 
 def send_email(smtp_config, from_name, to_email, to_name, subject, content):

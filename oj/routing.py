@@ -13,4 +13,3 @@ websocket_urlpatterns = [
     path("ws/config/", ConfigConsumer.as_asgi()),
     path("ws/flowchart/", FlowchartConsumer.as_asgi()),
 ]
-

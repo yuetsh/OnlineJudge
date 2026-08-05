@@ -35,14 +35,24 @@ class FPSParser(object):
     def _parse_one_problem(self, node):
         sample_start = True
         test_case_start = True
-        problem = {"title": "No Title", "description": "No Description",
-                   "input": "No Input Description",
-                   "output": "No Output Description",
-                   "memory_limit": {"unit": None, "value": None},
-                   "time_limit": {"unit": None, "value": None},
-                   "samples": [], "images": [], "append": [],
-                   "template": [], "prepend": [], "test_cases": [],
-                   "hint": None, "source": None, "spj": None, "solution": []}
+        problem = {
+            "title": "No Title",
+            "description": "No Description",
+            "input": "No Input Description",
+            "output": "No Output Description",
+            "memory_limit": {"unit": None, "value": None},
+            "time_limit": {"unit": None, "value": None},
+            "samples": [],
+            "images": [],
+            "append": [],
+            "template": [],
+            "prepend": [],
+            "test_cases": [],
+            "hint": None,
+            "source": None,
+            "spj": None,
+            "solution": [],
+        }
         for item in node:
             tag = item.tag
             if tag in ["title", "description", "input", "output", "hint", "source"]:
@@ -144,23 +154,17 @@ class FPSHelper(object):
                 with open(os.path.join(base_dir, str(index + 1) + ".out"), "w", encoding="utf-8") as f:
                     f.write(output_content)
             if spj:
-                one_info = {
-                    "input_size": len(input_content),
-                    "input_name": f"{index + 1}.in"
-                }
+                one_info = {"input_size": len(input_content), "input_name": f"{index + 1}.in"}
             else:
                 one_info = {
                     "input_size": len(input_content),
                     "input_name": f"{index + 1}.in",
                     "output_size": len(output_content),
                     "output_name": f"{index + 1}.out",
-                    "stripped_output_md5": hashlib.md5(output_content.rstrip().encode("utf-8")).hexdigest()
+                    "stripped_output_md5": hashlib.md5(output_content.rstrip().encode("utf-8")).hexdigest(),
                 }
             test_cases[index] = one_info
-        info = {
-            "spj": True if spj else False,
-            "test_cases": test_cases
-        }
+        info = {"spj": True if spj else False, "test_cases": test_cases}
         with open(os.path.join(base_dir, "info"), "w", encoding="utf-8") as f:
             f.write(json.dumps(info, indent=4))
         return info

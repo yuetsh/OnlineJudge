@@ -7,4 +7,3 @@ urlpatterns = [
     path("user_class_rank", UserClassRankAPI.as_view()),
     path("class_pk", ClassPKAPI.as_view()),
 ]
-

@@ -17,7 +17,10 @@ class Announcement(models.Model):
 
     class Meta:
         db_table = "announcement"
-        ordering = ("-top", "-create_time",)
+        ordering = (
+            "-top",
+            "-create_time",
+        )
         indexes = [
             models.Index(fields=["visible", "-top", "-create_time"], name="announcement_list_idx"),
         ]

@@ -16,21 +16,19 @@ def sync_progress_on_problem_change(sender, instance, created, **kwargs):
     try:
         with transaction.atomic():
             # 获取该题单的所有用户进度
-            progresses = ProblemSetProgress.objects.filter(
-                problemset=instance.problemset
-            )
-            
+            progresses = ProblemSetProgress.objects.filter(problemset=instance.problemset)
+
             # 批量更新所有用户的进度
             for progress in progresses:
                 progress.update_progress()
-            
+
             # 重新计算该题单的所有徽章资格
             badges = ProblemSetBadge.objects.filter(problemset=instance.problemset)
             for badge in badges:
                 badge.recalculate_user_badges()
-                
+
             logger.info(f"已同步题单 {instance.problemset.id} 的所有用户进度和徽章资格")
-            
+
     except Exception as e:
         logger.error(f"同步题单进度时出错: {e}")
 
@@ -42,27 +40,23 @@ def sync_progress_on_problem_delete(sender, instance, **kwargs):
         with transaction.atomic():
             # 清理该题目在题单中的所有提交记录
             from .models import ProblemSetSubmission
-            ProblemSetSubmission.objects.filter(
-                problemset=instance.problemset,
-                problem=instance.problem
-            ).delete()
-            
+
+            ProblemSetSubmission.objects.filter(problemset=instance.problemset, problem=instance.problem).delete()
+
             # 获取该题单的所有用户进度
-            progresses = ProblemSetProgress.objects.filter(
-                problemset=instance.problemset
-            )
-            
+            progresses = ProblemSetProgress.objects.filter(problemset=instance.problemset)
+
             # 批量更新所有用户的进度
             for progress in progresses:
                 progress.update_progress()
-            
+
             # 重新计算该题单的所有徽章资格
             badges = ProblemSetBadge.objects.filter(problemset=instance.problemset)
             for badge in badges:
                 badge.recalculate_user_badges()
-                
+
             logger.info(f"已同步题单 {instance.problemset.id} 的所有用户进度和徽章资格（删除题目后）")
-            
+
     except Exception as e:
         logger.error(f"同步题单进度时出错: {e}")
 
@@ -75,7 +69,7 @@ def sync_badges_on_badge_change(sender, instance, created, **kwargs):
             # 重新计算该奖章的所有用户资格
             instance.recalculate_user_badges()
             logger.info(f"已重新计算题单 {instance.problemset.id} 的奖章 {instance.id} 的用户资格")
-            
+
     except Exception as e:
         logger.error(f"重新计算奖章资格时出错: {e}")
 
@@ -88,6 +82,6 @@ def cleanup_badges_on_badge_delete(sender, instance, **kwargs):
             # 删除该奖章的所有用户奖章记录
             UserBadge.objects.filter(badge=instance).delete()
             logger.info(f"已清理奖章 {instance.id} 的所有用户奖章记录")
-            
+
     except Exception as e:
         logger.error(f"清理用户奖章记录时出错: {e}")

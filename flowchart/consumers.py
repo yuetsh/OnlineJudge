@@ -1,6 +1,7 @@
 """
 WebSocket consumers for flowchart evaluation updates
 """
+
 import json
 import logging
 
@@ -18,31 +19,25 @@ class FlowchartConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         """处理 WebSocket 连接"""
         self.user = self.scope["user"]
-        
+
         # 只允许认证用户连接
         if not self.user.is_authenticated:
             await self.close()
             return
-        
+
         # 使用用户 ID 作为组名，这样可以向特定用户推送消息
         self.group_name = f"flowchart_user_{self.user.id}"
-        
+
         # 加入用户专属的组
-        await self.channel_layer.group_add(
-            self.group_name,
-            self.channel_name
-        )
-        
+        await self.channel_layer.group_add(self.group_name, self.channel_name)
+
         await self.accept()
         logger.info(f"Flowchart WebSocket connected: user_id={self.user.id}, channel={self.channel_name}")
 
     async def disconnect(self, close_code):
         """处理 WebSocket 断开连接"""
-        if hasattr(self, 'group_name'):
-            await self.channel_layer.group_discard(
-                self.group_name,
-                self.channel_name
-            )
+        if hasattr(self, "group_name"):
+            await self.channel_layer.group_discard(self.group_name, self.channel_name)
             logger.info(f"Flowchart WebSocket disconnected: user_id={self.user.id}, close_code={close_code}")
 
     async def receive(self, text_data):
@@ -53,13 +48,10 @@ class FlowchartConsumer(AsyncWebsocketConsumer):
         try:
             data = json.loads(text_data)
             message_type = data.get("type")
-            
+
             if message_type == "ping":
                 # 响应心跳包
-                await self.send(text_data=json.dumps({
-                    "type": "pong",
-                    "timestamp": data.get("timestamp")
-                }))
+                await self.send(text_data=json.dumps({"type": "pong", "timestamp": data.get("timestamp")}))
             elif message_type == "subscribe":
                 # 订阅特定流程图提交的更新
                 submission_id = data.get("submission_id")

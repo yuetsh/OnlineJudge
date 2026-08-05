@@ -15,7 +15,7 @@ class Command(BaseCommand):
         password = options["password"]
         action = options["action"]
 
-        if not(username and password and action):
+        if not (username and password and action):
             self.stdout.write(self.style.ERROR("Invalid args"))
             exit(1)
 
@@ -24,8 +24,7 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.SUCCESS(f"User {username} exists, operation ignored"))
                 exit()
 
-            user = User.objects.create(username=username, admin_type=AdminType.SUPER_ADMIN,
-                                       problem_permission=ProblemPermission.ALL)
+            user = User.objects.create(username=username, admin_type=AdminType.SUPER_ADMIN, problem_permission=ProblemPermission.ALL)
             user.set_password(password)
             user.save()
             UserProfile.objects.create(user=user)

@@ -28,4 +28,3 @@ application = ProtocolTypeRouter(
         "websocket": AuthMiddlewareStack(URLRouter(websocket_urlpatterns)),
     }
 )
-

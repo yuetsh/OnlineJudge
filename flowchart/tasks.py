@@ -20,16 +20,16 @@ def evaluate_flowchart_task(submission_id):
     submission = None
     try:
         submission = FlowchartSubmission.objects.get(id=submission_id)
-        
+
         # 更新状态为处理中
         submission.status = FlowchartSubmissionStatus.PROCESSING
         submission.save()
-        
+
         start_time = time.time()
-        
+
         # 使用固定评分标准
         system_prompt = build_evaluation_prompt(submission.problem)
-        
+
         # 构建用户提示词，包含标准答案对比
         user_prompt = f"""
 请对以下Mermaid流程图进行评分：
@@ -53,16 +53,13 @@ def evaluate_flowchart_task(submission_id):
             user_prompt += f"\n设计提示：{submission.problem.flowchart_hint}\n"
 
         user_prompt += "\n请按照评分标准进行详细评估，并给出0-100的分数。\n"
-        
+
         # 调用AI进行评分
         client = get_ai_client()
-        
+
         response = client.chat.completions.create(
             model="deepseek-v4-flash",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
+            messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
             temperature=0,
             extra_body={"thinking": {"type": "disabled"}},
         )
@@ -74,30 +71,31 @@ def evaluate_flowchart_task(submission_id):
 
         # 保存评分结果
         with transaction.atomic():
-            submission.ai_score = score_data['score']
-            submission.ai_grade = score_data['grade']
-            submission.ai_feedback = score_data['feedback']
-            submission.ai_suggestions = score_data.get('suggestions', '')
-            submission.ai_criteria_details = score_data.get('criteria_details', {})
-            submission.ai_provider = 'deepseek'
-            submission.ai_model = 'deepseek-v4-flash'
+            submission.ai_score = score_data["score"]
+            submission.ai_grade = score_data["grade"]
+            submission.ai_feedback = score_data["feedback"]
+            submission.ai_suggestions = score_data.get("suggestions", "")
+            submission.ai_criteria_details = score_data.get("criteria_details", {})
+            submission.ai_provider = "deepseek"
+            submission.ai_model = "deepseek-v4-flash"
             submission.processing_time = processing_time
             submission.status = FlowchartSubmissionStatus.COMPLETED
             submission.evaluation_time = timezone.now()
             submission.save()
-        
+
         # 推送评分完成通知
         from utils.websocket import push_flowchart_evaluation_update
+
         push_flowchart_evaluation_update(
             submission_id=str(submission.id),
             user_id=submission.user_id,
             data={
                 "type": "flowchart_evaluation_completed",
-                "score": score_data['score'],
-                "grade": score_data['grade'],
-            }
+                "score": score_data["score"],
+                "grade": score_data["grade"],
+            },
         )
-        
+
     except Exception as e:
         logger.exception("evaluate_flowchart_task failed for submission %s", submission_id)
         if submission is not None:
@@ -105,6 +103,7 @@ def evaluate_flowchart_task(submission_id):
             submission.save()
 
             from utils.websocket import push_flowchart_evaluation_update
+
             push_flowchart_evaluation_update(
                 submission_id=str(submission.id),
                 user_id=submission.user_id,
@@ -116,9 +115,10 @@ def evaluate_flowchart_task(submission_id):
             )
         raise e
 
+
 def build_evaluation_prompt(problem):
     """构建AI评分提示词 - 使用固定标准"""
-    
+
     # 使用固定的评分标准
     criteria_text = """
 - 逻辑正确性 (权重: 1.0, 最高分: 40): 检查流程图的逻辑是否正确，包括条件判断、循环结构等
@@ -126,7 +126,7 @@ def build_evaluation_prompt(problem):
 - 规范性 (权重: 0.6, 最高分: 20): 检查流程图符号使用是否规范，是否符合标准；不要评价节点ID
 - 清晰度 (权重: 0.4, 最高分: 10): 评估流程图的整体布局和连线情况；不要因节点ID扣分
 """
-    
+
     return f"""
 你是一个专业的编程教学助手，负责评估学生提交的Mermaid流程图。
 
@@ -166,15 +166,17 @@ def build_evaluation_prompt(problem):
 }}
 """
 
+
 def parse_ai_evaluation_response(ai_response):
     """解析AI评分响应，解析失败时抛出异常由调用方处理"""
     import re
+
     # 优先匹配代码块中的 JSON，避免贪婪匹配误抓 reasoning 段落
-    code_block = re.search(r'```(?:json)?\s*(\{[\s\S]*?\})\s*```', ai_response, re.DOTALL)
+    code_block = re.search(r"```(?:json)?\s*(\{[\s\S]*?\})\s*```", ai_response, re.DOTALL)
     if code_block:
         json_str = code_block.group(1)
     else:
-        json_match = re.search(r'\{.*\}', ai_response, re.DOTALL)
+        json_match = re.search(r"\{.*\}", ai_response, re.DOTALL)
         if not json_match:
             raise ValueError("AI响应中未找到JSON数据")
         json_str = json_match.group()

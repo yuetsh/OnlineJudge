@@ -20,16 +20,44 @@ STOPWORDS = frozenset(
 )
 
 CUSTOM_WORDS = [
-    "循环结构", "条件判断", "判断条件", "结束条件", "循环条件",
-    "异常处理", "边界条件", "输入输出", "输入验证",
-    "开始结束", "结束节点", "开始节点", "判断节点",
-    "流程走向", "逻辑错误", "逻辑缺陷", "逻辑不清",
-    "缺少分支", "缺少步骤", "缺少判断", "缺少循环",
-    "死循环", "无限循环", "循环出口", "循环体",
-    "条件分支", "分支结构", "分支不全", "分支缺失",
-    "符号使用", "符号不规范", "连线混乱",
-    "变量初始化", "赋值操作", "累加操作",
-    "终止条件", "退出条件", "返回值",
+    "循环结构",
+    "条件判断",
+    "判断条件",
+    "结束条件",
+    "循环条件",
+    "异常处理",
+    "边界条件",
+    "输入输出",
+    "输入验证",
+    "开始结束",
+    "结束节点",
+    "开始节点",
+    "判断节点",
+    "流程走向",
+    "逻辑错误",
+    "逻辑缺陷",
+    "逻辑不清",
+    "缺少分支",
+    "缺少步骤",
+    "缺少判断",
+    "缺少循环",
+    "死循环",
+    "无限循环",
+    "循环出口",
+    "循环体",
+    "条件分支",
+    "分支结构",
+    "分支不全",
+    "分支缺失",
+    "符号使用",
+    "符号不规范",
+    "连线混乱",
+    "变量初始化",
+    "赋值操作",
+    "累加操作",
+    "终止条件",
+    "退出条件",
+    "返回值",
 ]
 
 for _w in CUSTOM_WORDS:
@@ -38,7 +66,7 @@ for _w in CUSTOM_WORDS:
 
 def get_real_name(username, class_name):
     if class_name and username.startswith("ks"):
-        return username[len(f"ks{class_name}"):]
+        return username[len(f"ks{class_name}") :]
     return username
 
 
@@ -63,9 +91,7 @@ class FlowchartStatisticsAPI(APIView):
         problem_id = request.GET.get("problem_id")
         if problem_id:
             try:
-                problem = Problem.objects.get(
-                    _id__iexact=problem_id, contest_id__isnull=True, visible=True
-                )
+                problem = Problem.objects.get(_id__iexact=problem_id, contest_id__isnull=True, visible=True)
             except Problem.DoesNotExist:
                 return self.error("Problem doesn't exist")
             submissions = submissions.filter(problem=problem)
@@ -85,23 +111,21 @@ class FlowchartStatisticsAPI(APIView):
 
         total_count = submissions.count()
         if total_count == 0:
-            return self.success({
-                "total_count": 0,
-                "avg_score": 0,
-                "grade_distribution": {},
-                "criteria_averages": {},
-                "person_count": len(all_users_dict),
-                "completed_count": 0,
-                "word_frequencies": [],
-                "data_unaccepted": [],
-            })
+            return self.success(
+                {
+                    "total_count": 0,
+                    "avg_score": 0,
+                    "grade_distribution": {},
+                    "criteria_averages": {},
+                    "person_count": len(all_users_dict),
+                    "completed_count": 0,
+                    "word_frequencies": [],
+                    "data_unaccepted": [],
+                }
+            )
 
         # 1. Grade distribution
-        grade_counts = dict(
-            submissions.values_list("ai_grade")
-            .annotate(count=Count("id"))
-            .values_list("ai_grade", "count")
-        )
+        grade_counts = dict(submissions.values_list("ai_grade").annotate(count=Count("id")).values_list("ai_grade", "count"))
 
         # 2. Average score
         avg_score = submissions.aggregate(avg=Avg("ai_score"))["avg"] or 0
@@ -113,9 +137,7 @@ class FlowchartStatisticsAPI(APIView):
 
         wordcloud_texts = []
 
-        for row in submissions.values_list(
-            "ai_criteria_details", "ai_feedback", "ai_suggestions"
-        ).iterator():
+        for row in submissions.values_list("ai_criteria_details", "ai_feedback", "ai_suggestions").iterator():
             details, feedback, suggestions = row
             if details and isinstance(details, dict):
                 for key, val in details.items():
@@ -139,9 +161,7 @@ class FlowchartStatisticsAPI(APIView):
             }
 
         # 4. Completion stats
-        submitted_users = set(
-            submissions.values_list("user__username", flat=True).distinct()
-        )
+        submitted_users = set(submissions.values_list("user__username", flat=True).distinct())
         completed_count = len(submitted_users)
 
         # Unaccepted users
@@ -155,16 +175,18 @@ class FlowchartStatisticsAPI(APIView):
         # 5. Word cloud from feedback + suggestions + criteria comments
         word_freq = self._build_word_frequencies(wordcloud_texts)
 
-        return self.success({
-            "total_count": total_count,
-            "avg_score": round(avg_score, 1),
-            "grade_distribution": grade_counts,
-            "criteria_averages": criteria_averages,
-            "person_count": len(all_users_dict),
-            "completed_count": completed_count,
-            "word_frequencies": word_freq,
-            "data_unaccepted": unaccepted,
-        })
+        return self.success(
+            {
+                "total_count": total_count,
+                "avg_score": round(avg_score, 1),
+                "grade_distribution": grade_counts,
+                "criteria_averages": criteria_averages,
+                "person_count": len(all_users_dict),
+                "completed_count": completed_count,
+                "word_frequencies": word_freq,
+                "data_unaccepted": unaccepted,
+            }
+        )
 
     @staticmethod
     def _build_word_frequencies(texts, top_n=80):

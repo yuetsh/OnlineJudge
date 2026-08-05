@@ -61,12 +61,7 @@ class UserAdminAPI(APIView):
         try:
             with transaction.atomic():
                 ret = User.objects.bulk_create(user_list)
-                UserProfile.objects.bulk_create(
-                    [
-                        UserProfile(user=ret[i], real_name=data[i][3])
-                        for i in range(len(ret))
-                    ]
-                )
+                UserProfile.objects.bulk_create([UserProfile(user=ret[i], real_name=data[i][3]) for i in range(len(ret))])
             return self.success()
         except IntegrityError as e:
             # Extract detail from exception message
@@ -85,17 +80,9 @@ class UserAdminAPI(APIView):
             user = User.objects.get(id=data["id"])
         except User.DoesNotExist:
             return self.error("User does not exist")
-        if (
-            User.objects.filter(username=data["username"].lower())
-            .exclude(id=user.id)
-            .exists()
-        ):
+        if User.objects.filter(username=data["username"].lower()).exclude(id=user.id).exists():
             return self.error("Username already exists")
-        if (
-            User.objects.filter(email=data["email"].lower())
-            .exclude(id=user.id)
-            .exists()
-        ):
+        if User.objects.filter(email=data["email"].lower()).exclude(id=user.id).exists():
             return self.error("Email already exists")
 
         pre_username = user.username
@@ -136,9 +123,7 @@ class UserAdminAPI(APIView):
 
         user.save()
         if pre_username != user.username:
-            Submission.objects.filter(username=pre_username).update(
-                username=user.username
-            )
+            Submission.objects.filter(username=pre_username).update(username=user.username)
 
         UserProfile.objects.filter(user=user).update(real_name=data["real_name"])
         return self.success(UserAdminSerializer(user).data)
@@ -158,7 +143,7 @@ class UserAdminAPI(APIView):
 
         # 获取排序参数
         order_by = request.GET.get("order_by", "")
-        
+
         # 根据排序参数设置排序规则
         if order_by == "-last_login":
             # 最近登录，将 None 值放在最后
@@ -174,11 +159,7 @@ class UserAdminAPI(APIView):
 
         keyword = request.GET.get("keyword", None)
         if keyword:
-            user = user.filter(
-                Q(username__icontains=keyword)
-                | Q(userprofile__real_name__icontains=keyword)
-                | Q(email__icontains=keyword)
-            )
+            user = user.filter(Q(username__icontains=keyword) | Q(userprofile__real_name__icontains=keyword) | Q(email__icontains=keyword))
         return self.success(self.paginate_data(request, user, UserAdminSerializer))
 
     @super_admin_required
@@ -223,9 +204,7 @@ class GenerateUserAPI(APIView):
         Generate User
         """
         data = request.data
-        number_max_length = max(
-            len(str(data["number_from"])), len(str(data["number_to"]))
-        )
+        number_max_length = max(len(str(data["number_from"])), len(str(data["number_to"])))
         if number_max_length + len(data["prefix"]) + len(data["suffix"]) > 32:
             return self.error("Username should not more than 32 characters")
         if data["number_from"] > data["number_to"]:
@@ -253,9 +232,7 @@ class GenerateUserAPI(APIView):
         try:
             with transaction.atomic():
                 ret = User.objects.bulk_create(user_list)
-                UserProfile.objects.bulk_create(
-                    [UserProfile(user=user) for user in ret]
-                )
+                UserProfile.objects.bulk_create([UserProfile(user=user) for user in ret])
                 for item in user_list:
                     worksheet.write_string(i, 0, item.username)
                     worksheet.write_string(i, 1, item.raw_password)
@@ -277,17 +254,17 @@ class ResetUserPasswordAPI(APIView):
         """
         data = request.data
         user_id = data["id"]
-        
+
         try:
             user = User.objects.get(id=user_id)
         except User.DoesNotExist:
             return self.error("User does not exist")
-        
+
         # 生成6位随机数字密码(不包括0)
         new_password = get_random_string(6, allowed_chars="123456789")
-        
+
         # 设置新密码
         user.set_password(new_password)
         user.save()
-        
+
         return self.success(new_password)

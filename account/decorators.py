@@ -151,7 +151,9 @@ def check_contest_permission(check_type="details"):
             if error:
                 return error
             return await func(*args, **kwargs)
+
         return _wrapper
+
     return decorator
 
 

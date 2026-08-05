@@ -153,9 +153,7 @@ class JudgeServerAPI(APIView):
     @super_admin_required
     def put(self, request):
         is_disabled = request.data.get("is_disabled", False)
-        JudgeServer.objects.filter(id=request.data["id"]).update(
-            is_disabled=is_disabled
-        )
+        JudgeServer.objects.filter(id=request.data["id"]).update(is_disabled=is_disabled)
         if not is_disabled:
             process_pending_task()
         return self.success()
@@ -166,10 +164,7 @@ class JudgeServerHeartbeatAPI(CSRFExemptAPIView):
     def post(self, request):
         data = request.data
         client_token = request.META.get("HTTP_X_JUDGE_SERVER_TOKEN")
-        if (
-            hashlib.sha256(SysOptions.judge_server_token.encode("utf-8")).hexdigest()
-            != client_token
-        ):
+        if hashlib.sha256(SysOptions.judge_server_token.encode("utf-8")).hexdigest() != client_token:
             return self.error("Invalid token")
 
         try:
@@ -263,8 +258,7 @@ class ReleaseNotesAPI(APIView):
     def get(self, request):
         try:
             resp = requests.get(
-                "https://raw.githubusercontent.com/QingdaoU/OnlineJudge/master/docs/data.json?_="
-                + str(time.time()),
+                "https://raw.githubusercontent.com/QingdaoU/OnlineJudge/master/docs/data.json?_=" + str(time.time()),
                 timeout=3,
             )
             releases = resp.json()
@@ -289,9 +283,7 @@ class DashboardInfoAPI(AsyncAPIView):
             User.objects.acount(),
             Submission.objects.filter(create_time__gte=today_start).acount(),
             Contest.objects.exclude(end_time__lt=timezone.now()).acount(),
-            JudgeServer.objects.filter(
-                last_heartbeat__gte=timezone.now() - timedelta(seconds=6)
-            ).acount(),
+            JudgeServer.objects.filter(last_heartbeat__gte=timezone.now() - timedelta(seconds=6)).acount(),
         )
         return self.success(
             {
@@ -312,20 +304,14 @@ class RandomUsernameAPI(AsyncAPIView):
         classroom = request.GET.get("classroom", "")
         if not classroom:
             return self.error("需要班级号")
-        usernames = [
-            u async for u in User.objects.filter(username__istartswith=classroom)
-            .values_list("username", flat=True)
-            .order_by("?")[:10]
-        ]
+        usernames = [u async for u in User.objects.filter(username__istartswith=classroom).values_list("username", flat=True).order_by("?")[:10]]
         return self.success(usernames)
 
 
 class HitokotoAPI(AsyncAPIView):
     async def get(self, request):
         try:
-            categories = JsonDataLoader.load_data(
-                settings.HITOKOTO_DIR, "categories.json"
-            )
+            categories = JsonDataLoader.load_data(settings.HITOKOTO_DIR, "categories.json")
             path = random.choice(categories).get("path")
             sentences = JsonDataLoader.load_data(settings.HITOKOTO_DIR, path)
             sentence = random.choice(sentences)
@@ -341,7 +327,6 @@ class ClassUsernamesAPI(AsyncAPIView):
             return self.error("需要班级号")
         prefix = f"ks{classroom}"
         names = [
-            user.username[len(prefix):] if user.username.startswith(prefix) else user.username
-            async for user in User.objects.filter(class_name=classroom).order_by("-create_time")
+            user.username[len(prefix) :] if user.username.startswith(prefix) else user.username async for user in User.objects.filter(class_name=classroom).order_by("-create_time")
         ]
         return self.success(names)
