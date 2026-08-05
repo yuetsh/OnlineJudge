@@ -283,12 +283,12 @@ class UserBadgeAPI(AsyncAPIView):
             # 获取指定用户的徽章
             try:
                 target_user = await User.objects.aget(username=username, is_disabled=False)
-                badges = UserBadge.objects.select_related("badge").filter(user=target_user).order_by("-earned_time")
+                badges = UserBadge.objects.select_related("badge__problemset").filter(user=target_user).order_by("-earned_time")
             except User.DoesNotExist:
                 return self.error("用户不存在")
         else:
             # 获取当前用户的徽章
-            badges = UserBadge.objects.select_related("badge").filter(user=request.user).order_by("-earned_time")
+            badges = UserBadge.objects.select_related("badge__problemset").filter(user=request.user).order_by("-earned_time")
 
         badge_list = [badge async for badge in badges]
         return self.success(await self.async_serialize_data(UserBadgeSerializer, badge_list, many=True))

@@ -287,10 +287,17 @@ class UserBadgeSerializer(serializers.ModelSerializer):
     """用户奖章序列化器"""
 
     badge = ProblemSetBadgeSerializer()
+    # 成就页只拿到奖章本身，看不出是哪个题单发的，这里把题单带出来。
+    # 只在这个序列化器上加：题单详情页里的奖章列表本来就在题单上下文中，不需要
+    problemset = serializers.SerializerMethodField()
 
     class Meta:
         model = UserBadge
         fields = "__all__"
+
+    def get_problemset(self, obj):
+        problemset = obj.badge.problemset
+        return {"id": problemset.id, "title": problemset.title}
 
 
 class JoinProblemSetSerializer(serializers.Serializer):
