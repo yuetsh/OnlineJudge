@@ -1,5 +1,5 @@
 from django.core.cache import cache
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 
 from utils.constants import CacheKey
 
@@ -39,7 +39,10 @@ def resolve_tags(names):
         tag = ProblemTag.objects.filter(name__iexact=name).first()
         if tag is None:
             try:
-                tag = ProblemTag.objects.create(name=name)
+                # 包一层 atomic：外层若在事务里，IntegrityError 会中止整个事务，
+                # 导致下面的回查抛 TransactionManagementError
+                with transaction.atomic():
+                    tag = ProblemTag.objects.create(name=name)
                 created = True
             except IntegrityError:
                 # 并发下另一个请求刚建好同名标签，回查复用
