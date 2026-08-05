@@ -19,7 +19,7 @@ from utils.api import APIError, APIView, CSRFExemptAPIView, validate_serializer
 from utils.openai import get_ai_client
 from utils.shortcuts import natural_sort_key, rand_str
 
-from ..models import Problem, ProblemTag
+from ..models import Problem
 from ..serializers import (
     AddContestProblemSerializer,
     ContestProblemMakePublicSerializer,
@@ -32,6 +32,7 @@ from ..serializers import (
     SQLTestCasePreviewSerializer,
     TestCaseUploadForm,
 )
+from ..services import resolve_tags
 from ..utils import generate_sql_display
 
 
@@ -248,12 +249,7 @@ class ProblemAPI(ProblemBase):
         data["created_by"] = request.user
         problem = Problem.objects.create(**data)
 
-        for item in tags:
-            try:
-                tag = ProblemTag.objects.get(name=item)
-            except ProblemTag.DoesNotExist:
-                tag = ProblemTag.objects.create(name=item)
-            problem.tags.add(tag)
+        problem.tags.set(resolve_tags(tags))
         return self.success(ProblemAdminSerializer(problem).data)
 
     @problem_permission_required
@@ -310,14 +306,7 @@ class ProblemAPI(ProblemBase):
             setattr(problem, k, v)
         problem.save()
 
-        problem.tags.remove(*problem.tags.all())
-        for tag in tags:
-            try:
-                tag = ProblemTag.objects.get(name=tag)
-            except ProblemTag.DoesNotExist:
-                tag = ProblemTag.objects.create(name=tag)
-            problem.tags.add(tag)
-
+        problem.tags.set(resolve_tags(tags))
         return self.success()
 
     @problem_permission_required
@@ -364,12 +353,7 @@ class ContestProblemAPI(ProblemBase):
         data["created_by"] = request.user
         problem = Problem.objects.create(**data)
 
-        for item in tags:
-            try:
-                tag = ProblemTag.objects.get(name=item)
-            except ProblemTag.DoesNotExist:
-                tag = ProblemTag.objects.create(name=item)
-            problem.tags.add(tag)
+        problem.tags.set(resolve_tags(tags))
         return self.success(ProblemAdminSerializer(problem).data)
 
     def get(self, request):
@@ -434,13 +418,7 @@ class ContestProblemAPI(ProblemBase):
             setattr(problem, k, v)
         problem.save()
 
-        problem.tags.remove(*problem.tags.all())
-        for tag in tags:
-            try:
-                tag = ProblemTag.objects.get(name=tag)
-            except ProblemTag.DoesNotExist:
-                tag = ProblemTag.objects.create(name=tag)
-            problem.tags.add(tag)
+        problem.tags.set(resolve_tags(tags))
         return self.success()
 
     def delete(self, request):
