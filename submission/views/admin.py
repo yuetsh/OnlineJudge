@@ -5,14 +5,9 @@ from account.models import AdminType, User
 from judge.tasks import judge_task
 from problem.models import Problem
 from utils.api import APIView
+from utils.shortcuts import strip_class_prefix
 
 from ..models import JudgeStatus, Submission
-
-
-def get_real_name(username, class_name):
-    if class_name and username.startswith("ks"):
-        return username[len(f"ks{class_name}") :]
-    return username
 
 
 class SubmissionRejudgeAPI(APIView):
@@ -132,7 +127,7 @@ class SubmissionStatisticsAPI(APIView):
             unaccepted_usernames = set(all_users_dict.keys()) - submitted_usernames
             for username in unaccepted_usernames:
                 class_name = all_users_dict[username]
-                real_name = get_real_name(username, class_name)
+                real_name = strip_class_prefix(username, class_name)
                 unaccepted.append({"username": username, "real_name": real_name})
 
         # 计算人数完成率

@@ -36,6 +36,19 @@ def build_query_string(kv_data, ignore_none=True):
     return query_string
 
 
+def strip_class_prefix(username, class_name):
+    """
+    去掉用户名里的 ks<班级号> 前缀，得到学生本人那一段。
+    用户名形如 ks251张三，class_name 为 251 时返回 张三。
+
+    用 removeprefix 而不是按长度切片：前缀对不上时原样返回，
+    不会从中间截出乱码。
+    """
+    if not class_name:
+        return username
+    return username.removeprefix(f"ks{class_name}")
+
+
 def datetime2str(value, format="iso-8601"):
     if format.lower() == "iso-8601":
         value = value.isoformat()

@@ -22,17 +22,12 @@ from ..serializers import (
 )
 
 
-# ks251XXX 或者 ks2510XX 返回 251 或者 2510
-# 其他返回 None
+# ks251XXX 或者 ks2510XX 返回 251 或者 2510，其他返回 None。
+# 班级号限定 3~4 位，与前端 ButtonWithSearch 的 /^ks\d{3,4}/ 保持一致；
+# 原来的 \d+ 会贪婪吃掉后面的数字（ks251001 会返回 251001 而不是 251）。
 def get_class_name(username):
-    if username.startswith("ks"):
-        result = re.search(r"ks\d+", username)
-        if result:
-            return result.group(0)[2:]
-        else:
-            return None
-    else:
-        return None
+    result = re.match(r"ks(\d{3,4})", username)
+    return result.group(1) if result else None
 
 
 class UserAdminAPI(APIView):

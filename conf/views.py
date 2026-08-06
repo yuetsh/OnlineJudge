@@ -19,7 +19,7 @@ from problem.models import Problem
 from submission.models import Submission
 from utils.api import APIView, AsyncAPIView, CSRFExemptAPIView, validate_serializer
 from utils.cache import JsonDataLoader
-from utils.shortcuts import get_env
+from utils.shortcuts import get_env, strip_class_prefix
 from utils.websocket import push_config_update
 from utils.xss_filter import XSSHtml
 
@@ -239,8 +239,5 @@ class ClassUsernamesAPI(AsyncAPIView):
         classroom = request.GET.get("classroom", "")
         if not classroom:
             return self.error("需要班级号")
-        prefix = f"ks{classroom}"
-        names = [
-            user.username[len(prefix) :] if user.username.startswith(prefix) else user.username async for user in User.objects.filter(class_name=classroom).order_by("-create_time")
-        ]
+        names = [strip_class_prefix(user.username, classroom) async for user in User.objects.filter(class_name=classroom).order_by("-create_time")]
         return self.success(names)

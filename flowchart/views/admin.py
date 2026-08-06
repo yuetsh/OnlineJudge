@@ -8,6 +8,7 @@ from account.decorators import teacher_admin_required
 from account.models import AdminType, User
 from problem.models import Problem
 from utils.api import APIView
+from utils.shortcuts import strip_class_prefix
 
 from ..models import FlowchartSubmission, FlowchartSubmissionStatus
 
@@ -62,12 +63,6 @@ CUSTOM_WORDS = [
 
 for _w in CUSTOM_WORDS:
     jieba.add_word(_w, freq=9999)
-
-
-def get_real_name(username, class_name):
-    if class_name and username.startswith("ks"):
-        return username[len(f"ks{class_name}") :]
-    return username
 
 
 class FlowchartStatisticsAPI(APIView):
@@ -169,7 +164,7 @@ class FlowchartStatisticsAPI(APIView):
         if all_users_dict:
             for uname in set(all_users_dict.keys()) - submitted_users:
                 class_name = all_users_dict[uname]
-                real_name = get_real_name(uname, class_name)
+                real_name = strip_class_prefix(uname, class_name)
                 unaccepted.append({"username": uname, "real_name": real_name})
 
         # 5. Word cloud from feedback + suggestions + criteria comments
