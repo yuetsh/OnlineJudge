@@ -19,17 +19,13 @@ if [ -f /etc/apt/sources.list ]; then
   sed -i 's|deb.debian.org|mirrors.tuna.tsinghua.edu.cn|g; s|security.debian.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list
 fi
 apt-get update
+# libpq / libjpeg 都在 wheel 里自带（psycopg_binary.libs、pillow.libs），不装系统版。
+# zlib 由 base 镜像的 CPython 带着，Pillow 用的是它。
 apt-get install -y --no-install-recommends \
   ca-certificates \
   clang-format \
-  curl \
-  libjpeg62-turbo \
-  libpq5 \
-  openssl \
   passwd \
-  supervisor \
-  unzip \
-  zlib1g
+  supervisor
 pip install -r /app/deploy/requirements.txt
 rm -rf /var/lib/apt/lists/*
 EOS

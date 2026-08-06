@@ -395,8 +395,7 @@ dependencies = [
     { name = "jieba" },
     { name = "openai" },
     { name = "pillow" },
-    { name = "psycopg" },
-    { name = "psycopg-binary" },
+    { name = "psycopg", extra = ["binary"] },
     { name = "sentry-sdk", extra = ["django"] },
     { name = "tree-sitter" },
     { name = "tree-sitter-c" },
@@ -425,8 +424,7 @@ requires-dist = [
     { name = "jieba", specifier = ">=0.42.1" },
     { name = "openai", specifier = ">=2.34.0,<3" },
     { name = "pillow", specifier = ">=12.2.0,<13" },
-    { name = "psycopg", specifier = ">=3.3.4,<4" },
-    { name = "psycopg-binary", specifier = ">=3.3.4,<4" },
+    { name = "psycopg", extras = ["binary"], specifier = ">=3.3.4,<4" },
     { name = "sentry-sdk", extras = ["django"], specifier = ">=2.0.0,<3" },
     { name = "tree-sitter", specifier = ">=0.25.2" },
     { name = "tree-sitter-c", specifier = ">=0.24.2" },
@@ -546,6 +544,11 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/db/2f/cb91e5502ec9de1de6f1b76cfbf69531932725361168bb06963620c77e2e/psycopg-3.3.4.tar.gz", hash = "sha256:e21207764952cff81b6b8bdacad9a3939f2793367fdac2987b3aac36a651b5bc", size = 165799, upload-time = "2026-05-01T23:31:55.179Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/5c/e0/7b3dee031daae7743609ce3c746565d4a3ed7c2c186479eb48e34e838c64/psycopg-3.3.4-py3-none-any.whl", hash = "sha256:b6bbc25ccf05c8fad3b061d9db2ef0909a555171b84b07f29458a447253d679a", size = 213001, upload-time = "2026-05-01T23:20:50.816Z" },
+]
+
+[package.optional-dependencies]
+binary = [
+    { name = "psycopg-binary", marker = "implementation_name != 'pypy'" },
 ]
 
 [[package]]
