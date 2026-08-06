@@ -1,19 +1,15 @@
 import asyncio
 import hashlib
-import json
 import os
 import random
 import re
 import shutil
 import smtplib
-import time
 from datetime import timedelta
 
-import requests
 from asgiref.sync import sync_to_async
 from django.conf import settings
 from django.utils import timezone
-from requests.exceptions import RequestException
 
 from account.decorators import super_admin_required
 from account.models import User
@@ -251,23 +247,6 @@ class TestCasePruneAPI(APIView):
         test_case_dir = os.path.join(settings.TEST_CASE_DIR, id)
         if os.path.isdir(test_case_dir):
             shutil.rmtree(test_case_dir, ignore_errors=True)
-
-
-# DEPRECATED: 前端未调用 (2026-05-26)
-class ReleaseNotesAPI(APIView):
-    def get(self, request):
-        try:
-            resp = requests.get(
-                "https://raw.githubusercontent.com/QingdaoU/OnlineJudge/master/docs/data.json?_=" + str(time.time()),
-                timeout=3,
-            )
-            releases = resp.json()
-        except (RequestException, ValueError):
-            return self.success()
-        with open("docs/data.json", "r") as f:
-            local_version = json.load(f)["update"][0]["version"]
-        releases["local_version"] = local_version
-        return self.success(releases)
 
 
 class DashboardInfoAPI(AsyncAPIView):

@@ -6,13 +6,11 @@ from ..views.oj import (
     SSOAPI,
     ApplyResetPasswordAPI,
     AvatarUploadAPI,
-    CheckTFARequiredAPI,
     Metrics,
     OpenAPIAppkeyAPI,
     ProfileProblemDisplayIDRefreshAPI,
     ResetPasswordAPI,
     SessionManagementAPI,
-    TwoFactorAuthAPI,
     UserActivityRankAPI,
     UserChangeEmailAPI,
     UserChangePasswordAPI,
@@ -39,11 +37,6 @@ urlpatterns = [
     path("profile/fresh_display_id", ProfileProblemDisplayIDRefreshAPI.as_view()),
     path("metrics", Metrics.as_view()),
     path("upload_avatar", AvatarUploadAPI.as_view()),
-    path("tfa_required", CheckTFARequiredAPI.as_view()),  # DEPRECATED: 前端未调用
-    path(
-        "two_factor_auth",  # DEPRECATED: 前端未调用
-        TwoFactorAuthAPI.as_view(),
-    ),
     path("user_rank", UserRankAPI.as_view()),
     path("user_activity_rank", UserActivityRankAPI.as_view()),
     path("user_problem_rank", UserProblemRankAPI.as_view()),

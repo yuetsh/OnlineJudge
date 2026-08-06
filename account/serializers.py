@@ -8,7 +8,6 @@ from .models import AdminType, ProblemPermission, User, UserProfile
 class UserLoginSerializer(serializers.Serializer):
     username = serializers.CharField()
     password = serializers.CharField()
-    tfa_code = serializers.CharField(required=False, allow_blank=True)
 
 
 class UsernameOrEmailCheckSerializer(serializers.Serializer):
@@ -26,13 +25,11 @@ class UserRegisterSerializer(serializers.Serializer):
 class UserChangePasswordSerializer(serializers.Serializer):
     old_password = serializers.CharField()
     new_password = serializers.CharField(min_length=6)
-    tfa_code = serializers.CharField(required=False, allow_blank=True)
 
 
 class UserChangeEmailSerializer(serializers.Serializer):
     password = serializers.CharField()
     new_email = serializers.EmailField(max_length=64)
-    tfa_code = serializers.CharField(required=False, allow_blank=True)
 
 
 class GenerateUserSerializer(serializers.Serializer):
@@ -61,7 +58,6 @@ class UserAdminSerializer(serializers.ModelSerializer):
             "real_name",
             "create_time",
             "last_login",
-            "two_factor_auth",
             "open_api",
             "is_disabled",
             "raw_password",
@@ -89,7 +85,6 @@ class UserSerializer(serializers.ModelSerializer):
             "problem_permission",
             "create_time",
             "last_login",
-            "two_factor_auth",
             "open_api",
             "is_disabled",
             "class_name",
@@ -121,7 +116,6 @@ class EditUserSerializer(serializers.Serializer):
     admin_type = serializers.ChoiceField(choices=AdminType.choices)
     problem_permission = serializers.ChoiceField(choices=ProblemPermission.choices)
     open_api = serializers.BooleanField()
-    two_factor_auth = serializers.BooleanField()
     is_disabled = serializers.BooleanField()
     class_name = serializers.CharField(required=False, allow_null=True, allow_blank=True)
 
@@ -150,10 +144,6 @@ class ResetPasswordSerializer(serializers.Serializer):
 
 class SSOSerializer(serializers.Serializer):
     token = serializers.CharField()
-
-
-class TwoFactorAuthCodeSerializer(serializers.Serializer):
-    code = serializers.IntegerField()
 
 
 class ImageUploadForm(forms.Form):

@@ -3,7 +3,6 @@ import os
 from datetime import timedelta
 from importlib import import_module
 
-import qrcode
 from django.conf import settings
 from django.contrib import auth
 from django.db.models import Count, Q
@@ -12,7 +11,6 @@ from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.utils.timezone import now
 from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
-from otpauth import TOTP
 
 from options.options import SysOptions
 from problem.models import Problem
@@ -21,7 +19,7 @@ from utils.api import APIView, AsyncAPIView, CSRFExemptAPIView, validate_seriali
 from utils.async_helpers import async_cache_get, async_cache_set
 from utils.captcha import Captcha
 from utils.constants import CacheKey
-from utils.shortcuts import datetime2str, img2base64, rand_str
+from utils.shortcuts import datetime2str, rand_str
 
 from ..decorators import login_required
 from ..models import AdminType, User, UserProfile
@@ -32,7 +30,6 @@ from ..serializers import (
     RankInfoSerializer,
     ResetPasswordSerializer,
     SSOSerializer,
-    TwoFactorAuthCodeSerializer,
     UserChangeEmailSerializer,
     UserChangePasswordSerializer,
     UserLoginSerializer,
@@ -41,22 +38,6 @@ from ..serializers import (
     UserRegisterSerializer,
 )
 from ..tasks import send_email_async
-
-
-def _totp(token):
-    return TOTP(token.encode("utf-8"))
-
-
-def _totp_uri(token, label, issuer):
-    return _totp(token).to_uri(label, issuer)
-
-
-def _valid_totp(token, code):
-    try:
-        code = int(code)
-    except (TypeError, ValueError):
-        return False
-    return _totp(token).verify(code)
 
 
 class UserProfileAPI(AsyncAPIView):
@@ -136,72 +117,6 @@ class AvatarUploadAPI(AsyncAPIView):
         return self.success("Succeeded")
 
 
-# DEPRECATED: 前端未调用 (2026-05-26)
-class TwoFactorAuthAPI(APIView):
-    @login_required
-    def get(self, request):
-        """
-        Get QR code
-        """
-        user = request.user
-        if user.two_factor_auth:
-            return self.error("2FA is already turned on")
-        token = rand_str()
-        user.tfa_token = token
-        user.save()
-
-        label = f"{SysOptions.website_name_shortcut}:{user.username}"
-        image = qrcode.make(_totp_uri(token, label, SysOptions.website_name.replace(" ", "")))
-        return self.success(img2base64(image))
-
-    @login_required
-    @validate_serializer(TwoFactorAuthCodeSerializer)
-    def post(self, request):
-        """
-        Open 2FA
-        """
-        code = request.data["code"]
-        user = request.user
-        if _valid_totp(user.tfa_token, code):
-            user.two_factor_auth = True
-            user.save()
-            return self.success("Succeeded")
-        else:
-            return self.error("Invalid code")
-
-    @login_required
-    @validate_serializer(TwoFactorAuthCodeSerializer)
-    def put(self, request):
-        code = request.data["code"]
-        user = request.user
-        if not user.two_factor_auth:
-            return self.error("2FA is already turned off")
-        if _valid_totp(user.tfa_token, code):
-            user.two_factor_auth = False
-            user.save()
-            return self.success("Succeeded")
-        else:
-            return self.error("Invalid code")
-
-
-# DEPRECATED: 前端未调用 (2026-05-26)
-class CheckTFARequiredAPI(APIView):
-    @validate_serializer(UsernameOrEmailCheckSerializer)
-    def post(self, request):
-        """
-        Check TFA is required
-        """
-        data = request.data
-        result = False
-        if data.get("username"):
-            try:
-                user = User.objects.get(username=data["username"])
-                result = user.two_factor_auth
-            except User.DoesNotExist:
-                pass
-        return self.success({"result": result})
-
-
 class UserLoginAPI(AsyncAPIView):
     @validate_serializer(UserLoginSerializer)
     async def post(self, request):
@@ -210,22 +125,10 @@ class UserLoginAPI(AsyncAPIView):
         if user:
             if user.is_disabled:
                 return self.error("Your account has been disabled")
-            if not user.two_factor_auth:
-                prev_login = user.last_login
-                await auth.alogin(request, user)
-                request.session["prev_login"] = datetime2str(prev_login) if prev_login else ""
-                return self.success("Succeeded")
-
-            if user.two_factor_auth and "tfa_code" not in data:
-                return self.error("tfa_required")
-
-            if _valid_totp(user.tfa_token, data["tfa_code"]):
-                prev_login = user.last_login
-                await auth.alogin(request, user)
-                request.session["prev_login"] = datetime2str(prev_login) if prev_login else ""
-                return self.success("Succeeded")
-            else:
-                return self.error("Invalid two factor verification code")
+            prev_login = user.last_login
+            await auth.alogin(request, user)
+            request.session["prev_login"] = datetime2str(prev_login) if prev_login else ""
+            return self.success("Succeeded")
         else:
             return self.error("Invalid username or password")
 
@@ -284,11 +187,6 @@ class UserChangeEmailAPI(APIView):
         data = request.data
         user = auth.authenticate(username=request.user.username, password=data["password"])
         if user:
-            if user.two_factor_auth:
-                if "tfa_code" not in data:
-                    return self.error("tfa_required")
-                if not _valid_totp(user.tfa_token, data["tfa_code"]):
-                    return self.error("Invalid two factor verification code")
             data["new_email"] = data["new_email"].lower()
             if User.objects.filter(email=data["new_email"]).exists():
                 return self.error("The email is owned by other account")
@@ -311,11 +209,6 @@ class UserChangePasswordAPI(APIView):
         username = request.user.username
         user = auth.authenticate(username=username, password=data["old_password"])
         if user:
-            if user.two_factor_auth:
-                if "tfa_code" not in data:
-                    return self.error("tfa_required")
-                if not _valid_totp(user.tfa_token, data["tfa_code"]):
-                    return self.error("Invalid two factor verification code")
             user.set_password(data["new_password"])
             user.save()
             return self.success("Succeeded")
@@ -373,7 +266,6 @@ class ResetPasswordAPI(APIView):
         if user.reset_password_token_expire_time < now():
             return self.error("Token has expired")
         user.reset_password_token = None
-        user.two_factor_auth = False
         user.set_password(data["password"])
         user.save()
         return self.success("Succeeded")

@@ -40,7 +40,6 @@ VENDOR_APPS = [
     "rest_framework",
     "channels",
     "django_dramatiq",
-    "django_dbconn_retry",
 ]
 
 

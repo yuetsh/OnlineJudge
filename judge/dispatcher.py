@@ -4,7 +4,7 @@ import logging
 from datetime import timedelta
 from urllib.parse import urljoin
 
-import requests
+import httpx
 from django.db import IntegrityError, transaction
 from django.db.models import F
 from django.utils import timezone
@@ -73,7 +73,8 @@ class DispatcherBase(object):
         if data:
             kwargs["json"] = data
         try:
-            return requests.post(url, **kwargs).json()
+            # timeout=None 保持与原 requests 实现一致：判题请求是同步等结果的，不能被默认超时打断
+            return httpx.post(url, timeout=None, **kwargs).json()
         except Exception as e:
             logger.exception(e)
 

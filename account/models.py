@@ -40,8 +40,6 @@ class User(AbstractBaseUser):
     reset_password_token_expire_time = models.DateTimeField(null=True)
     # SSO auth token
     auth_token = models.TextField(null=True)
-    two_factor_auth = models.BooleanField(default=False, db_default=False)
-    tfa_token = models.TextField(null=True)
     session_keys = JSONField(default=list, db_default=models.Value([], output_field=models.JSONField()))
     # open api key
     open_api = models.BooleanField(default=False, db_default=False)
