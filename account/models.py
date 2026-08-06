@@ -36,8 +36,6 @@ class User(AbstractBaseUser):
     # One of UserType
     admin_type = models.TextField(default=AdminType.REGULAR_USER, choices=AdminType.choices)
     problem_permission = models.TextField(default=ProblemPermission.NONE, choices=ProblemPermission.choices)
-    reset_password_token = models.TextField(null=True)
-    reset_password_token_expire_time = models.DateTimeField(null=True)
     # SSO auth token
     auth_token = models.TextField(null=True)
     session_keys = JSONField(default=list, db_default=models.Value([], output_field=models.JSONField()))

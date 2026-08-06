@@ -102,7 +102,6 @@ class OptionKeys:
     allow_register = "allow_register"
     submission_list_show_all = "submission_list_show_all"
     class_list = "class_list"
-    smtp_config = "smtp_config"
     judge_server_token = "judge_server_token"
     throttling = "throttling"
     languages = "languages"
@@ -117,7 +116,6 @@ class OptionDefaultValue:
     allow_register = True
     submission_list_show_all = True
     class_list = []
-    smtp_config = {}
     judge_server_token = default_token
     throttling = {"ip": {"capacity": 100, "fill_rate": 0.1, "default_capacity": 50}, "user": {"capacity": 20, "fill_rate": 0.03, "default_capacity": 10}}
     languages = languages
@@ -241,14 +239,6 @@ class _SysOptionsMeta(type):
     @class_list.setter
     def class_list(cls, value):
         cls._set_option(OptionKeys.class_list, value)
-
-    @my_property
-    def smtp_config(cls):
-        return cls._get_option(OptionKeys.smtp_config)
-
-    @smtp_config.setter
-    def smtp_config(cls, value):
-        cls._set_option(OptionKeys.smtp_config, value)
 
     @my_property(ttl=DEFAULT_SHORT_TTL)
     def judge_server_token(cls):

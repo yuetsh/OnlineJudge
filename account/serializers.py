@@ -131,17 +131,6 @@ class EditUserProfileSerializer(serializers.Serializer):
     language = serializers.CharField(max_length=32, allow_blank=True, required=False)
 
 
-class ApplyResetPasswordSerializer(serializers.Serializer):
-    email = serializers.EmailField()
-    captcha = serializers.CharField()
-
-
-class ResetPasswordSerializer(serializers.Serializer):
-    token = serializers.CharField()
-    password = serializers.CharField(min_length=6)
-    captcha = serializers.CharField()
-
-
 class SSOSerializer(serializers.Serializer):
     token = serializers.CharField()
 

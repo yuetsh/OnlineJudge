@@ -4,7 +4,6 @@ import os
 import random
 import re
 import shutil
-import smtplib
 from datetime import timedelta
 
 from asgiref.sync import sync_to_async
@@ -20,81 +19,17 @@ from problem.models import Problem
 from submission.models import Submission
 from utils.api import APIView, AsyncAPIView, CSRFExemptAPIView, validate_serializer
 from utils.cache import JsonDataLoader
-from utils.shortcuts import get_env, send_email
+from utils.shortcuts import get_env
 from utils.websocket import push_config_update
 from utils.xss_filter import XSSHtml
 
 from .models import JudgeServer
 from .serializers import (
     CreateEditWebsiteConfigSerializer,
-    CreateSMTPConfigSerializer,
     EditJudgeServerSerializer,
-    EditSMTPConfigSerializer,
     JudgeServerHeartbeatSerializer,
     JudgeServerSerializer,
-    TestSMTPConfigSerializer,
 )
-
-
-# DEPRECATED: 前端未调用 (2026-05-26)
-class SMTPAPI(APIView):
-    @super_admin_required
-    def get(self, request):
-        smtp = SysOptions.smtp_config
-        if not smtp:
-            return self.success(None)
-        smtp.pop("password")
-        return self.success(smtp)
-
-    @super_admin_required
-    @validate_serializer(CreateSMTPConfigSerializer)
-    def post(self, request):
-        SysOptions.smtp_config = request.data
-        return self.success()
-
-    @super_admin_required
-    @validate_serializer(EditSMTPConfigSerializer)
-    def put(self, request):
-        smtp = SysOptions.smtp_config
-        data = request.data
-        for item in ["server", "port", "email", "tls"]:
-            smtp[item] = data[item]
-        if "password" in data:
-            smtp["password"] = data["password"]
-        SysOptions.smtp_config = smtp
-        return self.success()
-
-
-# DEPRECATED: 前端未调用 (2026-05-26)
-class SMTPTestAPI(APIView):
-    @super_admin_required
-    @validate_serializer(TestSMTPConfigSerializer)
-    def post(self, request):
-        if not SysOptions.smtp_config:
-            return self.error("Please setup SMTP config at first")
-        try:
-            send_email(
-                smtp_config=SysOptions.smtp_config,
-                from_name=SysOptions.website_name_shortcut,
-                to_name=request.user.username,
-                to_email=request.data["email"],
-                subject="You have successfully configured SMTP",
-                content="You have successfully configured SMTP",
-            )
-        except smtplib.SMTPResponseException as e:
-            # guess error message encoding
-            msg = b"Failed to send email"
-            try:
-                msg = e.smtp_error
-                # qq mail
-                msg = msg.decode("gbk")
-            except Exception:
-                msg = msg.decode("utf-8", "ignore")
-            return self.error(msg)
-        except Exception as e:
-            msg = str(e)
-            return self.error(msg)
-        return self.success()
 
 
 class WebsiteConfigAPI(AsyncAPIView):

@@ -2,12 +2,9 @@ import os
 import random
 import re
 from base64 import b64encode
-from email.utils import formataddr
 from io import BytesIO
 
-from django.core.mail import EmailMultiAlternatives, get_connection
 from django.utils.crypto import get_random_string
-from django.utils.html import strip_tags
 
 
 def rand_str(length=32, type="lower_hex"):
@@ -61,25 +58,6 @@ def datetime2str(value, format="iso-8601"):
 
 def natural_sort_key(s, _nsre=re.compile(r"(\d+)")):
     return [int(text) if text.isdigit() else text.lower() for text in re.split(_nsre, s)]
-
-
-def send_email(smtp_config, from_name, to_email, to_name, subject, content):
-    connection = get_connection(
-        host=smtp_config["server"],
-        port=smtp_config["port"],
-        username=smtp_config["email"],
-        password=smtp_config["password"],
-        use_tls=smtp_config["tls"],
-    )
-    message = EmailMultiAlternatives(
-        subject=subject,
-        body=strip_tags(content),
-        from_email=formataddr((from_name, smtp_config["email"])),
-        to=[formataddr((to_name, to_email))],
-        connection=connection,
-    )
-    message.attach_alternative(content, "text/html")
-    return message.send()
 
 
 def get_env(name, default=""):

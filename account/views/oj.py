@@ -1,15 +1,12 @@
 import asyncio
 import os
-from datetime import timedelta
 from importlib import import_module
 
 from django.conf import settings
 from django.contrib import auth
 from django.db.models import Count, Q
-from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.decorators import method_decorator
-from django.utils.timezone import now
 from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 
 from options.options import SysOptions
@@ -24,11 +21,9 @@ from utils.shortcuts import datetime2str, rand_str
 from ..decorators import login_required
 from ..models import AdminType, User, UserProfile
 from ..serializers import (
-    ApplyResetPasswordSerializer,
     EditUserProfileSerializer,
     ImageUploadForm,
     RankInfoSerializer,
-    ResetPasswordSerializer,
     SSOSerializer,
     UserChangeEmailSerializer,
     UserChangePasswordSerializer,
@@ -37,7 +32,6 @@ from ..serializers import (
     UserProfileSerializer,
     UserRegisterSerializer,
 )
-from ..tasks import send_email_async
 
 
 class UserProfileAPI(AsyncAPIView):
@@ -214,61 +208,6 @@ class UserChangePasswordAPI(APIView):
             return self.success("Succeeded")
         else:
             return self.error("Invalid old password")
-
-
-# DEPRECATED: 前端未调用 (2026-05-26)
-class ApplyResetPasswordAPI(APIView):
-    @validate_serializer(ApplyResetPasswordSerializer)
-    def post(self, request):
-        if request.user.is_authenticated:
-            return self.error("You have already logged in, are you kidding me? ")
-        data = request.data
-        captcha = Captcha(request)
-        if not captcha.check(data["captcha"]):
-            return self.error("Invalid captcha")
-        try:
-            user = User.objects.get(email__iexact=data["email"])
-        except User.DoesNotExist:
-            return self.error("User does not exist")
-        if user.reset_password_token_expire_time and 0 < int((user.reset_password_token_expire_time - now()).total_seconds()) < 20 * 60:
-            return self.error("You can only reset password once per 20 minutes")
-        user.reset_password_token = rand_str()
-        user.reset_password_token_expire_time = now() + timedelta(minutes=20)
-        user.save()
-        render_data = {
-            "username": user.username,
-            "website_name": SysOptions.website_name,
-            "link": f"{SysOptions.website_base_url}/reset-password/{user.reset_password_token}",
-        }
-        email_html = render_to_string("reset_password_email.html", render_data)
-        send_email_async.send(
-            from_name=SysOptions.website_name_shortcut,
-            to_email=user.email,
-            to_name=user.username,
-            subject="Reset your password",
-            content=email_html,
-        )
-        return self.success("Succeeded")
-
-
-# DEPRECATED: 前端未调用 (2026-05-26)
-class ResetPasswordAPI(APIView):
-    @validate_serializer(ResetPasswordSerializer)
-    def post(self, request):
-        data = request.data
-        captcha = Captcha(request)
-        if not captcha.check(data["captcha"]):
-            return self.error("Invalid captcha")
-        try:
-            user = User.objects.get(reset_password_token=data["token"])
-        except User.DoesNotExist:
-            return self.error("Token does not exist")
-        if user.reset_password_token_expire_time < now():
-            return self.error("Token has expired")
-        user.reset_password_token = None
-        user.set_password(data["password"])
-        user.save()
-        return self.success("Succeeded")
 
 
 # DEPRECATED: 前端未调用 (2026-05-26)

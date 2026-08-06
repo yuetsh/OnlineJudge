@@ -4,12 +4,10 @@ from utils.captcha.views import CaptchaAPIView
 
 from ..views.oj import (
     SSOAPI,
-    ApplyResetPasswordAPI,
     AvatarUploadAPI,
     Metrics,
     OpenAPIAppkeyAPI,
     ProfileProblemDisplayIDRefreshAPI,
-    ResetPasswordAPI,
     SessionManagementAPI,
     UserActivityRankAPI,
     UserChangeEmailAPI,
@@ -29,8 +27,6 @@ urlpatterns = [
     path("register", UserRegisterAPI.as_view()),
     path("change_password", UserChangePasswordAPI.as_view()),  # DEPRECATED: 前端未调用
     path("change_email", UserChangeEmailAPI.as_view()),  # DEPRECATED: 前端未调用
-    path("apply_reset_password", ApplyResetPasswordAPI.as_view()),  # DEPRECATED: 前端未调用
-    path("reset_password", ResetPasswordAPI.as_view()),  # DEPRECATED: 前端未调用
     path("captcha", CaptchaAPIView.as_view()),
     path("check_username_or_email", UsernameOrEmailCheck.as_view()),  # DEPRECATED: 前端未调用
     path("profile", UserProfileAPI.as_view(), name="user_profile_api"),
