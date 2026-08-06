@@ -1,10 +1,9 @@
 import copy
 import os
 import zipfile
-from datetime import timedelta
+from datetime import datetime, timedelta
 from ipaddress import ip_network
 
-import dateutil.parser
 from django.http import FileResponse
 from django.utils.timezone import now
 
@@ -34,8 +33,9 @@ class ContestAPI(APIView):
     @teacher_admin_required
     def post(self, request):
         data = request.data
-        data["start_time"] = dateutil.parser.parse(data["start_time"])
-        data["end_time"] = dateutil.parser.parse(data["end_time"])
+        # DRF 的 DateTimeField 已经校验并规范化过，这里拿到的必定是 ISO 8601 字符串
+        data["start_time"] = datetime.fromisoformat(data["start_time"])
+        data["end_time"] = datetime.fromisoformat(data["end_time"])
         data["created_by"] = request.user
         if data["end_time"] <= data["start_time"]:
             return self.error("Start time must occur earlier than end time")
@@ -58,8 +58,9 @@ class ContestAPI(APIView):
         except Contest.DoesNotExist:
             return self.error("Contest does not exist")
         ensure_created_by(contest, request.user)
-        data["start_time"] = dateutil.parser.parse(data["start_time"])
-        data["end_time"] = dateutil.parser.parse(data["end_time"])
+        # DRF 的 DateTimeField 已经校验并规范化过，这里拿到的必定是 ISO 8601 字符串
+        data["start_time"] = datetime.fromisoformat(data["start_time"])
+        data["end_time"] = datetime.fromisoformat(data["end_time"])
         if data["end_time"] <= data["start_time"]:
             return self.error("Start time must occur earlier than end time")
         if not data["password"]:

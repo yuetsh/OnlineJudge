@@ -1,9 +1,9 @@
+import calendar
 import hashlib
 import json
 from collections import defaultdict
 from datetime import datetime, timedelta
 
-from dateutil.relativedelta import relativedelta
 from django.core.cache import cache
 from django.db.models import Count, Min
 from django.db.models.functions import TruncDate
@@ -45,6 +45,15 @@ GRADE_WEIGHTS = {"S": 4, "A": 3, "B": 2, "C": 1}
 
 # 平均等级阈值：(最小权重, 等级)
 AVERAGE_GRADE_THRESHOLDS = [(3.5, "S"), (2.5, "A"), (1.5, "B")]
+
+
+def shift_months(dt, months):
+    """按月平移。落到不存在的日期时收缩到当月最后一天（1月31日 + 1个月 = 2月28/29日）"""
+    month_index = dt.month - 1 + months
+    year = dt.year + month_index // 12
+    month = month_index % 12 + 1
+    day = min(dt.day, calendar.monthrange(year, month)[1])
+    return dt.replace(year=year, month=month, day=day)
 
 
 def get_cache_key(prefix, *args):
@@ -429,12 +438,12 @@ class AIDurationDataAPI(APIView):
         class_user_ids = get_class_user_ids(user)
         use_class_scope = bool(user.class_name) and len(class_user_ids) > 1
         time_config = self._parse_duration(duration)
-        start = datetime.fromisoformat(end_iso) - time_config["total_delta"]
+        start = time_config["rewind"](datetime.fromisoformat(end_iso))
 
         duration_data = []
         for i in range(time_config["show_count"]):
-            start = start + time_config["delta"]
-            period_end = start + time_config["delta"]
+            start = time_config["advance"](start)
+            period_end = time_config["advance"](start)
 
             submission_count = Submission.objects.filter(user_id=user.id, create_time__gte=start, create_time__lte=period_end).count()
 
@@ -490,24 +499,26 @@ class AIDurationDataAPI(APIView):
         unit, count = duration.split(":")
         count = int(count)
 
+        # rewind 把结束时间倒推到区间起点，advance 前进一格。
+        # 按月的档位不能用 timedelta（月长不固定），用 shift_months 处理
         configs = {
             ("months", 2): {
                 "show_count": 8,
                 "show_unit": "weeks",
-                "total_delta": timedelta(weeks=9),
-                "delta": timedelta(weeks=1),
+                "rewind": lambda dt: dt - timedelta(weeks=9),
+                "advance": lambda dt: dt + timedelta(weeks=1),
             },
             ("months", 6): {
                 "show_count": 6,
                 "show_unit": "months",
-                "total_delta": relativedelta(months=7),
-                "delta": relativedelta(months=1),
+                "rewind": lambda dt: shift_months(dt, -7),
+                "advance": lambda dt: shift_months(dt, 1),
             },
             ("years", 1): {
                 "show_count": 12,
                 "show_unit": "months",
-                "total_delta": relativedelta(months=13),
-                "delta": relativedelta(months=1),
+                "rewind": lambda dt: shift_months(dt, -13),
+                "advance": lambda dt: shift_months(dt, 1),
             },
         }
 
@@ -516,8 +527,8 @@ class AIDurationDataAPI(APIView):
             {
                 "show_count": 4,
                 "show_unit": "weeks",
-                "total_delta": timedelta(weeks=5),
-                "delta": timedelta(weeks=1),
+                "rewind": lambda dt: dt - timedelta(weeks=5),
+                "advance": lambda dt: dt + timedelta(weeks=1),
             },
         )
 
