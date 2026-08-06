@@ -1,5 +1,7 @@
 # 题目点评重写（表情 Reaction）实现计划
 
+> 2026-08-06 规则更新：当前实现已改为单选、点击即提交、提交后不可修改，并通过 `(problem, user)` 数据库唯一约束保证一人一题一条。新接口使用单值 `type` / `mine_type`；为支持前后端错序部署，过渡期仍接受单元素 `types` 并返回数组 `mine`。统计直接查询数据库，不再使用 reaction 缓存。本文中的多选及缓存步骤是早期实施记录。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 把题目点评从「三维评分 + 文字」重写为「一排七个表情按钮，点击即表态」，并把后台从逐条评论管理改为按题目聚合的反馈统计表。

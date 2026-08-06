@@ -7,32 +7,24 @@ from reaction.serializers import SetReactionSerializer
 from submission.models import JudgeStatus, Submission
 from utils.api import AsyncAPIView
 from utils.api.api import validate_serializer
-from utils.async_helpers import async_cache_delete, async_cache_get, async_cache_set
-from utils.constants import CacheKey
 
 ACCEPTED_RESULTS = [JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED]
 
 
 class ReactionAPI(AsyncAPIView):
     async def get_counts(self, problem_id):
-        """返回该题七个表情的计数，带 Redis 缓存。"""
-        cache_key = f"{CacheKey.reaction_stats}:{problem_id}"
-        cached = await async_cache_get(cache_key)
-        if cached is not None:
-            return cached
-        counts = await Reaction.objects.filter(problem_id=problem_id).aaggregate(**{t.value: Count("id", filter=Q(type=t.value)) for t in ReactionType})
-        await async_cache_set(cache_key, counts, 3600)
-        return counts
+        """直接从数据库返回该题七个表情的计数。"""
+        return await Reaction.objects.filter(problem_id=problem_id).aaggregate(**{t.value: Count("id", filter=Q(type=t.value)) for t in ReactionType})
 
     @login_required
     async def get(self, request):
         problem_id = request.GET.get("problem_id")
         if not problem_id:
             return self.error("problem_id is required")
-        mine = [r.type async for r in Reaction.objects.filter(user=request.user, problem_id=problem_id)]
-        if not mine:
-            return self.success({"mine": [], "counts": None})
-        return self.success({"mine": mine, "counts": await self.get_counts(problem_id)})
+        mine = await Reaction.objects.filter(user=request.user, problem_id=problem_id).values_list("type", flat=True).afirst()
+        if mine is None:
+            return self.success({"mine": [], "mine_type": None, "counts": None})
+        return self.success({"mine": [mine], "mine_type": mine, "counts": await self.get_counts(problem_id)})
 
     @login_required
     @validate_serializer(SetReactionSerializer)
@@ -51,18 +43,15 @@ class ReactionAPI(AsyncAPIView):
         if not solved:
             return self.error("submission is not exists or not accepted")
 
-        types = data["types"]
+        reaction_type = data["type"]
         user = request.user
 
-        # 评价一次定终身：已经评过的题不允许再改，避免统计被反复刷
-        if await Reaction.objects.filter(user=user, problem=problem).aexists():
-            return self.error("已经评价过了，不能修改")
-
-        # ignore_conflicts 兜住并发重复提交，unique_together 保证不会写重
-        await Reaction.objects.abulk_create(
-            [Reaction(user=user, problem=problem, type=t) for t in types],
-            ignore_conflicts=True,
+        # 数据库唯一约束保证一人一题只有一条；重复请求返回实际保存的评价，
+        # 让网络重试和多标签页并发都收敛到同一状态。
+        reaction, _ = await Reaction.objects.aget_or_create(
+            user=user,
+            problem=problem,
+            defaults={"type": reaction_type},
         )
-        await async_cache_delete(f"{CacheKey.reaction_stats}:{problem.id}")
 
-        return self.success({"mine": types, "counts": await self.get_counts(problem.id)})
+        return self.success({"mine": [reaction.type], "mine_type": reaction.type, "counts": await self.get_counts(problem.id)})

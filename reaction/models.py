@@ -22,7 +22,9 @@ class Reaction(models.Model):
 
     class Meta:
         db_table = "reaction"
-        unique_together = ("problem", "user", "type")
+        constraints = [
+            models.UniqueConstraint(fields=["problem", "user"], name="reaction_problem_user_unique"),
+        ]
         indexes = [
             models.Index(fields=["problem", "type"], name="reaction_problem_type_idx"),
         ]

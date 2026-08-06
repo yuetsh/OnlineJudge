@@ -17,7 +17,6 @@ class CacheKey:
     website_config = "website_config"
     problem_authors = "problem_authors"
     problem_tags = "problem_tags"
-    reaction_stats = "reaction_stats"
     user_activity_rank = "user_activity_rank"
     problem_yearly_ac = "problem_yearly_ac"
 
