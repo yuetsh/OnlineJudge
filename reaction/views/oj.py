@@ -1,5 +1,3 @@
-from asgiref.sync import sync_to_async
-from django.db import transaction
 from django.db.models import Count, Q
 
 from account.decorators import login_required
@@ -56,14 +54,15 @@ class ReactionAPI(AsyncAPIView):
         types = data["types"]
         user = request.user
 
-        def overwrite():
-            with transaction.atomic():
-                Reaction.objects.filter(user=user, problem=problem).delete()
-                Reaction.objects.bulk_create([Reaction(user=user, problem=problem, type=t) for t in types])
+        # 评价一次定终身：已经评过的题不允许再改，避免统计被反复刷
+        if await Reaction.objects.filter(user=user, problem=problem).aexists():
+            return self.error("已经评价过了，不能修改")
 
-        await sync_to_async(overwrite)()
+        # ignore_conflicts 兜住并发重复提交，unique_together 保证不会写重
+        await Reaction.objects.abulk_create(
+            [Reaction(user=user, problem=problem, type=t) for t in types],
+            ignore_conflicts=True,
+        )
         await async_cache_delete(f"{CacheKey.reaction_stats}:{problem.id}")
 
-        if not types:
-            return self.success({"mine": [], "counts": None})
         return self.success({"mine": types, "counts": await self.get_counts(problem.id)})

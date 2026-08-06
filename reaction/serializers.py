@@ -8,7 +8,7 @@ class SetReactionSerializer(serializers.Serializer):
     problem_id = serializers.IntegerField()
     types = serializers.ListField(
         child=serializers.ChoiceField(choices=ReactionType.choices),
-        allow_empty=True,
+        allow_empty=False,
     )
 
     def validate_types(self, value):
