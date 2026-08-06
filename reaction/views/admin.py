@@ -36,4 +36,6 @@ class ReactionStatsAPI(APIView):
             order_by = DEFAULT_ORDERING
 
         queryset = queryset.order_by(order_by)
-        return self.success(self.paginate_data(request, queryset))
+        data = self.paginate_data(request, queryset)
+        data["results"] = list(data["results"])
+        return self.success(data)
