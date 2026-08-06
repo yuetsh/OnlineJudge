@@ -4,6 +4,19 @@ import re
 
 from django.utils.crypto import get_random_string
 
+# 班级号的位数范围。学生用户名形如 ks<班级号><姓名>，班级号还要跟
+# SysOptions.class_list 的条目、User.class_name 字段对得上。
+# 改这里等于改全站规则，前端 ojnext/src/utils/constants.ts 里
+# CLASS_NAME_DIGITS 是同一条规则的另一份，两边要一起改。
+CLASS_NAME_MIN_DIGITS = 3
+CLASS_NAME_MAX_DIGITS = 4
+CLASS_NAME_RE = re.compile(rf"\d{{{CLASS_NAME_MIN_DIGITS},{CLASS_NAME_MAX_DIGITS}}}")
+
+
+def is_valid_class_name(class_name):
+    """班级号是否是合法位数的纯数字"""
+    return bool(CLASS_NAME_RE.fullmatch(class_name))
+
 
 def rand_str(length=32, type="lower_hex"):
     """

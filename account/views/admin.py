@@ -9,8 +9,8 @@ from django.http import HttpResponse
 from django.utils.crypto import get_random_string
 
 from submission.models import Submission
-from utils.api import APIView, validate_serializer
-from utils.shortcuts import rand_str
+from utils.api import APIError, APIView, validate_serializer
+from utils.shortcuts import CLASS_NAME_MAX_DIGITS, CLASS_NAME_MIN_DIGITS, is_valid_class_name, rand_str
 
 from ..decorators import super_admin_required
 from ..models import AdminType, ProblemPermission, User, UserProfile
@@ -22,12 +22,20 @@ from ..serializers import (
 )
 
 
-# ks251XXX 或者 ks2510XX 返回 251 或者 2510，其他返回 None。
-# 班级号限定 3~4 位，与前端 ButtonWithSearch 的 /^ks\d{3,4}/ 保持一致；
-# 原来的 \d+ 会贪婪吃掉后面的数字（ks251001 会返回 251001 而不是 251）。
+# ks251XXX 或者 ks2510XX 返回 251 或者 2510。
+# 不以 ks+数字 开头的（管理员、教师账号）返回 None。
+# 位数不对就直接报错，不猜——猜错会把 class_name 存歪，
+# 而剥前缀显示姓名、班级下拉、统计页都依赖它准确。
+# 这里先用 \d+ 抓全再判位数，不能直接用 CLASS_NAME_RE 匹配：
+# 那样 ks251001 会"匹配成功"并悄悄取前 4 位，正是要避免的猜测。
 def get_class_name(username):
-    result = re.match(r"ks(\d{3,4})", username)
-    return result.group(1) if result else None
+    result = re.match(r"ks(\d+)", username)
+    if not result:
+        return None
+    class_name = result.group(1)
+    if not is_valid_class_name(class_name):
+        raise APIError(f"用户名 {username} 的班级号 {class_name} 是 {len(class_name)} 位，必须是 {CLASS_NAME_MIN_DIGITS}~{CLASS_NAME_MAX_DIGITS} 位数字")
+    return class_name
 
 
 class UserAdminAPI(APIView):
