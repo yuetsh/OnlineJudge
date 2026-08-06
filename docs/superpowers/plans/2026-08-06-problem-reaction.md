@@ -1084,6 +1084,27 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 ---
 
+## 执行后遗留项
+
+实现全部完成并通过终审。以下是评审过程中判定「可以带着合并」的次要项，都不阻塞上线，记在这里免得日后重新发现一遍。
+
+**后端**
+
+- `problem_id` 传非数字（如 `?problem_id=abc`）会走兜底 except 返回泛化 500 并打一条 stack trace。前端始终传数字，实际影响只是日志噪音。与原 `comment/views/oj.py` 的写法一致。
+- 同一用户并发双 POST 时，两个事务块可能交错撞上 `unique(problem, user, type)`，表现为一次「操作失败，请重试」的提示。状态最终仍会收敛，不会写坏数据。真要消掉的话，`bulk_create(..., ignore_conflicts=True)` 一处即可。
+- 后台 `problem` 筛选传了不存在的题号时返回空结果，而不是像旧接口那样报「Problem doesn't exist」。老师打错题号时分不清「打错了」还是「还没人评」。
+- 统计缓存是「先写库、后删缓存」，两人并发表态时快照可能少算一票，最长持续到 1 小时 TTL 过期。是计数误差，不值得为它加锁。
+
+**前端**
+
+- `ReactionStatsRow` 不含后端返回的七个 `_ratio` 字段。经核实前端确实不消费它们（列显示计数，排序走服务端），这是刻意保持现状的决定。
+- 三个 API 函数没用 `http.get<T>` 泛型，`res.data` 是 `any`。顺带一提 `ReactionState` 类型目前无人引用，加上泛型就能把它用起来。
+- `ProblemReaction.vue` 没有 `watch(problem.id)`，`load()` 也没有请求序号守卫。当前都不可达（tab 切换会销毁重建组件，`load()` 只在挂载时调用），但将来若加「下一题」这类同页切题功能，需要一并处理。
+- 未登录时显示的是 `n-alert「请先登录」`，而非设计文档写的「灰色按钮排 + 提示」。沿用了旧组件的行为。
+- 后台筛选框输入不重置页码，在第 3 页筛选可能落到空页。与原 `comments.vue` 行为一致。
+- 后台 `listStats` 无请求序号守卫；`:scroll-x="1100"` 略小于实际列宽合计约 1160。
+- `utils/permissions.ts` 的 `checkRoutePermission()` 全仓库无调用方，属既有死代码。实际权限由路由 meta 的 `requiresSuperAdmin` 把关，工作正常。
+
 ## Self-Review 记录
 
 **Spec 覆盖检查：** 七个表情（Task 1/4）、最多选 3（Task 1 服务端 + Task 5 前端）、必须 AC（Task 2）、计数服务端把关（Task 2）、一行一个表情 + 唯一约束（Task 1）、整份覆盖写入（Task 2）、缓存与失效（Task 2）、占比排序 + 低样本过滤（Task 3）、四处挂载点 + 删 prop（Task 5）、一排不换行 + 降级（Task 5）、后台统计页 + 服务端排序（Task 6）、删除 comment + 老数据丢弃（Task 7）、跨端同步文档（Task 7）。无遗漏。
