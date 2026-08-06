@@ -18,6 +18,7 @@ class CacheKey:
     problem_authors = "problem_authors"
     problem_tags = "problem_tags"
     comment_stats = "comment_stats"
+    reaction_stats = "reaction_stats"
     user_activity_rank = "user_activity_rank"
     problem_yearly_ac = "problem_yearly_ac"
 

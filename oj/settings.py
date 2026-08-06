@@ -55,6 +55,7 @@ LOCAL_APPS = [
     "judge",
     "message",
     "comment",
+    "reaction",
     "tutorial",
     "ai",
     "flowchart",
