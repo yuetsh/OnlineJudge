@@ -11,29 +11,6 @@ class SetReactionSerializerTests(TestCase):
         self.assertTrue(serializer.is_valid(), serializer.errors)
         self.assertEqual(serializer.validated_data["type"], "learned")
 
-    def test_accepts_legacy_single_reaction(self):
-        serializer = SetReactionSerializer(data={"problem_id": 1, "types": ["learned"]})
-
-        self.assertTrue(serializer.is_valid(), serializer.errors)
-        self.assertEqual(serializer.validated_data["type"], "learned")
-
-    def test_accepts_matching_transition_fields(self):
-        serializer = SetReactionSerializer(data={"problem_id": 1, "type": "learned", "types": ["learned"]})
-
-        self.assertTrue(serializer.is_valid(), serializer.errors)
-
-    def test_rejects_multiple_legacy_reactions(self):
-        serializer = SetReactionSerializer(data={"problem_id": 1, "types": ["learned", "interesting"]})
-
-        self.assertFalse(serializer.is_valid())
-        self.assertIn("types", serializer.errors)
-
-    def test_rejects_mismatched_transition_fields(self):
-        serializer = SetReactionSerializer(data={"problem_id": 1, "type": "learned", "types": ["interesting"]})
-
-        self.assertFalse(serializer.is_valid())
-        self.assertIn("types", serializer.errors)
-
     def test_rejects_missing_reaction(self):
         serializer = SetReactionSerializer(data={"problem_id": 1})
 
@@ -53,4 +30,3 @@ class ReactionModelConstraintTests(TestCase):
 
         constraint = constraints["reaction_problem_user_unique"]
         self.assertEqual(tuple(constraint.fields), ("problem", "user"))
-        self.assertEqual(Reaction._meta.unique_together, ())

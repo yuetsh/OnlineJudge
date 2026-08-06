@@ -23,8 +23,8 @@ class ReactionAPI(AsyncAPIView):
             return self.error("problem_id is required")
         mine = await Reaction.objects.filter(user=request.user, problem_id=problem_id).values_list("type", flat=True).afirst()
         if mine is None:
-            return self.success({"mine": [], "mine_type": None, "counts": None})
-        return self.success({"mine": [mine], "mine_type": mine, "counts": await self.get_counts(problem_id)})
+            return self.success({"mine": None, "counts": None})
+        return self.success({"mine": mine, "counts": await self.get_counts(problem_id)})
 
     @login_required
     @validate_serializer(SetReactionSerializer)
@@ -54,4 +54,4 @@ class ReactionAPI(AsyncAPIView):
             defaults={"type": reaction_type},
         )
 
-        return self.success({"mine": [reaction.type], "mine_type": reaction.type, "counts": await self.get_counts(problem.id)})
+        return self.success({"mine": reaction.type, "counts": await self.get_counts(problem.id)})
