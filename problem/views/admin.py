@@ -14,6 +14,7 @@ from django.http import StreamingHttpResponse
 from account.decorators import ensure_created_by, problem_permission_required, teacher_admin_required
 from contest.models import Contest, ContestStatus
 from judge.sql_runner import SQLCaseError, build_display
+from reaction.services import get_top_reactions
 from submission.models import Submission
 from utils.api import APIError, APIView, CSRFExemptAPIView, validate_serializer
 from utils.openai import get_ai_client
@@ -283,7 +284,12 @@ class ProblemAPI(ProblemBase):
 
         if not user.can_mgmt_all_problem():
             problems = problems.filter(created_by=user)
-        return self.success(self.paginate_data(request, problems, ProblemAdminListSerializer))
+
+        data = self.paginate_data(request, problems, ProblemAdminListSerializer)
+        top_reactions = get_top_reactions([row["id"] for row in data["results"]])
+        for row in data["results"]:
+            row["top_reaction"] = top_reactions.get(row["id"])
+        return self.success(data)
 
     @problem_permission_required
     @validate_serializer(EditProblemSerializer)

@@ -2,6 +2,8 @@
 
 > 2026-08-06 规则更新：评价已改为单选，点击一个表情后立即提交，且提交后不可修改。一人一题在数据库中最多保留一条记录。新请求字段为 `type`，新响应字段为 `mine_type: ReactionKey | null`；为支持前后端错序部署，过渡期仍接受单元素 `types` 并返回数组 `mine`。计数直接查询数据库，不使用 Redis 缓存。本文后续关于“最多选 3 个、可取消、整份覆盖、统计缓存”的内容仅保留为早期设计记录，不再代表当前行为。
 
+> 2026-08-06 后台形态变更：独立的后台反馈统计页与 `GET /api/admin/reaction` 已全部下线（`reaction/views/admin.py`、`reaction/urls/admin.py`、`src/admin/reaction/list.vue`、路由与菜单项均已删除）。取而代之，**后台题目列表**（`src/admin/problem/list.vue`）多一列「反馈」，只显示该题票数最高的那一个表情图标，tooltip 出「标签名 + 人数」；无人评价则留空，并列第一时按 `ReactionType` 的定义顺序取靠前的一个。数据来自 `GET /api/admin/problem` 新增的 `top_reaction: {type, count} | null` 字段，由 `reaction/services.py:get_top_reactions()` 对当页题目做一次聚合查询算出（比赛题目列表不返回该字段，前端也不显示该列）。本文「管理接口」「后台页面」两节仅为早期设计记录，占比排序、七列计数表、按题号筛选均已不存在。
+
 日期：2026-08-06
 涉及仓库：`OnlineJudge`（后端）、`ojnext`（前端）
 

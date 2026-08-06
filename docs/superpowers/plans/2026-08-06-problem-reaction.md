@@ -2,6 +2,8 @@
 
 > 2026-08-06 规则更新：当前实现已改为单选、点击即提交、提交后不可修改，并通过 `(problem, user)` 数据库唯一约束保证一人一题一条。新接口使用单值 `type` / `mine_type`；为支持前后端错序部署，过渡期仍接受单元素 `types` 并返回数组 `mine`。统计直接查询数据库，不再使用 reaction 缓存。本文中的多选及缓存步骤是早期实施记录。
 
+> 2026-08-06 后台形态变更：Task 3（管理接口 `/api/admin/reaction`）与 Task 6（后台反馈统计页）的产物已整体删除。后台反馈现在只是**题目列表的一列**：显示票数最高的那个表情图标，tooltip 出「标签名 + 人数」，无评价留空，并列取 `ReactionType` 定义序靠前的一个。数据由 `GET /api/admin/problem` 的 `top_reaction` 字段下发，聚合逻辑在 `reaction/services.py:get_top_reactions()`。详见 spec 顶部同日说明。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 把题目点评从「三维评分 + 文字」重写为「一排七个表情按钮，点击即表态」，并把后台从逐条评论管理改为按题目聚合的反馈统计表。
@@ -1089,6 +1091,8 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ## 执行后遗留项
 
 实现全部完成并通过终审。以下是评审过程中判定「可以带着合并」的次要项，都不阻塞上线，记在这里免得日后重新发现一遍。
+
+其中涉及后台统计页与统计缓存的四条（题号筛选返回空结果、缓存快照少算一票、`ReactionStatsRow` 缺 `_ratio`、后台筛选不重置页码与 `listStats` 无序号守卫）随后台页面下线与缓存移除一并作废，代码已不存在，保留仅作记录。
 
 **后端**
 
