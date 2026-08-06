@@ -54,7 +54,7 @@ Each Django app follows the same structure:
     └── admin.py      # Admin URL patterns
 ```
 
-Apps: `account`, `problem`, `submission`, `contest`, `ai`, `flowchart`, `problemset`, `class_pk`, `announcement`, `tutorial`, `message`, `comment`, `conf`, `options`, `judge`
+Apps: `account`, `problem`, `submission`, `contest`, `ai`, `flowchart`, `problemset`, `class_pk`, `announcement`, `tutorial`, `message`, `reaction`, `conf`, `options`, `judge`
 
 `utils/` is itself a Django app (listed in `INSTALLED_APPS`) — not just a helpers package. It provides `RichTextField` (XSS-sanitized `TextField`), `APIError`, the base `APIView`, caching, WebSocket helpers, and the `inituser` management command. Import shared utilities from `utils.*`.
 

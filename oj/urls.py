@@ -17,8 +17,6 @@ urlpatterns = [
     path("api/", include("message.urls.oj")),
     path("api/", include("reaction.urls.oj")),
     path("api/admin/", include("reaction.urls.admin")),
-    path("api/", include("comment.urls.oj")),
-    path("api/admin/", include("comment.urls.admin")),
     path("api/", include("tutorial.urls.tutorial")),
     path("api/admin/", include("tutorial.urls.admin")),
     path("api/", include("ai.urls.oj")),
