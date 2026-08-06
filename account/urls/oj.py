@@ -1,7 +1,5 @@
 from django.urls import path
 
-from utils.captcha.views import CaptchaAPIView
-
 from ..views.oj import (
     SSOAPI,
     AvatarUploadAPI,
@@ -27,7 +25,6 @@ urlpatterns = [
     path("register", UserRegisterAPI.as_view()),
     path("change_password", UserChangePasswordAPI.as_view()),  # DEPRECATED: 前端未调用
     path("change_email", UserChangeEmailAPI.as_view()),  # DEPRECATED: 前端未调用
-    path("captcha", CaptchaAPIView.as_view()),
     path("check_username_or_email", UsernameOrEmailCheck.as_view()),  # DEPRECATED: 前端未调用
     path("profile", UserProfileAPI.as_view(), name="user_profile_api"),
     path("profile/fresh_display_id", ProfileProblemDisplayIDRefreshAPI.as_view()),

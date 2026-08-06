@@ -14,7 +14,6 @@ from problem.models import Problem
 from submission.models import JudgeStatus, Submission
 from utils.api import APIView, AsyncAPIView, CSRFExemptAPIView, validate_serializer
 from utils.async_helpers import async_cache_get, async_cache_set
-from utils.captcha import Captcha
 from utils.constants import CacheKey
 from utils.shortcuts import datetime2str, rand_str
 
@@ -159,9 +158,6 @@ class UserRegisterAPI(AsyncAPIView):
         data = request.data
         data["username"] = data["username"].lower()
         data["email"] = data["email"].lower()
-        captcha = Captcha(request)
-        if not captcha.check(data["captcha"]):
-            return self.error("Invalid captcha")
         if await User.objects.filter(username=data["username"]).aexists():
             return self.error("Username already exists")
         if await User.objects.filter(email=data["email"]).aexists():

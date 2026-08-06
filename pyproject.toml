@@ -16,7 +16,6 @@ dependencies = [
     "gunicorn>=26.0.0,<27",
     "httpx>=0.28.1,<1",
     "openai>=2.34.0,<3",
-    "pillow>=12.2.0,<13",
     "psycopg[binary]>=3.3.4,<4",
     "sentry-sdk[django]>=2.0.0,<3",
     "tree-sitter>=0.25.2",
