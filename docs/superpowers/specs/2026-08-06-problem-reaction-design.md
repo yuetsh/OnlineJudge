@@ -5,7 +5,7 @@
 
 ## 背景与目标
 
-现有的题目点评要求学生在 AC 后填三项 1–5 星评分（题目描述是否清楚、难度是否匹配、综合评分）外加一段可选文字，一次性提交且不可修改。
+现有的题目点评要求学生 AC 后填三项 1–5 星评分（题目描述是否清楚、难度是否匹配、综合评分）外加一段可选文字，一次性提交且不可修改。
 
 两个实际问题：
 
@@ -16,7 +16,7 @@
 
 ## 设计决策
 
-以下决策在设计阶段已确认，实现时不再重新讨论：
+已确认，实现时不再重新讨论。每条的理由见文末「附录：设计取舍记录」。
 
 | 决策 | 结论 |
 |---|---|
@@ -25,38 +25,16 @@
 | 选择规则 | 多选 + 可取消，**最多同时选 3 个** |
 | 前台布局 | 七个按钮**始终一排**，不换行，窄屏降级为图标 + 计数 |
 | 文字评价 | **完全删除**，不保留任何输入框 |
-| 点评门槛 | **必须 AC**（沿用现有判定） |
-| 计数可见性 | **自己点完之后**才能看到全部计数 |
+| 点评门槛 | **必须 AC**，七个表情一视同仁，不按维度区分 |
+| 计数可见性 | **自己点完之后**才能看到全部计数，由服务端保障 |
 | 老数据 | **直接丢弃**，不迁移 |
 | 后端模块 | 新建 `reaction` app，删除 `comment` app |
 | 存储形态 | **一行一个表情**，`unique(problem, user, type)` |
-| 表情渲染 | Iconify SVG 图标，**不使用 Unicode emoji 字面量** |
-
-### 关于「必须 AC」这个门槛的影响
-
-门槛定为必须 AC 且**不按维度区分**，六个表情一视同仁。这个取舍对三个维度有实质影响，实现时不要试图「修正」：
-
-- **`confusing`（题没看懂）**含义收窄为「最终做出来了，但题面读了很久 / 靠猜才明白要求」。仍是题面要改的有效信号，只是收不到被彻底卡死那批人的反馈。
-- **`buggy`（题目有错）**只能收到 AC 学生能察觉的那半部分：样例输出印错、题面条件与实际数据不符（如题面写 `n ≤ 100` 实际到 10000）、题面说的判定规则与实际判定不一致。**收不到最严重的一类**——测试数据本身错误或标程错误导致正确代码恒 WA，受害者永远 AC 不了，也就永远点不了这个按钮。这类问题仍需其它途径发现。
-- **`want_explain`（想听讲解）**含义变成「做出来了，但想听更好的解法」，而不是「被卡住求救」。价值打折但仍成立。
-
-设计阶段讨论过给 `buggy` 和 `want_explain` 单独放宽门槛（提交过即可点），结论是不做——按维度区分门槛会让前后端的判定逻辑都变绕，收益不足以抵消。
-
-同理，「有思路但写不出」这个维度与 AC 门槛互斥（AC 了就是写出来了），已排除。
-
-### 关于表情渲染
-
-机房电脑的 Chrome 版本低（<94），且系统 emoji 字体覆盖不全，直接输出 Unicode emoji 会出现豆腐块。因此：
-
-- 数据库存语义 key，代码里不出现 emoji 字面量
-- 前端一律用 `@iconify/vue` 的 `<Icon>` 渲染 `fluent-emoji` 系列 SVG，与系统字体解耦
-- 按钮采用**图标 + 中文短标签**并排，而非 GitHub 式纯图标。理由有二：Iconify 服务不可达时还剩文字，功能不至于退化成一排空白；学生也不需要猜「🤯 和 😵 有什么区别」，而语义清晰正是本次重写的重点
-
-图标名已在自建 Iconify 服务（`icon.xuyue.cc`）上逐个验证返回 200。注意 `face-with-crossed-out-eyes` 与 `dizzy-face` 均为 404，不要使用。
+| 表情渲染 | Iconify SVG 图标，**代码与数据库中不出现 Unicode emoji 字面量** |
 
 ## 表情集合
 
-共七个，按钮顺序即下表顺序：
+共七个，按钮渲染顺序即下表顺序：
 
 | key | 中文标签 | Iconify 图标 | 收到之后的动作 |
 |---|---|---|---|
@@ -68,27 +46,13 @@
 | `interesting` | 有意思 | `fluent-emoji:star-struck` | 动机信号，这类题能提起兴趣 |
 | `want_explain` | 想听讲解 | `fluent-emoji:books` | 排课参考，挂得多的优先讲 |
 
-后端 `ReactionType` 的 key 与前端 `utils/constants.ts` 的映射表**必须保持同步**，属于跨项目同步项，与 `JudgeStatus` 同级。改动其一必须同时改另一个。
+后端 `ReactionType` 与前端 `REACTIONS` 常量**必须保持同步**，属于跨项目同步项，与 `JudgeStatus` 同级。改动其一必须同时改另一个。
 
-### 维度取舍的依据
-
-记录下来避免以后重复讨论：
-
-**筛选原则：系统已有的数据不占按钮。** 提交次数、耗时、使用语言、通过率都能从 submission 表算出来，不需要学生点。表情只收集系统看不见的东西——学生的感受和判断。据此排除了「花了好久」「一遍过」「蒙对的」等候选。
-
-**已排除的维度及原因：**
-
-- `good`（好题）——与 `learned`（学到了）收到的是同一批人，重复占位
-- `bad`（差题）——不可行动。难度不对有 `too_hard`，题面不清有 `confusing`，剩下的「差」是纯情绪，收到了也不知道改什么
-- 「有思路但写不出」——与 AC 门槛互斥，AC 了就是写出来了
-- 「难度刚好」——能提供基线（让「没人点」变得可解释），但优先级低于已选七项
-- 「没学过这个」——教学进度错位的信号，价值高，但七个已是布局上限，未入选。若日后要加，优先考虑换掉 `want_explain`
-
-**`learned` 与 `interesting` 不重复。** 前者是知识收获，后者是动机，两者正交：一道题可以很有收获但枯燥，也可以很好玩但没学到新东西。对中职学生而言动机信号单独有价值，因此并存。
+七个图标名均已在自建 Iconify 服务（`icon.xuyue.cc`）上验证返回 200。注意 `face-with-crossed-out-eyes` 与 `dizzy-face` 均为 404，不要使用。
 
 ## 后端设计（OnlineJudge）
 
-### 模块
+### 模块与清理
 
 新建 Django app `reaction`，结构遵循项目现有约定：
 
@@ -104,12 +68,12 @@ reaction/
     └── admin.py
 ```
 
-删除 `comment` app 整个目录，同时清理：
+删除 `comment` app 整个目录，同时清理四处引用：
 
-- `oj/settings.py` 的 `INSTALLED_APPS` 中的 `"comment"`，加入 `"reaction"`
-- `oj/urls.py` 中 `comment.urls.oj` / `comment.urls.admin` 两条 include，替换为 reaction 对应路由
-- `utils/constants.py` 中 `CacheKey.comment_stats`，替换为 `reaction_stats`
-- `comment` 表由 app 删除对应的迁移 drop 掉，老数据不做任何迁移
+- `oj/settings.py` 的 `INSTALLED_APPS`：移除 `"comment"`，加入 `"reaction"`
+- `oj/urls.py`：`comment.urls.oj` / `comment.urls.admin` 两条 include 替换为 reaction 对应路由
+- `utils/constants.py`：`CacheKey.comment_stats` 替换为 `CacheKey.reaction_stats`
+- 迁移：新增一个迁移删除 `comment` 表，老数据不做任何转换
 
 ### 数据模型
 
@@ -138,15 +102,11 @@ class Reaction(models.Model):
         ]
 ```
 
-相比旧 `Comment`，去掉了 `submission` 外键、`language`、三个 rating 字段和 `content`。`submission` 与 `language` 在旧实现中除了写入外无任何读取方，按 YAGNI 删除。
-
-**为什么一行一个表情而不是一行存数组**：后台的核心产出是「按某个表情的占比排序、找出题面最该改的题」。关系模型下这是一条带排序和分页的 ORM 查询，数组模型下必须全表拉进内存做 Python 聚合、内存排序、内存分页，且排序键是聚合值，数据库无法协助分页。此外后续若要按班级、时间段等维度切分，关系模型只需加 `filter`。代价是行数约为数组方案的 1.5 倍，在本项目规模下无影响。
-
-写入复杂度两者相当，均可做整份覆盖，不涉及读-改-写。
+相比旧 `Comment`，去掉了 `submission` 外键、`language`、三个 rating 字段和 `content`。
 
 ### 用户接口
 
-路由：`GET/POST /api/reaction`，两个方法都要求登录。
+路由 `GET/POST /api/reaction`，两个方法都要求登录。
 
 **GET** `?problem_id=X`
 
@@ -158,9 +118,10 @@ class Reaction(models.Model):
 }
 ```
 
-`counts` 包含全部七个 key，计数为 0 的也要下发，前端不必补默认值。
+`counts` 的下发规则：
 
-`counts` 仅在 `mine` 非空时下发，否则为 `null`。**「点完才显示计数」由服务端保障**，未表态的用户拿不到别人的数据，不依赖前端隐藏。
+- `mine` 为空时，`counts` 为 `null`。**「点完才显示计数」由服务端保障**，未表态的用户根本拿不到别人的数据，不依赖前端隐藏
+- `mine` 非空时，`counts` 包含全部七个 key，计数为 0 的也要下发，前端不必补默认值
 
 **POST** `{ "problem_id": X, "types": ["too_hard", "learned"] }`
 
@@ -191,35 +152,33 @@ with transaction.atomic():
 
 ### 管理接口
 
-路由：`GET /api/admin/reaction`，`@super_admin_required`。
+路由 `GET /api/admin/reaction`，`@super_admin_required`。
 
-按题目聚合，数据库直接完成统计、排序与分页：
-
-```python
-Reaction.objects.values("problem___id", "problem__title").annotate(
-    users        = Count("user", distinct=True),
-    too_easy     = Count("id", filter=Q(type="too_easy")),
-    too_hard     = Count("id", filter=Q(type="too_hard")),
-    confusing    = Count("id", filter=Q(type="confusing")),
-    buggy        = Count("id", filter=Q(type="buggy")),
-    learned      = Count("id", filter=Q(type="learned")),
-    interesting  = Count("id", filter=Q(type="interesting")),
-    want_explain = Count("id", filter=Q(type="want_explain")),
-).order_by(ordering)
-```
-
-**排序按占比而非数量。** 七个表情列的排序值是「点该表情的人数 ÷ 该题表态总人数」，在同一条查询里用注解算出：
+按题目聚合，统计、排序、分页全部由数据库完成：
 
 ```python
-).annotate(
-    confusing_ratio = Cast("confusing", FloatField()) / Cast("users", FloatField()),
-    ...
+qs = (
+    Reaction.objects.values("problem___id", "problem__title")
+    .annotate(
+        users        = Count("user", distinct=True),
+        too_easy     = Count("id", filter=Q(type="too_easy")),
+        too_hard     = Count("id", filter=Q(type="too_hard")),
+        confusing    = Count("id", filter=Q(type="confusing")),
+        buggy        = Count("id", filter=Q(type="buggy")),
+        learned      = Count("id", filter=Q(type="learned")),
+        interesting  = Count("id", filter=Q(type="interesting")),
+        want_explain = Count("id", filter=Q(type="want_explain")),
+    )
+    .annotate(
+        # 七个表情各一条，此处仅示意其中一个
+        confusing_ratio = Cast("confusing", FloatField()) / Cast("users", FloatField()),
+    )
 )
 ```
 
-原因：一道 200 人做过、5 人点 `confusing` 的题，题面问题远小于一道 3 人做过、3 人全点 `confusing` 的题。按数量排会把前者顶到上面，与「排在最上面的就是题面最该改的题」这个使用目的相悖。
+**表情列按占比排序，不按数量。** 排序值是「点该表情的人数 ÷ 该题表态总人数」。占比排序时**过滤掉表态人数少于 3 的题**（`filter(users__gte=3)`），避免 1 人点 1 个表情就冲到 100% 占满首屏；按 `users` 排序时不加此过滤。
 
-占比排序时**过滤掉表态人数少于 3 的题**（`filter(users__gte=3)`），避免 1 人点 1 个表情就冲到 100% 占满首屏。按 `users` 排序时不加此过滤。
+表格中每列显示的仍是**数量**，只有排序用占比——人数列就在旁边，占比是否值得关注管理员一眼能判断。
 
 查询参数：
 
@@ -227,34 +186,30 @@ Reaction.objects.values("problem___id", "problem__title").annotate(
 - `ordering` — 排序字段，允许值为 `users`（按数量）及七个表情 key（按占比），前缀 `-` 表示降序；默认 `-users`。传入其它值一律回落到默认，不报错
 - 分页沿用 `self.paginate_data`
 
-表格中每个表情列显示的仍是**数量**，只有排序用占比。人数列已经在旁边，占比是否值得关注管理员一眼能判断。
-
 旧 admin 接口的删除单条评论功能**去掉**。没有自由文字就没有不当言论需要清理。
 
 ## 前端设计（ojnext）
 
-### 组件
+### 组件与挂载点
 
 `src/oj/problem/components/ProblemComment.vue` → 重写为 `ProblemReaction.vue`。
 
 挂载点不变，共四处，全部改为引用新组件：
 
-- `src/oj/problem/detail.vue` 三处（177、229、269 行附近）
-- `src/oj/problem/components/SubmitCode.vue` 一处（267 行附近）
+- `src/oj/problem/detail.vue` 三处
+- `src/oj/problem/components/SubmitCode.vue` 一处
 
-`showStatistics` prop **删除**。计数可见性现在由「该用户是否已表态」决定，不再由调用方控制，`SubmitCode.vue` 中传 `:showStatistics="false"` 一并去掉。
+`showStatistics` prop **删除**。计数可见性现在由「该用户是否已表态」决定，不再由调用方控制，`SubmitCode.vue` 中传的 `:showStatistics="false"` 一并去掉。
 
-### 布局：七个按钮永远排成一排
+### 布局：七个按钮永远一排
 
-**不允许换行。** 容器 `flex-wrap: nowrap`，按屏宽分三档降级：
+容器 `flex-wrap: nowrap`，**不允许换行**，按屏宽分三档降级：
 
 | 档位 | 按钮内容 | 说明 |
 |---|---|---|
 | 宽屏 | 图标 + 中文标签 + 计数 | 完整形态 |
 | 窄屏 / 分屏 | 图标 + 计数 | 标签退到 tooltip，用 `shared/composables/breakpoints` 判断 |
 | 极窄 | 图标 + 计数 | 容器 `overflow-x: auto` 横向滚动兜底 |
-
-代价要写明：窄屏档位下若 Iconify 服务不可达，按钮会变成一排空白（宽屏档位还有中文标签兜底）。这是「一排显示」与「图标挂了仍可用」之间的取舍，已选前者。
 
 ### 三种显示状态
 
@@ -279,12 +234,12 @@ Reaction.objects.values("problem___id", "problem__title").annotate(
 - 组件挂载时 `GET /api/reaction`，一次请求拿到 `mine` 与 `counts`；**未登录不发请求**，直接渲染禁用态
 - **最多同时选中 3 个**。已选满时，未选中的按钮全部置灰不可点，tooltip 提示「最多选 3 个，先取消一个」；已选中的按钮仍可点击以取消
 - 点击按钮：**乐观更新**，先切换本地高亮与计数，再发 POST；请求失败则回滚并提示
-- 连续点击不做防抖，POST 传的是完整期望列表，后到的请求覆盖先到的，天然收敛
+- 连续点击不做防抖。POST 传的是完整期望列表，后到的请求覆盖先到的，天然收敛
 - 悬停 tooltip 显示完整文案，例如「8 人觉得太难了」
 
 ### 常量
 
-在 `src/utils/constants.ts` 中新增映射表：
+在 `src/utils/constants.ts` 中新增：
 
 ```ts
 export const REACTIONS = [
@@ -300,15 +255,11 @@ export const REACTIONS = [
 export const MAX_REACTIONS = 3
 ```
 
-按钮渲染顺序即数组顺序。
+### API 层与类型
 
-### API 层
-
-`src/oj/api.ts`：删除 `createComment` / `getComment` / `getCommentStatistics`，新增 `getReaction(problemID)` 与 `setReaction(problemID, types)`。
-
-`src/admin/api.ts`：删除 `getCommentList` / `deleteComment`，新增 `getReactionStats(offset, limit, problem, ordering)`。
-
-`src/utils/types.ts`：删除 `Comment` 接口，新增 `ReactionKey`、`ReactionStats` 等类型。
+- `src/oj/api.ts`：删除 `createComment` / `getComment` / `getCommentStatistics`，新增 `getReaction(problemID)` 与 `setReaction(problemID, types)`
+- `src/admin/api.ts`：删除 `getCommentList` / `deleteComment`，新增 `getReactionStats(offset, limit, problem, ordering)`
+- `src/utils/types.ts`：删除 `Comment` 接口，新增 `ReactionKey`、`ReactionStats` 等类型
 
 ### 后台页面
 
@@ -325,12 +276,13 @@ export const MAX_REACTIONS = 3
 - 顶部保留按题目序号筛选的输入框
 - 无删除操作
 
-排序是这张表的核心用法：点 😵 那一列降序，排在最上面的就是题面最需要修改的题。
+排序是这张表的核心用法：点「没看懂」那一列降序，排在最上面的就是题面最需要修改的题。
 
 ## 验证方式
 
-后端无法在本地运行（无 Docker、无数据库与判题沙箱），按项目约定：
+本地无 Docker、无数据库与判题沙箱，后端跑不起来。按项目约定：
 
+- `makemigrations` 可以本地执行（不连库），`migrate` 只能在服务器上跑
 - 后端改动通过代码审查与 `ruff check .` 静态检查验证，运行时验证在服务器上进行
 - 不编写测试（项目测试策略）
 - 前端通过 `npm run build` 验证编译通过，交互在开发服务器上人工验证
@@ -342,5 +294,55 @@ export const MAX_REACTIONS = 3
 - 不给管理员提供删除某个学生表态的功能
 - 不在题目列表页展示表情统计，只在题目详情页与后台展示
 - 不做按班级/时间维度的分析界面。数据模型已经支持，等真的需要时再加
-- **不做后台配置表情的功能**。表情集合写死在后端 `ReactionType` 与前端 `REACTIONS` 常量中，改动需要改代码并发版。设计阶段讨论过做成可配置，结论是七个语义槽位已经覆盖需求，为此引入一张配置表、一个 CRUD 页面，以及「表情被删除后历史数据如何处理」的复杂度不划算
 - 不做前台的表情换行布局。七个按钮始终一排，窄屏靠降级和横向滚动解决
+- **不做后台配置表情的功能**。表情集合写死在后端 `ReactionType` 与前端 `REACTIONS` 常量中，改动需要改代码并发版
+
+---
+
+## 附录：设计取舍记录
+
+以下是各项决策背后的推理。实现时不需要读，但日后想改动某项决策前应该先看这里，避免重复讨论已经讨论过的问题。
+
+### 表情维度是怎么筛出来的
+
+**筛选原则：系统已有的数据不占按钮。** 提交次数、耗时、使用语言、通过率都能从 submission 表算出来，不需要学生点。表情只收集系统看不见的东西——学生的感受和判断。据此排除了「花了好久」「一遍过」「蒙对的」等候选。
+
+**已排除的维度：**
+
+| 维度 | 排除原因 |
+|---|---|
+| 好题 | 与「学到了」收到的是同一批人，重复占位 |
+| 差题 | 不可行动。难度不对有「太难了」，题面不清有「没看懂」，剩下的「差」是纯情绪，收到了也不知道改什么 |
+| 有思路但写不出 | 与 AC 门槛互斥——AC 了就是写出来了 |
+| 难度刚好 | 能提供基线（让「没人点」变得可解释），但优先级低于已选七项 |
+| 没学过这个 | 教学进度错位的信号，价值高，但七个已是布局上限。若日后要加，优先考虑换掉「想听讲解」 |
+
+**「学到了」与「有意思」不重复。** 前者是知识收获，后者是动机，两者正交：一道题可以很有收获但枯燥，也可以很好玩但没学到新东西。对中职学生而言动机信号单独有价值，因此并存。
+
+### 「必须 AC」这个门槛的代价
+
+门槛定为必须 AC 且不按维度区分。这对三个维度有实质影响，实现时不要试图「修正」：
+
+- **「没看懂」**含义收窄为「最终做出来了，但题面读了很久 / 靠猜才明白要求」。仍是题面要改的有效信号，只是收不到被彻底卡死那批人的反馈。
+- **「题目有错」**只能收到 AC 学生察觉得到的那半部分：样例输出印错、题面条件与实际数据不符（如题面写 `n ≤ 100` 实际到 10000）、题面说的判定规则与实际判定不一致。**收不到最严重的一类**——测试数据本身错误或标程错误导致正确代码恒 WA，受害者永远 AC 不了，也就永远点不了这个按钮。这类问题仍需其它途径发现。
+- **「想听讲解」**含义变成「做出来了，但想听更好的解法」，而不是「被卡住求救」。价值打折但仍成立。
+
+讨论过给「题目有错」和「想听讲解」单独放宽门槛（提交过即可点），结论是不做——按维度区分门槛会让前后端判定逻辑都变绕，收益不足以抵消。
+
+### 为什么一行一个表情，而不是一行存数组
+
+考虑过一个用户对一道题存一行、表情放 `ArrayField` 数组。否决原因是后台那张表：
+
+核心产出是「按某个表情的占比排序、找出最该改的题」。关系模型下这是一条带排序和分页的 ORM 查询；数组模型下必须全表拉进内存做 Python 聚合、内存排序、内存分页，而且排序键是聚合值，数据库完全帮不上忙，每翻一页都要重算。此外后续若要按班级、时间段等维度切分，关系模型只需加 `filter`。
+
+代价是行数约为数组方案的 1.5 倍，在本项目规模下无影响。写入复杂度两者相当，都能做整份覆盖，都不涉及读-改-写。
+
+### 为什么排序按占比而不是数量
+
+一道 200 人做过、5 人点「没看懂」的题，题面问题远小于一道 3 人做过、3 人全点「没看懂」的题。按数量排会把前者顶到上面，与「排在最上面的就是最该改的题」这个使用目的直接相悖。低样本噪声用 `users >= 3` 的过滤挡掉。
+
+### 为什么不用 Unicode emoji 字面量
+
+机房电脑 Chrome 版本低（<94），系统 emoji 字体覆盖不全，直接输出 Unicode emoji 会出豆腐块。因此数据库存语义 key，前端一律用 `@iconify/vue` 渲染 `fluent-emoji` 的 SVG，与系统字体彻底解耦。
+
+按钮在宽屏下带中文标签，除了语义更清晰，也是一层降级保护：Iconify 服务不可达时至少还剩文字。但窄屏档位为了「一排显示」牺牲了标签，此时若图标加载失败按钮会变成一排空白——这是「一排显示」与「图标挂了仍可用」之间的取舍，已选前者。
