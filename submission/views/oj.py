@@ -14,7 +14,6 @@ from options.options import SysOptions
 from problem.models import Problem
 from utils.api import APIView, AsyncAPIView, validate_serializer
 from utils.cache import cache
-from utils.captcha import Captcha
 from utils.throttling import TokenBucket
 
 from ..models import Submission
@@ -66,9 +65,6 @@ class SubmissionAPI(AsyncAPIView):
             if not contest.problem_details_permission(request.user):
                 hide_id = True
 
-        if data.get("captcha"):
-            if not Captcha(request).check(data["captcha"]):
-                return self.error("Invalid captcha")
         error = await sync_to_async(self.throttling)(request)
         if error:
             return self.error(error)
