@@ -259,18 +259,6 @@ class ProblemSetProgressAPI(APIView):
             notify_badges(progress.user_id, earned)
 
 
-# DEPRECATED: 前端未调用 (2026-05-26)
-class UserProgressAPI(APIView):
-    """用户进度API"""
-
-    @login_required
-    def get(self, request):
-        """获取用户的题单进度列表"""
-        progress_list = ProblemSetProgress.objects.filter(user=request.user).order_by("-join_time")
-        serializer = ProblemSetProgressSerializer(progress_list, many=True)
-        return self.success(serializer.data)
-
-
 class UserBadgeAPI(AsyncAPIView):
     """用户奖章API"""
 

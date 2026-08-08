@@ -1,11 +1,9 @@
 from django.urls import path
 
-from ..views.admin import ACMContestHelper, ContestAnnouncementAPI, ContestAPI, ContestCloneAPI, DownloadContestSubmissions
+from ..views.admin import ACMContestHelper, ContestAPI, ContestCloneAPI
 
 urlpatterns = [
     path("contest", ContestAPI.as_view()),
     path("contest/clone", ContestCloneAPI.as_view()),
-    path("contest/announcement", ContestAnnouncementAPI.as_view()),  # DEPRECATED: 前端未调用
     path("contest/acm_helper", ACMContestHelper.as_view()),
-    path("download_submissions", DownloadContestSubmissions.as_view()),  # DEPRECATED: 前端未调用
 ]

@@ -134,16 +134,6 @@ class JudgeServerHeartbeatAPI(CSRFExemptAPIView):
         return self.success()
 
 
-# DEPRECATED: 前端未调用 (2026-05-26)
-class LanguagesAPI(APIView):
-    def get(self, request):
-        return self.success(
-            {
-                "languages": SysOptions.languages,
-            }
-        )
-
-
 class TestCasePruneAPI(APIView):
     @super_admin_required
     def get(self, request):

@@ -1,30 +1,19 @@
-import copy
-import os
-import zipfile
 from datetime import datetime, timedelta
 from ipaddress import ip_network
 
-from django.http import FileResponse
 from django.utils.timezone import now
 
-from account.decorators import ensure_created_by, super_admin_required, teacher_admin_required
-from account.models import User
+from account.decorators import ensure_created_by, teacher_admin_required
 from problem.models import Problem
-from submission.models import JudgeStatus, Submission
 from utils.api import APIView, validate_serializer
-from utils.shortcuts import rand_str
-from utils.tasks import delete_files
 
-from ..models import ACMContestRank, Contest, ContestAnnouncement
+from ..models import ACMContestRank, Contest
 from ..serializers import (
     ACMContesHelperSerializer,
     ContestAdminSerializer,
-    ContestAnnouncementSerializer,
     ContestCloneSerializer,
     CreateConetestSeriaizer,
-    CreateContestAnnouncementSerializer,
     EditConetestSeriaizer,
-    EditContestAnnouncementSerializer,
 )
 
 
@@ -96,73 +85,6 @@ class ContestAPI(APIView):
         return self.success(self.paginate_data(request, contests, ContestAdminSerializer))
 
 
-# DEPRECATED: 前端未调用 (2026-05-26)
-class ContestAnnouncementAPI(APIView):
-    @validate_serializer(CreateContestAnnouncementSerializer)
-    @super_admin_required
-    def post(self, request):
-        """
-        Create one contest_announcement.
-        """
-        data = request.data
-        try:
-            contest = Contest.objects.get(id=data.pop("contest_id"))
-            data["contest"] = contest
-            data["created_by"] = request.user
-        except Contest.DoesNotExist:
-            return self.error("Contest does not exist")
-        announcement = ContestAnnouncement.objects.create(**data)
-        return self.success(ContestAnnouncementSerializer(announcement).data)
-
-    @validate_serializer(EditContestAnnouncementSerializer)
-    @super_admin_required
-    def put(self, request):
-        """
-        update contest_announcement
-        """
-        data = request.data
-        try:
-            contest_announcement = ContestAnnouncement.objects.get(id=data.pop("id"))
-        except ContestAnnouncement.DoesNotExist:
-            return self.error("Contest announcement does not exist")
-        for k, v in data.items():
-            setattr(contest_announcement, k, v)
-        contest_announcement.save()
-        return self.success()
-
-    @super_admin_required
-    def delete(self, request):
-        """
-        Delete one contest_announcement.
-        """
-        contest_announcement_id = request.GET.get("id")
-        if contest_announcement_id:
-            ContestAnnouncement.objects.filter(id=contest_announcement_id).delete()
-        return self.success()
-
-    @super_admin_required
-    def get(self, request):
-        """
-        Get one contest_announcement or contest_announcement list.
-        """
-        contest_announcement_id = request.GET.get("id")
-        if contest_announcement_id:
-            try:
-                contest_announcement = ContestAnnouncement.objects.get(id=contest_announcement_id)
-                return self.success(ContestAnnouncementSerializer(contest_announcement).data)
-            except ContestAnnouncement.DoesNotExist:
-                return self.error("Contest announcement does not exist")
-
-        contest_id = request.GET.get("contest_id")
-        if not contest_id:
-            return self.error("Parameter error")
-        contest_announcements = ContestAnnouncement.objects.filter(contest_id=contest_id)
-        keyword = request.GET.get("keyword")
-        if keyword:
-            contest_announcements = contest_announcements.filter(title__contains=keyword)
-        return self.success(ContestAnnouncementSerializer(contest_announcements, many=True).data)
-
-
 class ACMContestHelper(APIView):
     @teacher_admin_required
     def get(self, request):
@@ -215,55 +137,6 @@ class ACMContestHelper(APIView):
         problem_rank_status["checked"] = data["checked"]
         rank.save(update_fields=("submission_info",))
         return self.success()
-
-
-# DEPRECATED: 前端未调用 (2026-05-26)
-class DownloadContestSubmissions(APIView):
-    def _dump_submissions(self, contest, exclude_admin=True):
-        problem_ids = contest.problem_set.all().values_list("id", "_id")
-        id2display_id = {k[0]: k[1] for k in problem_ids}
-        ac_map = {k[0]: False for k in problem_ids}
-        submissions = Submission.objects.filter(contest=contest, result__in=[JudgeStatus.ACCEPTED, JudgeStatus.AST_CHECK_FAILED]).order_by("-create_time")
-        user_ids = submissions.values_list("user_id", flat=True)
-        users = User.objects.filter(id__in=user_ids)
-        path = f"/tmp/{rand_str()}.zip"
-        with zipfile.ZipFile(path, "w") as zip_file:
-            for user in users:
-                if user.is_admin_role() and exclude_admin:
-                    continue
-                user_ac_map = copy.deepcopy(ac_map)
-                user_submissions = submissions.filter(user_id=user.id)
-                for submission in user_submissions:
-                    problem_id = submission.problem_id
-                    if user_ac_map[problem_id]:
-                        continue
-                    file_name = f"{user.username}_{id2display_id[submission.problem_id]}.txt"
-                    compression = zipfile.ZIP_DEFLATED
-                    zip_file.writestr(
-                        zinfo_or_arcname=f"{file_name}",
-                        data=submission.code,
-                        compress_type=compression,
-                    )
-                    user_ac_map[problem_id] = True
-        return path
-
-    @super_admin_required
-    def get(self, request):
-        contest_id = request.GET.get("contest_id")
-        if not contest_id:
-            return self.error("Parameter error")
-        try:
-            contest = Contest.objects.get(id=contest_id)
-        except Contest.DoesNotExist:
-            return self.error("Contest does not exist")
-
-        exclude_admin = request.GET.get("exclude_admin") == "1"
-        zip_path = self._dump_submissions(contest, exclude_admin)
-        delete_files.send_with_options(args=(zip_path,), delay=300_000)
-        resp = FileResponse(open(zip_path, "rb"))
-        resp["Content-Type"] = "application/zip"
-        resp["Content-Disposition"] = f"attachment;filename={os.path.basename(zip_path)}"
-        return resp
 
 
 class ContestCloneAPI(APIView):

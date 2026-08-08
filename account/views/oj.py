@@ -1,18 +1,17 @@
 import asyncio
 import os
-from importlib import import_module
 
 from django.conf import settings
 from django.contrib import auth
 from django.db.models import Count, Q
 from django.utils import timezone
 from django.utils.decorators import method_decorator
-from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
+from django.views.decorators.csrf import ensure_csrf_cookie
 
 from options.options import SysOptions
 from problem.models import Problem
 from submission.models import JudgeStatus, Submission
-from utils.api import APIView, AsyncAPIView, CSRFExemptAPIView, validate_serializer
+from utils.api import AsyncAPIView, validate_serializer
 from utils.async_helpers import async_cache_get, async_cache_set
 from utils.constants import CacheKey
 from utils.shortcuts import datetime2str, rand_str
@@ -23,11 +22,7 @@ from ..serializers import (
     EditUserProfileSerializer,
     ImageUploadForm,
     RankInfoSerializer,
-    SSOSerializer,
-    UserChangeEmailSerializer,
-    UserChangePasswordSerializer,
     UserLoginSerializer,
-    UsernameOrEmailCheckSerializer,
     UserProfileSerializer,
     UserRegisterSerializer,
 )
@@ -132,23 +127,6 @@ class UserLogoutAPI(AsyncAPIView):
         return self.success()
 
 
-# DEPRECATED: 前端未调用 (2026-05-26)
-class UsernameOrEmailCheck(APIView):
-    @validate_serializer(UsernameOrEmailCheckSerializer)
-    def post(self, request):
-        """
-        check username or email is duplicate
-        """
-        data = request.data
-        # True means already exist.
-        result = {"username": False, "email": False}
-        if data.get("username"):
-            result["username"] = User.objects.filter(username=data["username"].lower()).exists()
-        if data.get("email"):
-            result["email"] = User.objects.filter(email=data["email"].lower()).exists()
-        return self.success(result)
-
-
 class UserRegisterAPI(AsyncAPIView):
     @validate_serializer(UserRegisterSerializer)
     async def post(self, request):
@@ -167,87 +145,6 @@ class UserRegisterAPI(AsyncAPIView):
         await user.asave()
         await UserProfile.objects.acreate(user=user)
         return self.success("Succeeded")
-
-
-# DEPRECATED: 前端未调用 (2026-05-26)
-class UserChangeEmailAPI(APIView):
-    @validate_serializer(UserChangeEmailSerializer)
-    @login_required
-    def post(self, request):
-        data = request.data
-        user = auth.authenticate(username=request.user.username, password=data["password"])
-        if user:
-            data["new_email"] = data["new_email"].lower()
-            if User.objects.filter(email=data["new_email"]).exists():
-                return self.error("The email is owned by other account")
-            user.email = data["new_email"]
-            user.save()
-            return self.success("Succeeded")
-        else:
-            return self.error("Wrong password")
-
-
-# DEPRECATED: 前端未调用 (2026-05-26)
-class UserChangePasswordAPI(APIView):
-    @validate_serializer(UserChangePasswordSerializer)
-    @login_required
-    def post(self, request):
-        """
-        User change password api
-        """
-        data = request.data
-        username = request.user.username
-        user = auth.authenticate(username=username, password=data["old_password"])
-        if user:
-            user.set_password(data["new_password"])
-            user.save()
-            return self.success("Succeeded")
-        else:
-            return self.error("Invalid old password")
-
-
-# DEPRECATED: 前端未调用 (2026-05-26)
-class SessionManagementAPI(APIView):
-    @login_required
-    def get(self, request):
-        engine = import_module(settings.SESSION_ENGINE)
-        session_store = engine.SessionStore
-        current_session = request.session.session_key
-        session_keys = request.user.session_keys
-        result = []
-        modified = False
-        for key in session_keys[:]:
-            session = session_store(key)
-            # session does not exist or is expiry
-            if not session._session:
-                session_keys.remove(key)
-                modified = True
-                continue
-
-            s = {}
-            if current_session == key:
-                s["current_session"] = True
-            s["ip"] = session["ip"]
-            s["user_agent"] = session["user_agent"]
-            s["last_activity"] = datetime2str(session["last_activity"])
-            s["session_key"] = key
-            result.append(s)
-        if modified:
-            request.user.save()
-        return self.success(result)
-
-    @login_required
-    def delete(self, request):
-        session_key = request.GET.get("session_key")
-        if not session_key:
-            return self.error("Parameter Error")
-        request.session.delete(session_key)
-        if session_key in request.user.session_keys:
-            request.user.session_keys.remove(session_key)
-            request.user.save()
-            return self.success("Succeeded")
-        else:
-            return self.error("Invalid session_key")
 
 
 class UserRankAPI(AsyncAPIView):
@@ -354,40 +251,3 @@ class ProfileProblemDisplayIDRefreshAPI(AsyncAPIView):
         await profile.asave(update_fields=["acm_problems_status"])
         return self.success()
 
-
-# DEPRECATED: 前端未调用 (2026-05-26)
-class OpenAPIAppkeyAPI(APIView):
-    @login_required
-    def post(self, request):
-        user = request.user
-        if not user.open_api:
-            return self.error("OpenAPI function is truned off for you")
-        api_appkey = rand_str()
-        user.open_api_appkey = api_appkey
-        user.save()
-        return self.success({"appkey": api_appkey})
-
-
-# DEPRECATED: 前端未调用 (2026-05-26)
-class SSOAPI(CSRFExemptAPIView):
-    @login_required
-    def get(self, request):
-        token = rand_str()
-        request.user.auth_token = token
-        request.user.save()
-        return self.success({"token": token})
-
-    @method_decorator(csrf_exempt)
-    @validate_serializer(SSOSerializer)
-    def post(self, request):
-        try:
-            user = User.objects.get(auth_token=request.data["token"])
-        except User.DoesNotExist:
-            return self.error("User does not exist")
-        return self.success(
-            {
-                "username": user.username,
-                "avatar": user.userprofile.avatar,
-                "admin_type": user.admin_type,
-            }
-        )

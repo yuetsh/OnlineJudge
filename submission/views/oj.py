@@ -219,15 +219,6 @@ class ContestSubmissionListAPI(AsyncAPIView):
         return self.success(data)
 
 
-# DEPRECATED: 前端未调用 (2026-05-26)
-class SubmissionExistsAPI(AsyncAPIView):
-    async def get(self, request):
-        if not request.GET.get("problem_id"):
-            return self.error("Parameter error, problem_id is required")
-        exists = request.user.is_authenticated and await Submission.objects.filter(problem_id=request.GET["problem_id"], user_id=request.user.id).aexists()
-        return self.success(exists)
-
-
 class SubmissionsTodayCount(AsyncAPIView):
     async def get(self, request):
         now = timezone.now()

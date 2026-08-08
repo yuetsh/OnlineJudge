@@ -16,23 +16,8 @@ from utils.api import AsyncAPIView, validate_serializer
 from utils.constants import CONTEST_PASSWORD_SESSION_KEY, ContestStatus
 from utils.shortcuts import check_is_id, datetime2str
 
-from ..models import ACMContestRank, Contest, ContestAnnouncement
-from ..serializers import ACMContestRankSerializer, ContestAnnouncementSerializer, ContestPasswordVerifySerializer, ContestSerializer
-
-
-# DEPRECATED: 前端未调用 (2026-05-26)
-class ContestAnnouncementListAPI(AsyncAPIView):
-    @check_contest_permission(check_type="announcements")
-    async def get(self, request):
-        contest_id = request.GET.get("contest_id")
-        if not contest_id:
-            return self.error("Invalid parameter, contest_id is required")
-        qs = ContestAnnouncement.objects.select_related("created_by").filter(contest_id=contest_id, visible=True)
-        max_id = request.GET.get("max_id")
-        if max_id:
-            qs = qs.filter(id__gt=max_id)
-        data = await self.async_serialize_data(ContestAnnouncementSerializer, [item async for item in qs], many=True)
-        return self.success(data)
+from ..models import ACMContestRank, Contest
+from ..serializers import ACMContestRankSerializer, ContestPasswordVerifySerializer, ContestSerializer
 
 
 class ContestAPI(AsyncAPIView):

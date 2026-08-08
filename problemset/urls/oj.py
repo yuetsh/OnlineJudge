@@ -8,7 +8,6 @@ from problemset.views.oj import (
     ProblemSetProgressAPI,
     ProblemSetUserProgressAPI,
     UserBadgeAPI,
-    UserProgressAPI,
 )
 
 urlpatterns = [
@@ -24,23 +23,12 @@ urlpatterns = [
         ProblemSetProblemAPI.as_view(),
         name="problemset_problems_api",
     ),
-    path(  # DEPRECATED: 前端未调用
-        "problemset/<int:problem_set_id>/problems/<int:problem_id>",
-        ProblemSetProblemAPI.as_view(),
-        name="problemset_problem_detail_api",
-    ),
     # 进度相关API
     path(
         "problemset/progress",
         ProblemSetProgressAPI.as_view(),
         name="problemset_progress_api",
     ),
-    path(  # DEPRECATED: 前端未调用
-        "problemset/<int:problem_set_id>/progress",
-        ProblemSetProgressAPI.as_view(),
-        name="problemset_progress_detail_api",
-    ),
-    path("user/progress", UserProgressAPI.as_view(), name="user_progress_api"),  # DEPRECATED: 前端未调用
     # 奖章相关API
     path("user/badges", UserBadgeAPI.as_view(), name="user_badges_api"),
     path(

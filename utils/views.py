@@ -3,7 +3,7 @@ import os
 
 from django.conf import settings
 
-from account.serializers import FileUploadForm, ImageUploadForm
+from account.serializers import ImageUploadForm
 from utils.api import CSRFExemptAPIView
 from utils.shortcuts import rand_str
 
@@ -33,25 +33,3 @@ class SimditorImageUploadAPIView(CSRFExemptAPIView):
             return self.response({"success": False, "msg": "Upload Error", "file_path": ""})
         return self.response({"success": True, "msg": "Success", "file_path": f"{settings.UPLOAD_PREFIX}/{img_name}"})
 
-
-# DEPRECATED: 前端未调用 (2026-05-26)
-class SimditorFileUploadAPIView(CSRFExemptAPIView):
-    request_parsers = ()
-
-    def post(self, request):
-        form = FileUploadForm(request.POST, request.FILES)
-        if form.is_valid():
-            file = form.cleaned_data["file"]
-        else:
-            return self.response({"success": False, "msg": "Upload failed"})
-
-        suffix = os.path.splitext(file.name)[-1].lower()
-        file_name = rand_str(10) + suffix
-        try:
-            with open(os.path.join(settings.UPLOAD_DIR, file_name), "wb") as f:
-                for chunk in file:
-                    f.write(chunk)
-        except IOError as e:
-            logger.error(e)
-            return self.response({"success": False, "msg": "Upload Error"})
-        return self.response({"success": True, "msg": "Success", "file_path": f"{settings.UPLOAD_PREFIX}/{file_name}", "file_name": file.name})

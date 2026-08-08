@@ -347,25 +347,6 @@ class ProblemSetProgressAdminAPI(APIView):
             return self.error("用户未加入该题单")
 
 
-# DEPRECATED: 前端未调用 (2026-05-26)
-class ProblemSetSyncAPI(APIView):
-    """题单同步管理API"""
-
-    @teacher_admin_required
-    def post(self, request, problem_set_id):
-        """手动同步题单的所有用户进度（管理员）"""
-        try:
-            problem_set = ProblemSet.objects.get(id=problem_set_id)
-            ensure_created_by(problem_set, request.user)
-        except ProblemSet.DoesNotExist:
-            return self.error("题单不存在")
-
-        # 同步所有用户的进度
-        synced_count = ProblemSetProgress.sync_all_progress_for_problemset(problem_set)
-
-        return self.success(f"已同步 {synced_count} 个用户的进度")
-
-
 class ProblemSetVisibleAPI(APIView):
     """题单可见性管理API"""
 
