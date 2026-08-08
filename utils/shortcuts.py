@@ -35,20 +35,6 @@ def rand_str(length=32, type="lower_hex"):
         return random.choice("123456789") + get_random_string(length - 1, allowed_chars="0123456789")
 
 
-def build_query_string(kv_data, ignore_none=True):
-    # {"a": 1, "b": "test"} -> "?a=1&b=test"
-    query_string = ""
-    for k, v in kv_data.items():
-        if ignore_none is True and kv_data[k] is None:
-            continue
-        if query_string != "":
-            query_string += "&"
-        else:
-            query_string = "?"
-        query_string += k + "=" + str(v)
-    return query_string
-
-
 def strip_class_prefix(username, class_name):
     """
     去掉用户名里的 ks<班级号> 前缀，得到学生本人那一段。

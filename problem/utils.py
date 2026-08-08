@@ -29,11 +29,6 @@ def parse_problem_template(template_str):
     return {"prepend": prepend[0] if prepend else "", "template": template[0] if template else "", "append": append[0] if append else ""}
 
 
-@lru_cache(maxsize=100)
-def build_problem_template(prepend, template, append):
-    return TEMPLATE_BASE.format(prepend, template, append)
-
-
 def generate_sql_display(test_case_id, answers, sql_config):
     """SQL 题：用测试点1的初始化脚本 + 标准答案生成题目页展示数据。
 

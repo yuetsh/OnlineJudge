@@ -253,12 +253,6 @@ class TestCaseScoreSerializer(serializers.Serializer):
     output_name = serializers.CharField(max_length=32)
 
 
-class TemplateSerializer(serializers.Serializer):
-    prepend = serializers.CharField()
-    template = serializers.CharField()
-    append = serializers.CharField()
-
-
 class AnswerSerializer(serializers.Serializer):
     code = serializers.CharField()
     language = LanguageNameChoiceField()

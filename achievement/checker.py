@@ -15,11 +15,6 @@ from achievement.models import Achievement, Operator, UserAchievement, UserStat
 logger = logging.getLogger(__name__)
 
 
-def get_or_create_stat(user):
-    stat, _ = UserStat.objects.get_or_create(user=user)
-    return stat
-
-
 def evaluate(user, metrics, only_metrics=None):
     """返回该用户应解锁但尚未解锁的成就列表。"""
     unlocked_ids = set(UserAchievement.objects.filter(user=user).values_list("achievement_id", flat=True))
