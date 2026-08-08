@@ -484,14 +484,25 @@ class MakeContestProblemPublicAPIView(APIView):
 
 
 class AddContestProblemAPI(APIView):
+    @problem_permission_required
     @validate_serializer(AddContestProblemSerializer)
     def post(self, request):
         data = request.data
         try:
             contest = Contest.objects.get(id=data["contest_id"])
-            problem = Problem.objects.get(id=data["problem_id"])
+            # 源题必须是**公开题库**里的题。原来只按 id 取，于是能把别人比赛里的赛题
+            # （或别人尚未公开的草稿）拷进自己的比赛，连带 answers 参考答案一起拿到。
+            problem = Problem.objects.get(id=data["problem_id"], contest__isnull=True)
         except (Contest.DoesNotExist, Problem.DoesNotExist):
             return self.error("Contest or Problem does not exist")
+
+        # 原来这里一个权限装饰器都没有：
+        #  - 少了 problem_permission_required，problem_permission=None 的学生管理员也能建题
+        #  - 少了 ensure_created_by，任何管理员都能往别人的比赛里塞题
+        # 中间件只保证了"是管理员身份"，挡不住这两件事。
+        ensure_created_by(contest, request.user)
+        if not problem.visible:
+            ensure_created_by(problem, request.user)
 
         if contest.status == ContestStatus.CONTEST_ENDED:
             return self.error("Contest has ended")
@@ -604,7 +615,9 @@ class ProblemVisibleAPI(APIView):
         try:
             problem = Problem.objects.get(id=data["id"])
         except Problem.DoesNotExist:
-            self.error("problem does not exists")
+            # 这里原来漏了 return，会继续往下走到未赋值的 problem，
+            # 抛 UnboundLocalError → 500。题不存在时应该是一条正常的错误响应。
+            return self.error("problem does not exists")
         problem.visible = not problem.visible
         problem.save()
         return self.success()

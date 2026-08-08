@@ -7,6 +7,7 @@ from problemset.models import (
     ProblemSetBadge,
     ProblemSetProblem,
     ProblemSetProgress,
+    UserBadge,
 )
 from problemset.serializers import (
     AddProblemToSetSerializer,
@@ -32,7 +33,10 @@ class ProblemSetAdminAPI(APIView):
     @teacher_admin_required
     def get(self, request):
         """获取题单列表（管理员）"""
-        problem_sets = ProblemSet.objects.filter(visible=True).annotate(problems_count=Count("problemsetproblem", distinct=True)).order_by("-create_time")
+        # 后台列表**不能**过滤 visible：题单列表里有可见性开关，一旦关掉，
+        # 题单就从这个列表里消失，教师再也找不到它、也就无法在界面上打开回来。
+        # 前台列表（views/oj.py）该过滤，后台不该。
+        problem_sets = ProblemSet.objects.annotate(problems_count=Count("problemsetproblem", distinct=True)).order_by("-create_time")
         if not request.user.is_super_admin():
             problem_sets = problem_sets.filter(created_by=request.user)
 
@@ -162,6 +166,10 @@ class ProblemSetProblemAdminAPI(APIView):
             score=data.get("score", 0),
             hint=data.get("hint", ""),
         )
+        # 题目数就是进度的分母，加完必须重算：不重算的话已加入的学生进度百分比
+        # 全是虚高的，而且原本标成"已完成"的人会一直是已完成。
+        # 手动同步接口（ProblemSetSyncAPI）前端没有调用点，所以只能在这里做。
+        ProblemSetProgress.sync_all_progress_for_problemset(problem_set)
 
         return self.success("题目已添加到题单")
 
@@ -207,6 +215,8 @@ class ProblemSetProblemAdminAPI(APIView):
         try:
             problem_set_problem = ProblemSetProblem.objects.get(id=problem_set_problem_id, problemset=problem_set)
             problem_set_problem.delete()
+            # 同上：分母变了，进度要重算
+            ProblemSetProgress.sync_all_progress_for_problemset(problem_set)
             return self.success("题目已从题单中移除")
         except ProblemSetProblem.DoesNotExist:
             return self.error("题目不在该题单中")
@@ -329,6 +339,9 @@ class ProblemSetProgressAdminAPI(APIView):
         try:
             progress = ProblemSetProgress.objects.get(problemset=problem_set, user_id=user_id)
             progress.delete()
+            # 奖章是靠这个题单挣的，人移出去了奖章却留着 —— 学生个人页上会一直挂着
+            # 一个自己已经不在的题单的奖章，而且重新加入时会因唯一约束拿不到第二次。
+            UserBadge.objects.filter(user_id=user_id, badge__problemset=problem_set).delete()
             return self.success("用户已从题单中移除")
         except ProblemSetProgress.DoesNotExist:
             return self.error("用户未加入该题单")

@@ -201,10 +201,14 @@ class ACMContestHelper(APIView):
     @validate_serializer(ACMContesHelperSerializer)
     def put(self, request):
         data = request.data
+        # 原来只按 pk 取，contest_id 明明在序列化器里、客户端一直在传，却完全没用上。
+        # 于是任何老师都能改别人比赛里的检查标记 —— teacher_admin_required 只保证
+        # "是老师"。同类的 get 是有 ensure_created_by 的，这里补齐。
         try:
-            rank = ACMContestRank.objects.get(pk=data["rank_id"])
+            rank = ACMContestRank.objects.get(pk=data["rank_id"], contest_id=data["contest_id"])
         except ACMContestRank.DoesNotExist:
             return self.error("Rank id does not exist")
+        ensure_created_by(rank.contest, request.user)
         problem_rank_status = rank.submission_info.get(data["problem_id"])
         if not problem_rank_status:
             return self.error("Problem id does not exist")
