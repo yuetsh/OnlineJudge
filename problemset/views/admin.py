@@ -166,10 +166,7 @@ class ProblemSetProblemAdminAPI(APIView):
             score=data.get("score", 0),
             hint=data.get("hint", ""),
         )
-        # 题目数就是进度的分母，加完必须重算：不重算的话已加入的学生进度百分比
-        # 全是虚高的，而且原本标成"已完成"的人会一直是已完成。
-        # 手动同步接口（ProblemSetSyncAPI）前端没有调用点，所以只能在这里做。
-        ProblemSetProgress.sync_all_progress_for_problemset(problem_set)
+        # 进度和奖章由 problemset/signals.py 的 post_save 信号自动重算，这里不用管。
 
         return self.success("题目已添加到题单")
 
@@ -215,8 +212,7 @@ class ProblemSetProblemAdminAPI(APIView):
         try:
             problem_set_problem = ProblemSetProblem.objects.get(id=problem_set_problem_id, problemset=problem_set)
             problem_set_problem.delete()
-            # 同上：分母变了，进度要重算
-            ProblemSetProgress.sync_all_progress_for_problemset(problem_set)
+            # 进度和奖章由 post_delete 信号自动重算
             return self.success("题目已从题单中移除")
         except ProblemSetProblem.DoesNotExist:
             return self.error("题目不在该题单中")

@@ -31,10 +31,6 @@ class CreateTestCaseScoreSerializer(serializers.Serializer):
     score = serializers.IntegerField(min_value=0)
 
 
-class CreateProblemCodeTemplateSerializer(serializers.Serializer):
-    pass
-
-
 class SQLConfigSerializer(serializers.Serializer):
     mode = serializers.ChoiceField(choices=["query", "modify"])
     order_sensitive = serializers.BooleanField(default=False)

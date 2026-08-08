@@ -50,20 +50,6 @@ class ContestAnnouncementSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
-class CreateContestAnnouncementSerializer(serializers.Serializer):
-    contest_id = serializers.IntegerField()
-    title = serializers.CharField(max_length=128)
-    content = serializers.CharField()
-    visible = serializers.BooleanField()
-
-
-class EditContestAnnouncementSerializer(serializers.Serializer):
-    id = serializers.IntegerField()
-    title = serializers.CharField(max_length=128, required=False)
-    content = serializers.CharField(required=False, allow_blank=True)
-    visible = serializers.BooleanField(required=False)
-
-
 class ContestPasswordVerifySerializer(serializers.Serializer):
     contest_id = serializers.IntegerField()
     password = serializers.CharField(max_length=30, required=True)
